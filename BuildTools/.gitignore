@@ -1,0 +1,4 @@
+apk-out/*.apk
+gradle-wrapper/caches/build-cache-*/*
+gradle-wrapper/caches/modules-*/files-*/*
+gradle-wrapper/caches/*/gc.properties
