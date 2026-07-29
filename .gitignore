@@ -1,7 +1,7 @@
 .idea
 .vscode
 .gradle
-.github
+
 .settings
 *build
 *.jks
