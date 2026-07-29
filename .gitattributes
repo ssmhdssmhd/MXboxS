@@ -1,7 +1,0 @@
-BuildTools/jbr-21/lib/libcef.so filter=lfs diff=lfs merge=lfs -text
-BuildTools/jbr-21/jmods/*.jmod filter=lfs diff=lfs merge=lfs -text
-BuildTools/gradle-wrapper/dists/**/*.zip filter=lfs diff=lfs merge=lfs -text
-BuildTools/android-sdk/**/*.so filter=lfs diff=lfs merge=lfs -text
-BuildTools/**/*.jar filter=lfs diff=lfs merge=lfs -text
-BuildTools/**/*.aar filter=lfs diff=lfs merge=lfs -text
-BuildTools/jbr-21/** filter=lfs diff=lfs merge=lfs -text
