@@ -94,7 +94,7 @@ androidComponents {
         def mode = flavors['mode'] ?: 'mode'
         def abi = flavors['abi'] ?: 'abi'
         variant.outputs.each { output ->
-            output.outputFileName.set("${mode}-${abi}.apk")
+            output.outputFileName.set("MXbox-${mode}-${abi}.apk")
         }
     }
 }

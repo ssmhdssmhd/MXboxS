@@ -124,6 +124,7 @@
     <string name="setting_wall">壁纸</string>
     <string name="setting_player">播放设置</string>
     <string name="setting_danmaku">弹幕设置</string>
+    <string name="setting_ai">AI 设置</string>
     <string name="setting_incognito">无痕模式</string>
     <string name="setting_theme_color">主题色彩</string>
     <string name="setting_auto">自动</string>
@@ -138,6 +139,15 @@
     <string name="setting_choose">选择</string>
     <string name="setting_off">关</string>
     <string name="setting_on">开</string>
+
+    <!-- AI Setting -->
+    <string name="ai_enabled">AI 优化</string>
+    <string name="ai_speed_up">播放加速</string>
+    <string name="ai_speed_factor">加速倍率</string>
+    <string name="ai_remove_ad">自动去广告</string>
+    <string name="ai_skip_interlude">跳过插播</string>
+    <string name="ai_smart_skip">智能跳过片头片尾</string>
+    <string name="ai_auto_next">自动播放下一集</string>
 
     <!-- Backup & Restore -->
     <string name="restore_select">选择备份</string>
@@ -264,6 +274,14 @@
         <item>选择音轨</item>
         <item>选择视轨</item>
         <item>选择字幕</item>
+    </string-array>
+
+    <string-array name="select_ai_speed">
+        <item>1.2倍</item>
+        <item>1.5倍</item>
+        <item>2.0倍</item>
+        <item>3.0倍</item>
+        <item>4.0倍</item>
     </string-array>
 
 </resources>
