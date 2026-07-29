@@ -1,4 +1,50 @@
 apk-out/*.apk
+gradle.properties
+
+# Gradle 缓存（构建时自动生成，无需提交）
 gradle-wrapper/caches/build-cache-*/*
 gradle-wrapper/caches/modules-*/files-*/*
 gradle-wrapper/caches/*/gc.properties
+gradle-wrapper/caches/**/*.lock
+gradle-wrapper/caches/**/*.bin
+gradle-wrapper/caches/**/annotation-processors.bin
+gradle-wrapper/caches/9.6.1/groovy-dsl/
+gradle-wrapper/caches/9.6.1/dependencies-accessors/
+gradle-wrapper/caches/9.6.1/fileContent/
+gradle-wrapper/caches/9.6.1/fileHashes/
+gradle-wrapper/caches/9.6.1/md-rule/
+gradle-wrapper/caches/9.6.1/md-supplier/
+
+# Gradle daemon 日志
+gradle-wrapper/daemon/
+
+# Gradle native 库
+gradle-wrapper/native/
+
+# Gradle notifications
+gradle-wrapper/notifications/
+
+# Gradle journal
+gradle-wrapper/caches/journal-1/
+
+# 构建时自动下载的 SDK 组件
+android-sdk/build-tools/36.0.0/
+android-sdk/.knownPackages
+android-sdk/licenses/
+
+# 构建时自动下载的 Gradle wrapper android 目录
+gradle-wrapper/android/
+
+# Gradle wrapper 编译缓存（自动生成）
+gradle-wrapper/wrapper/caches/
+gradle-wrapper/kotlin-profile/
+
+# Gradle wrapper 解压目录（首次运行自动从 zip 解压）
+gradle-wrapper/wrapper/dists/*/gradle-*/
+
+# Gradle 分发包 zip（超过 GitHub 100MB 限制，首次运行自动下载）
+gradle-wrapper/wrapper/dists/*/*.zip
+gradle-wrapper/wrapper/dists/*/*.zip.*
+
+# 备份文件
+*.bak_bt
