@@ -299,6 +299,9 @@ public class MpvPlayer implements Player {
     public void setDeviceVolume(int volume) { exoPlayer.setDeviceVolume(volume); }
 
     @Override
+    public void setDeviceVolume(int volume, int flags) { exoPlayer.setDeviceVolume(volume, flags); }
+
+    @Override
     public void increaseDeviceVolume() { exoPlayer.increaseDeviceVolume(); }
 
     @Override

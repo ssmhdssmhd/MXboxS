@@ -94,6 +94,14 @@ public class PlayerView extends FrameLayout {
         // Stub
     }
 
+    public void setResizeMode(int resizeMode) {
+        // Stub
+    }
+
+    public void setDefaultArtwork(@Nullable android.graphics.drawable.Drawable artwork) {
+        // Stub
+    }
+
     public void setVisibility(int visibility) {
         super.setVisibility(visibility);
     }
