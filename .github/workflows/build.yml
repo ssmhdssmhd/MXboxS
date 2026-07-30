@@ -33,7 +33,7 @@ jobs:
       - name: Generate Keystore
         run: |
           keytool -genkey -v \
-            -keystore release.keystore \
+            -keystore app/release.keystore \
             -alias moxitv \
             -keyalg RSA \
             -keysize 2048 \
