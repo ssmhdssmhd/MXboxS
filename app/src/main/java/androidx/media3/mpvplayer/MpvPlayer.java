@@ -2,8 +2,9 @@ package androidx.media3.mpvplayer;
 
 import android.content.Context;
 import android.os.Looper;
-import android.util.Size;
 import android.view.Surface;
+
+import androidx.media3.common.util.Size;
 
 import androidx.annotation.Nullable;
 import androidx.media3.common.AudioAttributes;
