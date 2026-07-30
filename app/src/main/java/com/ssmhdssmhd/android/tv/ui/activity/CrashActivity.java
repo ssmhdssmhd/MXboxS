@@ -2,6 +2,9 @@ package com.ssmhdssmhd.android.tv.ui.activity;
 
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.View;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.viewbinding.ViewBinding;
@@ -55,9 +58,17 @@ public class CrashActivity extends BaseActivity {
     }
 
     private void showError() {
+        String errorDetails = CustomActivityOnCrash.getAllErrorDetailsFromIntent(this, getIntent());
+        ScrollView scrollView = new ScrollView(this);
+        TextView textView = new TextView(this);
+        textView.setTextIsSelectable(true);
+        textView.setText(errorDetails);
+        textView.setPadding(48, 32, 48, 32);
+        textView.setTextSize(12);
+        scrollView.addView(textView);
         new AlertDialog.Builder(this)
                 .setTitle(R.string.crash_details_title)
-                .setMessage(CustomActivityOnCrash.getAllErrorDetailsFromIntent(this, getIntent()))
+                .setView(scrollView)
                 .setPositiveButton(R.string.crash_details_close, null)
                 .show();
     }
