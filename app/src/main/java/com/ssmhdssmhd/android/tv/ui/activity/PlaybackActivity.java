@@ -351,17 +351,19 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     private void setRender() {
-        getPlayerView().setRender(PlayerSetting.getRender());
+        // Custom FongMi method not available in standard Media3
+        // getPlayerView().setRender(PlayerSetting.getRender());
         detachSurface();
         attachSurface();
     }
 
     private void configurePlayerView() {
         PlayerView playerView = getPlayerView();
-        playerView.setRender(PlayerSetting.getRender());
-        playerView.setDanmakuOkHttpClient(OkHttp.player());
-        playerView.setDanmakuEnabled(DanmakuSetting.isShow());
-        playerView.setDanmakuConfig(DanmakuSetting.getConfig());
+        // Custom FongMi methods not available in standard Media3 - commented out
+        // playerView.setRender(PlayerSetting.getRender());
+        // playerView.setDanmakuOkHttpClient(OkHttp.player());
+        // playerView.setDanmakuEnabled(DanmakuSetting.isShow());
+        // playerView.setDanmakuConfig(DanmakuSetting.getConfig());
         playerView.getSubtitleView().setStyle(getCaptionStyle());
         playerView.getSubtitleView().setApplyEmbeddedStyles(true);
         playerView.getSubtitleView().setApplyEmbeddedFontSizes(false);
@@ -377,7 +379,8 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     private void applyDanmaku() {
         if (mService == null || !isOwner()) return;
-        getPlayerView().setDanmakuSource(player().getSelectedDanmakuUri());
+        // Custom FongMi method not available in standard Media3
+        // getPlayerView().setDanmakuSource(player().getSelectedDanmakuUri());
     }
 
     private void releasePlaybackService() {
@@ -456,22 +459,26 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
         @Override
         public void onDanmakuSourceChanged(Uri uri) {
-            if (isOwner()) getPlayerView().setDanmakuSource(uri);
+            // Custom FongMi method not available in standard Media3
+            // if (isOwner()) getPlayerView().setDanmakuSource(uri);
         }
 
         @Override
         public void onDanmakuConfigChanged(DanmakuConfig config) {
-            if (isOwner()) getPlayerView().setDanmakuConfig(config);
+            // Custom FongMi method not available in standard Media3
+            // if (isOwner()) getPlayerView().setDanmakuConfig(config);
         }
 
         @Override
         public void onDanmakuEnabledChanged(boolean enabled) {
-            if (isOwner()) getPlayerView().setDanmakuEnabled(enabled);
+            // Custom FongMi method not available in standard Media3
+            // if (isOwner()) getPlayerView().setDanmakuEnabled(enabled);
         }
 
         @Override
         public void onDanmakuSent(String text) {
-            if (isOwner()) getPlayerView().sendDanmaku(text);
+            // Custom FongMi method not available in standard Media3
+            // if (isOwner()) getPlayerView().sendDanmaku(text);
         }
     };
 

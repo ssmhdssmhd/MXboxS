@@ -1,0 +1,359 @@
+package androidx.media3.mpvplayer;
+
+import android.content.Context;
+import android.os.Looper;
+
+import androidx.annotation.Nullable;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.DeviceInfo;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.PlaybackParameters;
+import androidx.media3.common.Player;
+import androidx.media3.common.Timeline;
+import androidx.media3.common.TrackSelectionParameters;
+import androidx.media3.common.Tracks;
+import androidx.media3.common.VideoSize;
+import androidx.media3.common.text.CueGroup;
+import androidx.media3.exoplayer.ExoPlayer;
+
+import java.util.List;
+
+/**
+ * Custom MpvPlayer class replacing the FongMi-specific implementation.
+ * This is a stub implementation that wraps ExoPlayer.
+ * Since isAvailable() returns false, this class is never instantiated at runtime.
+ */
+public class MpvPlayer implements Player {
+
+    private final ExoPlayer exoPlayer;
+
+    private MpvPlayer(ExoPlayer exoPlayer) {
+        this.exoPlayer = exoPlayer;
+    }
+
+    public static boolean isAvailable() {
+        return false;
+    }
+
+    public void setDecode(int decode) {
+        // Stub
+    }
+
+    public void setSubtitleOptions(MpvPlayerConfig config) {
+        // Stub
+    }
+
+    public void addSubtitle(MediaItem.SubtitleConfiguration subtitle) {
+        // Stub
+    }
+
+    // Player interface delegation
+    @Override
+    public Looper getApplicationLooper() { return exoPlayer.getApplicationLooper(); }
+
+    @Override
+    public void addListener(Listener listener) { exoPlayer.addListener(listener); }
+
+    @Override
+    public void removeListener(Listener listener) { exoPlayer.removeListener(listener); }
+
+    @Override
+    public void setMediaItems(List<MediaItem> mediaItems) { exoPlayer.setMediaItems(mediaItems); }
+
+    @Override
+    public void setMediaItems(List<MediaItem> mediaItems, boolean resetPosition) { exoPlayer.setMediaItems(mediaItems, resetPosition); }
+
+    @Override
+    public void setMediaItems(List<MediaItem> mediaItems, int startIndex, long startPositionMs) { exoPlayer.setMediaItems(mediaItems, startIndex, startPositionMs); }
+
+    @Override
+    public void setMediaItem(MediaItem mediaItem) { exoPlayer.setMediaItem(mediaItem); }
+
+    @Override
+    public void setMediaItem(MediaItem mediaItem, long startPositionMs) { exoPlayer.setMediaItem(mediaItem, startPositionMs); }
+
+    @Override
+    public void setMediaItem(MediaItem mediaItem, boolean resetPosition) { exoPlayer.setMediaItem(mediaItem, resetPosition); }
+
+    @Override
+    public void addMediaItem(MediaItem mediaItem) { exoPlayer.addMediaItem(mediaItem); }
+
+    @Override
+    public void addMediaItem(int index, MediaItem mediaItem) { exoPlayer.addMediaItem(index, mediaItem); }
+
+    @Override
+    public void addMediaItems(List<MediaItem> mediaItems) { exoPlayer.addMediaItems(mediaItems); }
+
+    @Override
+    public void addMediaItems(int index, List<MediaItem> mediaItems) { exoPlayer.addMediaItems(index, mediaItems); }
+
+    @Override
+    public void moveMediaItem(int currentIndex, int newIndex) { exoPlayer.moveMediaItem(currentIndex, newIndex); }
+
+    @Override
+    public void moveMediaItems(int fromIndex, int toIndex, int newIndex) { exoPlayer.moveMediaItems(fromIndex, toIndex, newIndex); }
+
+    @Override
+    public void removeMediaItem(int index) { exoPlayer.removeMediaItem(index); }
+
+    @Override
+    public void removeMediaItems(int fromIndex, int toIndex) { exoPlayer.removeMediaItems(fromIndex, toIndex); }
+
+    @Override
+    public void clearMediaItems() { exoPlayer.clearMediaItems(); }
+
+    @Override
+    public boolean isCommandAvailable(int command) { return exoPlayer.isCommandAvailable(command); }
+
+    @Override
+    public boolean canAdvertiseSession() { return exoPlayer.canAdvertiseSession(); }
+
+    @Override
+    public Commands getAvailableCommands() { return exoPlayer.getAvailableCommands(); }
+
+    @Override
+    public void prepare() { exoPlayer.prepare(); }
+
+    @Override
+    public int getPlaybackState() { return exoPlayer.getPlaybackState(); }
+
+    @Override
+    public int getPlaybackSuppressionReason() { return exoPlayer.getPlaybackSuppressionReason(); }
+
+    @Override
+    public boolean isPlaying() { return exoPlayer.isPlaying(); }
+
+    @Override
+    public PlaybackException getPlayerError() { return exoPlayer.getPlayerError(); }
+
+    @Override
+    public void play() { exoPlayer.play(); }
+
+    @Override
+    public void pause() { exoPlayer.pause(); }
+
+    @Override
+    public void stop() { exoPlayer.stop(); }
+
+    @Override
+    public void setPlayWhenReady(boolean playWhenReady) { exoPlayer.setPlayWhenReady(playWhenReady); }
+
+    @Override
+    public boolean getPlayWhenReady() { return exoPlayer.getPlayWhenReady(); }
+
+    @Override
+    public void setRepeatMode(int repeatMode) { exoPlayer.setRepeatMode(repeatMode); }
+
+    @Override
+    public int getRepeatMode() { return exoPlayer.getRepeatMode(); }
+
+    @Override
+    public void setShuffleModeEnabled(boolean shuffleModeEnabled) { exoPlayer.setShuffleModeEnabled(shuffleModeEnabled); }
+
+    @Override
+    public boolean getShuffleModeEnabled() { return exoPlayer.getShuffleModeEnabled(); }
+
+    @Override
+    public long getDuration() { return exoPlayer.getDuration(); }
+
+    @Override
+    public long getCurrentPosition() { return exoPlayer.getCurrentPosition(); }
+
+    @Override
+    public long getBufferedPosition() { return exoPlayer.getBufferedPosition(); }
+
+    @Override
+    public long getTotalBufferedDuration() { return exoPlayer.getTotalBufferedDuration(); }
+
+    @Override
+    public boolean isPlayingAd() { return exoPlayer.isPlayingAd(); }
+
+    @Override
+    public int getCurrentAdGroupIndex() { return exoPlayer.getCurrentAdGroupIndex(); }
+
+    @Override
+    public int getCurrentAdIndexInAdGroup() { return exoPlayer.getCurrentAdIndexInAdGroup(); }
+
+    @Override
+    public long getContentDuration() { return exoPlayer.getContentDuration(); }
+
+    @Override
+    public long getContentPosition() { return exoPlayer.getContentPosition(); }
+
+    @Override
+    public long getContentBufferedPosition() { return exoPlayer.getContentBufferedPosition(); }
+
+    @Override
+    public void seekTo(long positionMs) { exoPlayer.seekTo(positionMs); }
+
+    @Override
+    public void seekTo(int mediaItemIndex, long positionMs) { exoPlayer.seekTo(mediaItemIndex, positionMs); }
+
+    @Override
+    public long getSeekBackIncrement() { return exoPlayer.getSeekBackIncrement(); }
+
+    @Override
+    public void seekBack() { exoPlayer.seekBack(); }
+
+    @Override
+    public long getSeekForwardIncrement() { return exoPlayer.getSeekForwardIncrement(); }
+
+    @Override
+    public void seekForward() { exoPlayer.seekForward(); }
+
+    @Override
+    @Deprecated
+    public boolean hasPrevious() { return exoPlayer.hasPrevious(); }
+
+    @Override
+    @Deprecated
+    public boolean hasPreviousMediaItem() { return exoPlayer.hasPreviousMediaItem(); }
+
+    @Override
+    @Deprecated
+    public void seekToPrevious() { exoPlayer.seekToPrevious(); }
+
+    @Override
+    public void seekToPreviousMediaItem() { exoPlayer.seekToPreviousMediaItem(); }
+
+    @Override
+    public long getMaxSeekToPreviousPosition() { return exoPlayer.getMaxSeekToPreviousPosition(); }
+
+    @Override
+    public void seekToNext() { exoPlayer.seekToNext(); }
+
+    @Override
+    public void seekToNextMediaItem() { exoPlayer.seekToNextMediaItem(); }
+
+    @Override
+    @Deprecated
+    public boolean hasNext() { return exoPlayer.hasNext(); }
+
+    @Override
+    @Deprecated
+    public boolean hasNextMediaItem() { return exoPlayer.hasNextMediaItem(); }
+
+    @Override
+    public void setPlaybackParameters(PlaybackParameters playbackParameters) { exoPlayer.setPlaybackParameters(playbackParameters); }
+
+    @Override
+    public void setPlaybackSpeed(float speed) { exoPlayer.setPlaybackSpeed(speed); }
+
+    @Override
+    public PlaybackParameters getPlaybackParameters() { return exoPlayer.getPlaybackParameters(); }
+
+    @Override
+    public void release() { exoPlayer.release(); }
+
+    @Override
+    public Timeline getCurrentTimeline() { return exoPlayer.getCurrentTimeline(); }
+
+    @Override
+    public int getCurrentPeriodIndex() { return exoPlayer.getCurrentPeriodIndex(); }
+
+    @Override
+    public int getCurrentMediaItemIndex() { return exoPlayer.getCurrentMediaItemIndex(); }
+
+    @Override
+    @Nullable
+    public MediaItem getCurrentMediaItem() { return exoPlayer.getCurrentMediaItem(); }
+
+    @Override
+    public int getMediaItemCount() { return exoPlayer.getMediaItemCount(); }
+
+    @Override
+    public MediaItem getMediaItemAt(int index) { return exoPlayer.getMediaItemAt(index); }
+
+    @Override
+    public long getCurrentLiveOffset() { return exoPlayer.getCurrentLiveOffset(); }
+
+    @Override
+    public TrackSelectionParameters getTrackSelectionParameters() { return exoPlayer.getTrackSelectionParameters(); }
+
+    @Override
+    public MediaMetadata getMediaMetadata() { return exoPlayer.getMediaMetadata(); }
+
+    @Override
+    public MediaMetadata getPlaylistMetadata() { return exoPlayer.getPlaylistMetadata(); }
+
+    @Override
+    public void setPlaylistMetadata(MediaMetadata mediaMetadata) { exoPlayer.setPlaylistMetadata(mediaMetadata); }
+
+    @Override
+    public Tracks getCurrentTracks() { return exoPlayer.getCurrentTracks(); }
+
+    @Override
+    public VideoSize getVideoSize() { return exoPlayer.getVideoSize(); }
+
+    @Override
+    public void setVolume(float volume) { exoPlayer.setVolume(volume); }
+
+    @Override
+    public float getVolume() { return exoPlayer.getVolume(); }
+
+    @Override
+    public void clearVideoSurface() { exoPlayer.clearVideoSurface(); }
+
+    @Override
+    public void clearVideoSurface(@Nullable Object surface) { exoPlayer.clearVideoSurface(surface); }
+
+    @Override
+    public void setVideoSurface(@Nullable Object surface) { exoPlayer.setVideoSurface(surface); }
+
+    @Override
+    public CueGroup getCurrentCues() { return exoPlayer.getCurrentCues(); }
+
+    @Override
+    public DeviceInfo getDeviceInfo() { return exoPlayer.getDeviceInfo(); }
+
+    @Override
+    public int getDeviceVolume() { return exoPlayer.getDeviceVolume(); }
+
+    @Override
+    public boolean isDeviceMuted() { return exoPlayer.isDeviceMuted(); }
+
+    @Override
+    public void setDeviceVolume(int volume) { exoPlayer.setDeviceVolume(volume); }
+
+    @Override
+    public void increaseDeviceVolume() { exoPlayer.increaseDeviceVolume(); }
+
+    @Override
+    public void decreaseDeviceVolume() { exoPlayer.decreaseDeviceVolume(); }
+
+    @Override
+    public void setDeviceMuted(boolean muted) { exoPlayer.setDeviceMuted(muted); }
+
+    @Override
+    public void setAudioAttributes(AudioAttributes audioAttributes, boolean handleAudioFocus) { exoPlayer.setAudioAttributes(audioAttributes, handleAudioFocus); }
+
+    @Override
+    public AudioAttributes getAudioAttributes() { return exoPlayer.getAudioAttributes(); }
+
+    public static class Builder {
+        private final Context context;
+        private int decode;
+        private MpvPlayerConfig config;
+
+        public Builder(Context context) {
+            this.context = context;
+        }
+
+        public Builder setDecode(int decode) {
+            this.decode = decode;
+            return this;
+        }
+
+        public Builder setConfig(MpvPlayerConfig config) {
+            this.config = config;
+            return this;
+        }
+
+        public MpvPlayer build() {
+            ExoPlayer exoPlayer = new ExoPlayer.Builder(context).build();
+            return new MpvPlayer(exoPlayer);
+        }
+    }
+}
