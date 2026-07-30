@@ -49,10 +49,20 @@ jobs:
           echo "storePassword=moxi123456" >> local.properties
 
       - name: Build Mobile Release (arm64-v8a)
-        run: ./gradlew assembleMobileArm64_v8aRelease
+        run: ./gradlew assembleMobileArm64_v8aRelease 2>&1 | tee build-arm64.log
 
       - name: Build Mobile Release (armeabi-v7a)
-        run: ./gradlew assembleMobileArmeabi_v7aRelease
+        run: ./gradlew assembleMobileArmeabi_v7aRelease 2>&1 | tee build-armv7a.log
+
+      - name: Upload Build Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build-*.log
+            app/build/reports/
+          retention-days: 7
 
       - name: Collect APKs
         run: |

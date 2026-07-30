@@ -12,7 +12,7 @@ desugar = "2.1.5"
 leanback = "1.2.0"
 lifecycleService = "2.11.0"
 media = "1.8.0"
-media3 = "1.8.0"
+media3 = "1.10.0"
 palette = "1.0.0"
 preference = "1.2.1"
 recyclerview = "1.4.0"
@@ -63,6 +63,8 @@ media3-common = { group = "androidx.media3", name = "media3-common", version.ref
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 media3-datasource = { group = "androidx.media3", name = "media3-datasource", version.ref = "media3" }
+media3-database = { group = "androidx.media3", name = "media3-database", version.ref = "media3" }
+media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 palette = { group = "androidx.palette", name = "palette", version.ref = "palette" }
 preference = { group = "androidx.preference", name = "preference", version.ref = "preference" }
 recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
