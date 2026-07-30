@@ -3,24 +3,27 @@ plugins {
 }
 
 def localProps = new Properties()
-rootProject.file('local.properties').withInputStream {
-    localProps.load(it)
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream {
+        localProps.load(it)
+    }
 }
 
 android {
-    namespace = 'com.fongmi.android.tv'
+    namespace = 'com.ssmhdssmhd.android.tv'
 
     compileSdk libs.versions.compileSdk.get().toInteger()
 
     defaultConfig {
-        applicationId "com.fongmi.android.tv"
+        applicationId "com.ssmhdssmhd.android.tv"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 556
-        versionName "5.5.6"
+        versionCode 557
+        versionName "5.5.7"
         javaCompileOptions {
             annotationProcessorOptions {
-                arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.fongmi.android.tv.event.EventIndex"]
+                arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.ssmhdssmhd.android.tv.event.EventIndex"]
             }
         }
     }

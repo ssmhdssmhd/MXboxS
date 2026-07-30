@@ -1,7 +1,7 @@
 # Mobile App 代码分析文档
 
 > 项目：MXboxS (FongMi TV)  
-> 包名：`com.fongmi.android.tv`  
+> 包名：`com.ssmhdssmhd.android.tv`  
 > 模块：`app/src/mobile/`  
 
 ---
@@ -11,11 +11,11 @@
 | 属性 | 值 | 定义位置 |
 |------|-----|----------|
 | 应用名称 | `TV` | [app/src/main/res/values/strings.xml#L4](file:///workspace/app/src/main/res/values/strings.xml#L4) |
-| 包名/ApplicationId | `com.fongmi.android.tv` | [app/build.gradle#L11](file:///workspace/app/build.gradle#L11) |
+| 包名/ApplicationId | `com.ssmhdssmhd.android.tv` | [app/build.gradle#L11](file:///workspace/app/build.gradle#L11) |
 | 应用图标 | `@mipmap/ic_launcher` | [app/src/main/AndroidManifest.xml#L46](file:///workspace/app/src/main/AndroidManifest.xml#L46) |
 | 圆形图标 | `@mipmap/ic_launcher_round` | [app/src/main/AndroidManifest.xml#L52](file:///workspace/app/src/main/AndroidManifest.xml#L52) |
 | 应用分类 | `video` | [app/src/main/AndroidManifest.xml#L43](file:///workspace/app/src/main/AndroidManifest.xml#L43) |
-| Application 类 | `com.fongmi.android.tv.App` | [app/src/main/AndroidManifest.xml#L41](file:///workspace/app/src/main/AndroidManifest.xml#L41) |
+| Application 类 | `com.ssmhdssmhd.android.tv.App` | [app/src/main/AndroidManifest.xml#L41](file:///workspace/app/src/main/AndroidManifest.xml#L41) |
 
 ### 图标说明
 
@@ -290,7 +290,7 @@ public void onServerEvent(ServerEvent event) {
 
 编辑 [app/build.gradle](file:///workspace/app/build.gradle#L16)：
 ```groovy
-applicationId "com.fongmi.android.tv"  // 改为你的包名
+applicationId "com.ssmhdssmhd.android.tv"  // 改为你的包名
 ```
 
 ### 6.4 添加新页面
