@@ -11,7 +11,7 @@ import okhttp3.OkHttpClient;
  * Stub class for OkHttpDataSource (moved to separate module in Media3 1.10.0).
  * Falls back to DefaultHttpDataSource when the okhttp module is not available.
  */
-public class OkHttpDataSource extends DefaultHttpDataSource {
+public class OkHttpDataSource {
 
     public static final class Factory implements HttpDataSource.Factory {
 

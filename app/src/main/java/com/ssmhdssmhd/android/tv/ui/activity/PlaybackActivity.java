@@ -25,7 +25,7 @@ import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.drm.FrameworkMediaDrm;
 import androidx.media3.session.MediaController;
 import androidx.media3.session.SessionToken;
-import androidx.media3.ui.CaptionStyleCompat;
+import androidx.media3.common.text.CaptionStyleCompat;
 import androidx.media3.ui.PlayerSeekView;
 import androidx.media3.ui.PlayerView;
 import androidx.media3.ui.TimeBar;

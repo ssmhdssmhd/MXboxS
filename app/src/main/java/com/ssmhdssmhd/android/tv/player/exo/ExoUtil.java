@@ -44,7 +44,6 @@ public class ExoUtil {
 
     public static String getMimeType(int errorCode) {
         if (errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED || errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED || errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED) return MimeTypes.APPLICATION_M3U8;
-        if (errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED || errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED) return MimeTypes.APPLICATION_OCTET_STREAM;
         return null;
     }
 
@@ -84,7 +83,7 @@ public class ExoUtil {
                 return ExoUtil.buildAudioSink(context, enableFloatOutput, enableAudioOutputPlaybackParams);
             }
         };
-        return factory.setFfmpegAudioPrefer(audioPrefer).setFfmpegVideoPrefer(videoPrefer).setEnableDecoderFallback(true).setEnableDv7HevcFallback(PlayerSetting.isDv7HevcFallback()).setExtensionRendererMode(renderMode);
+        return factory.setEnableDecoderFallback(true).setExtensionRendererMode(renderMode);
     }
 
     private static AudioSink buildAudioSink(Context context, boolean enableFloatOutput, boolean enableAudioOutputPlaybackParams) {

@@ -1,4 +1,4 @@
-name: Build Mobile Release
+name: Build MoXiTV Release
 
 on:
   push:
@@ -52,11 +52,17 @@ jobs:
           echo "keyAlias=moxitv" >> local.properties
           echo "storePassword=moxi123456" >> local.properties
 
-      - name: Build Mobile Release (arm64-v8a)
-        run: ./gradlew assembleMobileArm64_v8aRelease 2>&1 | tee build-arm64.log
+      - name: Build Mobile arm64-v8a
+        run: set -o pipefail && ./gradlew assembleMobileArm64_v8aRelease 2>&1 | tee build-mobile-arm64.log
 
-      - name: Build Mobile Release (armeabi-v7a)
-        run: ./gradlew assembleMobileArmeabi_v7aRelease 2>&1 | tee build-armv7a.log
+      - name: Build Mobile armeabi-v7a
+        run: set -o pipefail && ./gradlew assembleMobileArmeabi_v7aRelease 2>&1 | tee build-mobile-armv7a.log
+
+      - name: Build Leanback arm64-v8a
+        run: set -o pipefail && ./gradlew assembleLeanbackArm64_v8aRelease 2>&1 | tee build-leanback-arm64.log
+
+      - name: Build Leanback armeabi-v7a
+        run: set -o pipefail && ./gradlew assembleLeanbackArmeabi_v7aRelease 2>&1 | tee build-leanback-armv7a.log
 
       - name: Upload Build Logs
         if: always()
@@ -80,17 +86,13 @@ jobs:
         if: always()
         run: |
           mkdir -p output
-          APKS=$(find app/build/outputs -name "mobile-*.apk" 2>/dev/null)
-          if [ -z "$APKS" ]; then
-            echo "WARNING: No mobile APKs found! Searching for any APK..."
-            APKS=$(find app/build/outputs -name "*.apk" 2>/dev/null)
-          fi
+          APKS=$(find app/build/outputs -name "*.apk" 2>/dev/null)
           if [ -n "$APKS" ]; then
             echo "Found APKs:"
             echo "$APKS"
             cp -v $APKS output/ 2>/dev/null || true
           else
-            echo "ERROR: No APK files found at all"
+            echo "ERROR: No APK files found at all!"
           fi
           echo "=== Output directory ==="
           ls -la output/ 2>/dev/null || echo "Output directory empty"
@@ -99,7 +101,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MoXiTV-Mobile-Release
+          name: MoXiTV-Release-APKs
           path: output/
           retention-days: 30
 

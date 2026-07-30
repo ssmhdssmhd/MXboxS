@@ -7,7 +7,6 @@ import com.ssmhdssmhd.android.tv.bean.Drm;
 import com.ssmhdssmhd.android.tv.bean.Sub;
 import com.ssmhdssmhd.android.tv.player.track.LangUtil;
 import com.ssmhdssmhd.android.tv.player.util.PlayerHelper;
-import com.ssmhdssmhd.android.tv.setting.Setting;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +18,7 @@ public final class MediaItemFactory {
     }
 
     public static MediaItem from(PlaySpec spec, int decode) {
-        return buildUpon(spec).setDecode(decode).build();
+        return buildUpon(spec).build();
     }
 
     private static MediaItem.Builder buildUpon(PlaySpec spec) {
@@ -28,7 +27,6 @@ public final class MediaItemFactory {
                 .setDrmConfiguration(buildDrmConfig(spec.getDrm()))
                 .setRequestMetadata(buildRequestMetadata(spec))
                 .setMediaMetadata(spec.getMetadata())
-                .setAdblock(Setting.isAdblock())
                 .setMimeType(spec.getFormat())
                 .setImageDurationMs(15000)
                 .setMediaId(spec.getKey());
