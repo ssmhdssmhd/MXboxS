@@ -23,7 +23,7 @@
 |------|-----|
 | 应用名称 | 沫兮影视 |
 | 包名 | `com.ssmhdssmhd.android.tv` |
-| 版本 | v5.5.7 (557) |
+| 版本 | v5.5.22 (571) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
@@ -67,6 +67,7 @@ GitHub Actions 自动编译 mobile（手机版）发行版，提交到 `main` �
 
 | 文件 | 说明 |
 |------|------|
+| [CHANGELOG.md](CHANGELOG.md) | 版本更新日志 |
 | [MOBILE_APP_ANALYSIS.md](MOBILE_APP_ANALYSIS.md) | Mobile App 代码分析（图标、页面、调用方式） |
 | [docs/CONFIG.md](docs/CONFIG.md) | Vod / Live 配置说明 |
 | [docs/SPIDER.md](docs/SPIDER.md) | Spider 爬虫接口规范 |
@@ -78,12 +79,13 @@ GitHub Actions 自动编译 mobile（手机版）发行版，提交到 `main` �
 ## 功能特性
 
 ### 播放器
-- 核心：ExoPlayer (Media3) + FFmpeg 软解
-- 渲染：SurfaceView / TextureView
-- DRM：Widevine、PlayReady、ClearKey
-- 弹幕：DanmakuFlameMaster，与时间轴同步
-- 字幕：SRT / SSA / ASS 外挂字幕
-- 画中画（PiP）、倍速播放、背景音频
+- 双引擎可切换（设置中选择，默认可选）：
+  - **ExoPlayer (Media3 1.11.0-rc01)**：默认引擎，支持 HLS/DASH/SmoothStreaming/RTSP、DRM (Widevine/PlayReady/ClearKey)、AI 画质优化（强制最高码率 + 视频缩放裁剪）、OkHttp + 磁盘缓存
+  - **MPV (MpvPlayer)**：硬解 mediacodec-copy、画质 profile=high-quality、去环路滤波、soxr 重采样、字幕样式可配、Vulkan/GpuNext 开关、磁盘预载
+- 渲染：SurfaceView（默认） / TextureView，支持隧道模式（Tunneling）
+- 字幕：SRT / SSA / ASS 外挂字幕，支持动态添加、位置/大小调节
+- 画中画（PiP）、倍速播放、背景音频（含 PiP 模式）
+- 自动降级：DRM 或 SMB 源自动切换到 EXO；MPV 不可用时回退 EXO
 
 ### 点播
 - 多站点分类浏览，Filter 筛选

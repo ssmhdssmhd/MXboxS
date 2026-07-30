@@ -5,6 +5,7 @@
 .settings
 *build
 *.jks
+*.keystore
 *.properties
 lib-*.aar
 /Release
