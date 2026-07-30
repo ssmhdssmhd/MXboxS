@@ -23,7 +23,7 @@
 |------|-----|
 | 应用名称 | 沫兮影视 |
 | 包名 | `com.ssmhdssmhd.android.tv` |
-| 版本 | v5.5.22 (571) |
+| 版本 | v5.5.23 (572) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |

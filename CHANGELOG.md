@@ -2,6 +2,18 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.23] - 2026-07-30
+
+### CI / GitHub Actions 修复
+- 修复 `build.yml` 中 `android-actions/setup-android@v3` 的无效参数错误：
+  - 错误：`license_accept`（该 action 不支持此参数，直接导致步骤失败）
+  - 修复：升级为 `android-actions/setup-android@v4`，改用官方参数 `accept-android-sdk-licenses: 'yes'`
+- Actions 升级：`actions/checkout@v4→v5`、`actions/setup-java@v4→v5`、`actions/setup-python@v5→v6`（消除 Node.js 20 → 24 的 deprecated 警告）
+- `local.properties` 增加 `ANDROID_SDK_ROOT` 回退写入，确保 SDK 路径在所有 runner 环境下被 Gradle 正确识别
+- 版本：`versionCode 571→572` / `versionName 5.5.22→5.5.23`
+
+---
+
 ## [v5.5.22] - 2026-07-30
 
 ### 播放器引擎更新
