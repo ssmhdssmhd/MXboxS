@@ -8,6 +8,7 @@
 *.properties
 lib-*.aar
 /Release
-/docsbuild-logs.zip
+/docs
+build-logs.zip
 build-mobile-arm64.log
 build-*.log
