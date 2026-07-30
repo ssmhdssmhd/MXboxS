@@ -1,17 +1,13 @@
 package com.ssmhdssmhd.android.tv.player.engine;
 
 import static com.ssmhdssmhd.android.tv.player.engine.PlayerEngine.Type.EXO;
-import static com.ssmhdssmhd.android.tv.player.engine.PlayerEngine.Type.IJK;
 import static com.ssmhdssmhd.android.tv.player.engine.PlayerEngine.Type.MPV;
-import static com.ssmhdssmhd.android.tv.player.engine.PlayerEngine.Type.VLC;
 
 import androidx.media3.common.Player;
 
 import com.ssmhdssmhd.android.tv.player.exo.ExoPlayerEngine;
-import com.ssmhdssmhd.android.tv.player.ijk.IjkPlayerEngine;
 import com.ssmhdssmhd.android.tv.player.media.PlaySpec;
 import com.ssmhdssmhd.android.tv.player.mpv.MpvPlayerEngine;
-import com.ssmhdssmhd.android.tv.player.vlc.VlcPlayerEngine;
 import com.ssmhdssmhd.android.tv.setting.PlayerSetting;
 import com.ssmhdssmhd.android.tv.utils.UrlUtil;
 
@@ -29,8 +25,6 @@ public final class PlayerEngineFactory {
         return switch (type) {
             case EXO -> new ExoPlayerEngine(decode, listener);
             case MPV -> new MpvPlayerEngine(decode, listener);
-            case IJK -> new IjkPlayerEngine(decode, listener);
-            case VLC -> new VlcPlayerEngine(decode, listener);
         };
     }
 
@@ -39,16 +33,12 @@ public final class PlayerEngineFactory {
     }
 
     private static PlayerEngine.Type resolve(PlaySpec spec) {
-        if (PlayerSetting.isIjk() && isIjkReady()) return IJK;
-        if (PlayerSetting.isVlc() && isVlcReady()) return VLC;
         if (!isMpvReady()) return EXO;
         if (requiresExo(spec)) return EXO;
         return PlayerSetting.isMpv() ? MPV : EXO;
     }
 
     private static PlayerEngine.Type resolve() {
-        if (PlayerSetting.isIjk() && isIjkReady()) return IJK;
-        if (PlayerSetting.isVlc() && isVlcReady()) return VLC;
         return isMpvReady() ? MPV : EXO;
     }
 
@@ -58,13 +48,5 @@ public final class PlayerEngineFactory {
 
     private static boolean isMpvReady() {
         return PlayerSetting.isMpv() && MpvPlayerEngine.isAvailable();
-    }
-
-    private static boolean isIjkReady() {
-        return com.ssmhdssmhd.android.tv.player.ijk.IjkUtil.isAvailable();
-    }
-
-    private static boolean isVlcReady() {
-        return com.ssmhdssmhd.android.tv.player.vlc.VlcUtil.isAvailable();
     }
 }

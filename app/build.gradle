@@ -120,10 +120,6 @@ dependencies {
     implementation libs.media3.exoplayer.dash
     implementation libs.media3.exoplayer.smoothstreaming
     implementation libs.media3.exoplayer.rtsp
-    implementation libs.ijkplayer.java
-    arm64_v8aImplementation libs.ijkplayer.arm64
-    armeabi_v7aImplementation libs.ijkplayer.armv7a
-    implementation libs.libvlc.all
     implementation libs.palette
     implementation libs.recyclerview
     implementation libs.room.runtime
