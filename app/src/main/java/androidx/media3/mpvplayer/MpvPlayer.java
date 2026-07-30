@@ -51,6 +51,16 @@ public class MpvPlayer implements Player {
         // Stub
     }
 
+    /**
+     * Stub method for setting MPV runtime options via key/value strings.
+     * MpvPlayer wraps ExoPlayer so these are intentionally no-ops; the
+     * actual quality settings are applied via the ExoPlayer layer.
+     * Used by MpvUtil.applyQualitySettings().
+     */
+    public void setOptionString(String key, String value) {
+        // Stub
+    }
+
     public void addSubtitle(MediaItem.SubtitleConfiguration subtitle) {
         // Stub
     }
