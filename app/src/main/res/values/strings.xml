@@ -1,7 +1,7 @@
 <resources xmlns:xliff="http://schemas.android.com/apk/res-auto">
 
     <!-- App -->
-    <string name="app_name">沫兮影视</string>
+    <string name="app_name">MXboxS</string>
 
     <!-- Live -->
     <string name="live_pass">Pass</string>

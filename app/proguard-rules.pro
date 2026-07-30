@@ -1,7 +1,7 @@
 # TV
 -keep class androidx.leanback.widget.** { *; }
 -keep class com.fongmi.quickjs.method.** { *; }
--keep class com.ssmhdssmhd.android.tv.bean.** { *; }
+-keep class com.ssmhdssmhd.mxboxs.bean.** { *; }
 
 # Gson
 -keep class com.google.gson.** { *; }

@@ -11,19 +11,19 @@ if (localPropertiesFile.exists()) {
 }
 
 android {
-    namespace = 'com.ssmhdssmhd.android.tv'
+    namespace = 'com.ssmhdssmhd.mxboxs'
 
     compileSdk libs.versions.compileSdk.get().toInteger()
 
     defaultConfig {
-        applicationId "com.ssmhdssmhd.android.tv"
+        applicationId "com.ssmhdssmhd.mxboxs"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 572
-        versionName "5.5.23"
+        versionCode 573
+        versionName "5.5.24"
         javaCompileOptions {
             annotationProcessorOptions {
-                arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.ssmhdssmhd.android.tv.event.EventIndex"]
+                arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.ssmhdssmhd.mxboxs.event.EventIndex"]
             }
         }
     }
@@ -96,8 +96,10 @@ androidComponents {
         def flavors = variant.productFlavors.collectEntries { [(it.first): it.second] }
         def mode = flavors['mode'] ?: 'mode'
         def abi = flavors['abi'] ?: 'abi'
+        def vcode = android.defaultConfig.versionCode
+        def vname = android.defaultConfig.versionName
         variant.outputs.each { output ->
-            output.outputFileName.set("${mode}-${abi}.apk")
+            output.outputFileName.set("MXboxS-${mode}-${abi}-${vname}.apk")
         }
     }
 }

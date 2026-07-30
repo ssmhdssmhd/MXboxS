@@ -1,4 +1,4 @@
-# 沫兮影视 (MoXiTV)
+# MXboxS
 
 基于 [FongMi/TV](https://github.com/FongMi/TV) 的二次开发项目，专注于 Android 手机端影视应用。
 
@@ -21,9 +21,9 @@
 
 | 项目 | 值 |
 |------|-----|
-| 应用名称 | 沫兮影视 |
-| 包名 | `com.ssmhdssmhd.android.tv` |
-| 版本 | v5.5.23 (572) |
+| 应用名称 | MXboxS |
+| 包名 | `com.ssmhdssmhd.mxboxs` |
+| 版本 | v5.5.24 (573) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |

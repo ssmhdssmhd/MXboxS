@@ -2,6 +2,31 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.24] - 2026-07-30
+
+### 应用标识大版本调整
+- **应用名**：`沫兮影视` / `影视` / `影視` → 统一为 **`MXboxS`**（默认/简中/繁中 3 语言全部一致）
+- **包名 (applicationId)**：`com.ssmhdssmhd.android.tv` → **`com.ssmhdssmhd.mxboxs`**
+- **Gradle namespace**：同步更新为 `com.ssmhdssmhd.mxboxs`
+- **源码目录迁移**：`com/ssmhdssmhd/android/tv/**` → `com/ssmhdssmhd/mxboxs/**`（含 `main/leanback/mobile` 三套源集）
+- **EventBus 注解索引**：`EventIndex` 包路径同步改为 `com.ssmhdssmhd.mxboxs.event.EventIndex`
+- **Proguard 规则**：bean 包 keep 规则同步到新包名
+- **Manifest meta-data Startup**：`com.ssmhdssmhd.android.tv.Startup` → `com.ssmhdssmhd.mxboxs.Startup`（AndroidX Startup InitializationProvider 里写死的类路径）
+- **APK 输出文件名**：默认 `${mode}-${abi}.apk` → **`MXboxS-${mode}-${abi}-${versionName}.apk`**
+  - TV 版：`MXboxS-leanback-arm64_v8a-5.5.24.apk`
+  - 手机版：`MXboxS-mobile-arm64_v8a-5.5.24.apk`
+- **CI 配套**：
+  - Workflow 名：`Build MoXiTV Release` → **`Build MXboxS Release`**
+  - APK Artifact 名：`MoXiTV-Release-APKs` → **`MXboxS-Release-APKs`**
+  - Keystore 主题 DN 改为 MXboxS (Shenzhen)
+- 版本：`versionCode 572→573` / `versionName 5.5.23→5.5.24`
+
+### 其他说明
+- FileProvider authority `${applicationId}.provider`、startup authority `${applicationId}.androidx-startup`、ActionReceiver intent-filter `com.ssmhdssmhd.*.stop/play/pause/prev/next/audio`、CastActivity `com.ssmhdssmhd.*.cast` 均用 manifest 占位符，随 applicationId 变更自动生效，无需手动改
+- 布局中自定义 View 全限定类名（`com.ssmhdssmhd.android.tv.ui.custom.*`）已随 453 文件 sed 批量替换为新包名
+
+---
+
 ## [v5.5.23] - 2026-07-30
 
 ### CI / GitHub Actions 修复

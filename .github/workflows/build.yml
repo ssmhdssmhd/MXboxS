@@ -1,4 +1,4 @@
-name: Build MoXiTV Release
+name: Build MXboxS Release
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
             -validity 10000 \
             -storepass moxi123456 \
             -keypass moxi123456 \
-            -dname "CN=MoXiTV, OU=MoXi, O=MoXi, L=Beijing, ST=Beijing, C=CN"
+            -dname "CN=MXboxS, OU=MXboxS, O=MXboxS, L=Shenzhen, ST=Guangdong, C=CN"
 
       - name: Create local.properties
         run: |
@@ -96,7 +96,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MoXiTV-Release-APKs
+          name: MXboxS-Release-APKs
           path: output/
           retention-days: 30
 
