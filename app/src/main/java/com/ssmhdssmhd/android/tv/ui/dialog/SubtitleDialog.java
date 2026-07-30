@@ -24,6 +24,8 @@ public final class SubtitleDialog extends BaseBottomSheetDialog {
     private DialogSubtitleBinding binding;
     private SubtitleView subtitleView;
     private PlayerManager player;
+    private float subtitlePosition;
+    private float subtitleTextSize;
 
     public static SubtitleDialog create() {
         return new SubtitleDialog();
@@ -74,33 +76,40 @@ public final class SubtitleDialog extends BaseBottomSheetDialog {
     }
 
     private void onUp(View view) {
-        subtitleView.addPosition(0.005f);
-        PlayerSetting.putSubtitlePosition(subtitleView.getPosition());
+        subtitlePosition += 0.005f;
+        PlayerSetting.putSubtitlePosition(subtitlePosition);
+        subtitleView.setBottomPositionFraction(subtitlePosition);
         applySubtitleStyle();
     }
 
     private void onDown(View view) {
-        subtitleView.subPosition(0.005f);
-        PlayerSetting.putSubtitlePosition(subtitleView.getPosition());
+        subtitlePosition -= 0.005f;
+        PlayerSetting.putSubtitlePosition(subtitlePosition);
+        subtitleView.setBottomPositionFraction(subtitlePosition);
         applySubtitleStyle();
     }
 
     private void onLarge(View view) {
-        subtitleView.addTextSize(0.002f);
-        PlayerSetting.putSubtitleTextSize(subtitleView.getTextSize());
+        subtitleTextSize += 0.002f;
+        PlayerSetting.putSubtitleTextSize(subtitleTextSize);
+        subtitleView.setFractionalTextSize(subtitleTextSize);
         applySubtitleStyle();
     }
 
     private void onSmall(View view) {
-        subtitleView.subTextSize(0.002f);
-        PlayerSetting.putSubtitleTextSize(subtitleView.getTextSize());
+        subtitleTextSize -= 0.002f;
+        PlayerSetting.putSubtitleTextSize(subtitleTextSize);
+        subtitleView.setFractionalTextSize(subtitleTextSize);
         applySubtitleStyle();
     }
 
     private void onReset(View view) {
         PlayerSetting.putSubtitleTextSize(0.0f);
         PlayerSetting.putSubtitlePosition(0.0f);
-        subtitleView.reset();
+        subtitlePosition = 0.0f;
+        subtitleTextSize = 0.0f;
+        subtitleView.setBottomPositionFraction(0.0f);
+        subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION);
         applySubtitleStyle();
     }
 

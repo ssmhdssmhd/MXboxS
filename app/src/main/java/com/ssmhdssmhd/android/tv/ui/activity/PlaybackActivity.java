@@ -55,6 +55,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     private MediaController mController;
     private PlaybackService mService;
     private boolean audioOnly;
+    private boolean debugViewVisible;
     private boolean scrubbing;
     private boolean redirect;
     private boolean bound;
@@ -129,15 +130,15 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     public boolean isDebugViewVisible() {
-        return getPlayerView().isDebugViewVisible();
+        return debugViewVisible;
     }
 
     public void toggleDebugView() {
-        getPlayerView().toggleDebugView();
+        debugViewVisible = !debugViewVisible;
     }
 
     public void hideDebugView() {
-        getPlayerView().hideDebugView();
+        debugViewVisible = false;
     }
 
     public void chooseOtherPlayer(CharSequence title) {
@@ -367,7 +368,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         playerView.getSubtitleView().setStyle(getCaptionStyle());
         playerView.getSubtitleView().setApplyEmbeddedStyles(true);
         playerView.getSubtitleView().setApplyEmbeddedFontSizes(false);
-        if (PlayerSetting.getSubtitlePosition() != 0) playerView.getSubtitleView().setBottomPosition(PlayerSetting.getSubtitlePosition());
+        if (PlayerSetting.getSubtitlePosition() != 0) playerView.getSubtitleView().setBottomPositionFraction(PlayerSetting.getSubtitlePosition());
         if (PlayerSetting.getSubtitleTextSize() != 0) playerView.getSubtitleView().setFractionalTextSize(PlayerSetting.getSubtitleTextSize());
     }
 
