@@ -419,7 +419,7 @@ public class MpvPlayer implements Player {
     public void seekToPrevious() { exoPlayer.seekToPrevious(); }
 
     @Override
-    public void seekToPreviousMediaItem() { exoPlayer.seekToPreviousMediaItem(); }
+    public Object getCurrentManifest() { return exoPlayer.getCurrentManifest(); }
 
     public static class Builder {
         private final Context context;
