@@ -343,7 +343,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     private void attachSurface() {
-        if (mService != null && getPlayerView().getPlayer() == null) getPlayerView().setPlayer(player().getPlayer());
+        if (mService != null) getPlayerView().setPlayer(player().getPlayer());
         applyDanmaku();
     }
 
@@ -385,6 +385,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     private void releasePlaybackService() {
+        detachSurface();
         if (mService != null) releaseService(isOwner());
         detach();
     }
