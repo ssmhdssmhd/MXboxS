@@ -35,6 +35,7 @@ import com.ssmhdssmhd.android.tv.utils.ResUtil;
 import com.ssmhdssmhd.android.tv.utils.Util;
 import com.google.common.net.HttpHeaders;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -90,11 +91,11 @@ public class PlayerManager implements ParseCallback {
     }
 
     public List<MediaChapter> getCurrentMediaChapters() {
-        return player.getCurrentMediaChapters();
+        return Collections.emptyList();
     }
 
     public List<MediaEdition> getCurrentMediaEditions() {
-        return player.getCurrentMediaEditions();
+        return Collections.emptyList();
     }
 
     public MediaItem getCurrentMediaItem() {
@@ -255,11 +256,11 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void selectChapter(MediaChapter chapter) {
-        player.selectChapter(chapter);
+        // No-op: MediaChapter API removed in Media3 1.10.0
     }
 
     public void selectEdition(MediaEdition edition) {
-        player.selectEdition(edition);
+        // No-op: MediaEdition API removed in Media3 1.10.0
     }
 
     public void setDanmakuConfig(DanmakuConfig config) {
@@ -545,16 +546,6 @@ public class PlayerManager implements ParseCallback {
             setTrack(Track.find(getKey()));
             callback.onTracksChanged();
             initTrack = true;
-        }
-
-        @Override
-        public void onMediaChaptersChanged(@NonNull List<MediaChapter> chapters) {
-            callback.onMediaOptionsChanged();
-        }
-
-        @Override
-        public void onMediaEditionsChanged(@NonNull List<MediaEdition> editions) {
-            callback.onMediaOptionsChanged();
         }
 
         @Override
