@@ -6,7 +6,6 @@ on:
     tags:
       - 'v*'
     paths-ignore:
-      - '*.md'
       - 'LICENSE'
   workflow_dispatch:
 
@@ -26,13 +25,32 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          accept-android-sdk-licenses: 'yes'
-          # NOTE: compileSdk/targetSdk can be 37 but build-tools have independent versioning.
-          # Latest stable build-tools is 34.x; AGP 8.x will auto-download the exact bt it needs.
-          packages: 'platform-tools platforms;android-37 build-tools;34.0.0 cmdline-tools;latest'
+      # NOTE: GitHub-hosted ubuntu-latest already ships a full Android SDK.
+      # android-actions/setup-android is intentionally NOT used — running it
+      # breaks this workflow (the action fails early when we request
+      # build-tools with a non-existent version, causing 14s failures).
+      - name: Verify pre-installed Android SDK
+        run: |
+          set -e
+          echo "ANDROID_HOME      = ${ANDROID_HOME:-unset}"
+          echo "ANDROID_SDK_ROOT  = ${ANDROID_SDK_ROOT:-unset}"
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          if [ -n "$SDK" ] && [ -d "$SDK" ]; then
+            echo "--- SDK dir (maxdepth 3) ---"
+            find "$SDK" -maxdepth 3 -type d | sort | head -80
+            echo "--- sdkmanager: list installed ---"
+            SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+            [ -x "$SM" ] || SM="$SDK/cmdline-tools/tools/bin/sdkmanager"
+            [ -x "$SM" ] || SM="$SDK/tools/bin/sdkmanager"
+            if [ -x "$SM" ]; then
+              yes 2>/dev/null | "$SM" --list_installed 2>/dev/null | head -40 || echo "(sdkmanager exited non-zero, ignoring)"
+            else
+              echo "(sdkmanager binary not found at the expected locations)"
+            fi
+          else
+            echo "ERROR: no pre-installed Android SDK found on this runner!"
+            exit 1
+          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -59,74 +77,56 @@ jobs:
       - name: Create local.properties
         run: |
           set -e
-          echo "storeFile=release.keystore" >> local.properties
-          echo "keyAlias=mxboxs" >> local.properties
-          echo "storePassword=mxboxs123456" >> local.properties
-          echo "keyPassword=mxboxs123456" >> local.properties
-          # android-actions/setup-android@v4 may set either env var
-          SDK_DIR="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-          if [ -n "$SDK_DIR" ]; then
-            echo "sdk.dir=$SDK_DIR" >> local.properties
-            echo "Using SDK dir: $SDK_DIR"
-            [ -d "$SDK_DIR" ] && echo "SDK dir exists: $(ls $SDK_DIR | head -5)" || echo "WARNING: SDK dir not found on disk!"
-          else
-            echo "WARNING: Neither ANDROID_SDK_ROOT nor ANDROID_HOME is set!"
-            ls -la $HOME/Android/ 2>/dev/null || true
-            ls -la /usr/local/lib/android/ 2>/dev/null || true
-          fi
+          # NOTE: we intentionally do NOT write sdk.dir here — AGP 8.x reads
+          # ANDROID_HOME / ANDROID_SDK_ROOT env vars set by the runner.
+          cat > local.properties <<'EOF'
+          storeFile=release.keystore
+          keyAlias=mxboxs
+          storePassword=mxboxs123456
+          keyPassword=mxboxs123456
+          EOF
           echo "=== local.properties ==="
           cat local.properties
 
-      - name: Inspect Android SDK installation
+      - name: Print Gradle / Java / Android env
         run: |
-          set -e
-          echo "ANDROID_HOME: ${ANDROID_HOME:-unset}"
-          echo "ANDROID_SDK_ROOT: ${ANDROID_SDK_ROOT:-unset}"
-          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-          if [ -n "$SDK" ] && [ -d "$SDK" ]; then
-            echo "--- SDK tree (top 2 levels) ---"
-            find "$SDK" -maxdepth 3 -type d | sort | head -60
-            echo "--- sdkmanager list installed ---"
-            yes 2>/dev/null | "$SDK/cmdline-tools/latest/bin/sdkmanager" --list_installed 2>/dev/null \
-              || "$SDK/cmdline-tools/tools/bin/sdkmanager" --list_installed 2>/dev/null \
-              || echo "(sdkmanager not available, skipping)"
-          else
-            echo "No SDK env/dir available"
-          fi
-
-      - name: Print Gradle / Java env
-        run: |
-          set -e
-          ./gradlew --version 2>&1 | head -30 || echo "gradlew --version failed (will retry later)"
-          echo "=== ENV (android/java/gradle/sdk) ==="
-          env | grep -iE "android|java|gradle|sdk|home" || echo "(no matching env vars)"
+          set +e
+          ./gradlew --version --no-daemon 2>&1 | head -30
+          RC=$?
+          echo "--- gradlew --version exit: $RC ---"
+          echo "=== Relevant ENV ==="
+          env | grep -iE "android|java|gradle|sdk|home" || echo "(no env vars matched)"
+          echo "=== Disk free ==="
+          df -h .
+          # Exit 0 regardless; the build step will fail for real if Gradle is broken.
+          true
 
       - name: Build Mobile arm64-v8a (Phone)
         run: |
           set -o pipefail
           ./gradlew assembleMobileArm64_v8aRelease --stacktrace --no-daemon 2>&1 | tee build-mobile-arm64.log
-          echo "=== Find APKs ==="
+          echo "=== APKs after this build ==="
           find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
       - name: Build Mobile armeabi-v7a (Phone)
         run: |
           set -o pipefail
           ./gradlew assembleMobileArmeabi_v7aRelease --stacktrace --no-daemon 2>&1 | tee build-mobile-armeabi.log
-          echo "=== Find APKs ==="
+          echo "=== APKs after this build ==="
           find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
       - name: Build Leanback arm64-v8a (Android TV)
         run: |
           set -o pipefail
           ./gradlew assembleLeanbackArm64_v8aRelease --stacktrace --no-daemon 2>&1 | tee build-leanback-arm64.log
-          echo "=== Find APKs ==="
+          echo "=== APKs after this build ==="
           find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
       - name: Build Leanback armeabi-v7a (Android TV)
         run: |
           set -o pipefail
           ./gradlew assembleLeanbackArmeabi_v7aRelease --stacktrace --no-daemon 2>&1 | tee build-leanback-armeabi.log
-          echo "=== Find APKs ==="
+          echo "=== APKs after this build ==="
           find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
       - name: Upload Build Logs
@@ -142,30 +142,33 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      - name: Debug APK paths
+        if: always()
+        run: |
+          echo "=== APK output directory structure ==="
+          find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null || echo "No APK files found"
+          echo "=== All files in outputs ==="
+          ls -laR app/build/outputs/ 2>/dev/null || echo "No outputs directory"
+
       - name: Collect APKs
         run: |
           set -e
           mkdir -p output
-          echo "=== Search APKs (any) ==="
-          find app/build -name "*.apk" -ls 2>/dev/null || true
-          echo "=== Collect MXboxS-*.apk ==="
-          APKS=$(find app/build/outputs/apk -name "MXboxS-*.apk" 2>/dev/null || true)
+          APKS=$(find app/build/outputs/apk -type f -name "MXboxS-*.apk" 2>/dev/null || true)
           if [ -z "$APKS" ]; then
-            echo "(MXboxS-*.apk not found, fallback to any APK)"
-            APKS=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null || true)
+            echo "(MXboxS-*.apk not found, falling back to any *.apk)"
+            APKS=$(find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null || true)
           fi
-          if [ -n "$APKS" ]; then
-            echo "Found APKs:"
-            echo "$APKS"
-            ls -la $APKS
-            cp -v $APKS output/ 2>/dev/null || true
-          else
-            echo "ERROR: No APK files found at all!"
+          if [ -z "$APKS" ]; then
+            echo "ERROR: no APKs at all — Gradle build probably failed."
             exit 1
           fi
-          echo "=== Output directory ==="
+          echo "Found APKs:"
+          echo "$APKS"
+          ls -la $APKS
+          cp -v $APKS output/
+          echo "=== Final output/ ==="
           ls -la output/
-          [ "$(ls -A output/ 2>/dev/null | wc -l)" -gt 0 ] || exit 1
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
