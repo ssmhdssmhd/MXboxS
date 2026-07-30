@@ -3,6 +3,8 @@ name: Build Mobile Release
 on:
   push:
     branches: [main, mobile]
+    tags:
+      - 'v*'
     paths-ignore:
       - '*.md'
       - 'LICENSE'
