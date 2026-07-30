@@ -78,14 +78,14 @@ public final class SubtitleDialog extends BaseBottomSheetDialog {
     private void onUp(View view) {
         subtitlePosition += 0.005f;
         PlayerSetting.putSubtitlePosition(subtitlePosition);
-        subtitleView.setBottomPositionFraction(subtitlePosition);
+        subtitleView.setBottomPaddingFraction(subtitlePosition);
         applySubtitleStyle();
     }
 
     private void onDown(View view) {
         subtitlePosition -= 0.005f;
         PlayerSetting.putSubtitlePosition(subtitlePosition);
-        subtitleView.setBottomPositionFraction(subtitlePosition);
+        subtitleView.setBottomPaddingFraction(subtitlePosition);
         applySubtitleStyle();
     }
 
@@ -108,7 +108,7 @@ public final class SubtitleDialog extends BaseBottomSheetDialog {
         PlayerSetting.putSubtitlePosition(0.0f);
         subtitlePosition = 0.0f;
         subtitleTextSize = 0.0f;
-        subtitleView.setBottomPositionFraction(0.0f);
+        subtitleView.setBottomPaddingFraction(0.0f);
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION);
         applySubtitleStyle();
     }
