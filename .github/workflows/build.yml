@@ -58,47 +58,80 @@ jobs:
           echo "keyAlias=mxboxs" >> local.properties
           echo "storePassword=mxboxs123456" >> local.properties
           echo "keyPassword=mxboxs123456" >> local.properties
-          [ -n "$ANDROID_HOME" ] && echo "sdk.dir=$ANDROID_HOME" >> local.properties || true
-          [ -n "$ANDROID_SDK_ROOT" ] && echo "sdk.dir=$ANDROID_SDK_ROOT" >> local.properties || true
+          # android-actions/setup-android@v4 may set either env var
+          SDK_DIR="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          if [ -n "$SDK_DIR" ]; then
+            echo "sdk.dir=$SDK_DIR" >> local.properties
+            echo "Using SDK dir: $SDK_DIR"
+          else
+            echo "WARNING: Neither ANDROID_SDK_ROOT nor ANDROID_HOME is set!"
+            ls -la $HOME/Android/ 2>/dev/null || true
+            ls -la /usr/local/lib/android/ 2>/dev/null || true
+          fi
+          echo "=== local.properties ==="
+          cat local.properties
+
+      - name: Print Gradle / Java env
+        run: |
+          ./gradlew --version 2>&1 | head -20 || true
+          echo "=== ENV ==="
+          env | grep -iE "android|java|gradle|sdk" || true
 
       - name: Build Mobile arm64-v8a (Phone)
-        run: set -o pipefail && ./gradlew assembleMobileArm64_v8aRelease 2>&1 | tee build-mobile-arm64.log
+        run: |
+          set -o pipefail
+          ./gradlew assembleMobileArm64_v8aRelease --stacktrace --no-daemon 2>&1 | tee build-mobile-arm64.log
+          echo "=== Find APKs ==="
+          find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
       - name: Build Mobile armeabi-v7a (Phone)
-        run: set -o pipefail && ./gradlew assembleMobileArmeabi_v7aRelease 2>&1 | tee build-mobile-armeabi.log
+        run: |
+          set -o pipefail
+          ./gradlew assembleMobileArmeabi_v7aRelease --stacktrace --no-daemon 2>&1 | tee build-mobile-armeabi.log
+          echo "=== Find APKs ==="
+          find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
       - name: Upload Build Logs
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: build-logs
           path: |
             build-*.log
             app/build/reports/
+            **/*.log
           retention-days: 7
+          if-no-files-found: ignore
 
       - name: Collect APKs
-        if: always()
         run: |
           mkdir -p output
-          APKS=$(find app/build/outputs -name "*.apk" 2>/dev/null)
+          APKS=$(find app/build/outputs/apk -name "MXboxS-*.apk" -newer app/build.gradle 2>/dev/null || true)
+          if [ -z "$APKS" ]; then
+            APKS=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null || true)
+          fi
           if [ -n "$APKS" ]; then
             echo "Found APKs:"
             echo "$APKS"
+            ls -la $APKS
             cp -v $APKS output/ 2>/dev/null || true
           else
             echo "ERROR: No APK files found!"
+            echo "=== Search all ==="
+            find app/build -name "*.apk" -ls 2>/dev/null || true
+            exit 1
           fi
           echo "=== Output directory ==="
-          ls -la output/ 2>/dev/null || echo "Output directory empty"
+          ls -la output/
 
       - name: Upload APKs
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: MXboxS-Release-APKs
           path: output/
           retention-days: 30
+          compression-level: 6
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
