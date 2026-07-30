@@ -8,17 +8,20 @@
 - **应用名**：`沫兮影视` / `影视` / `影視` → 统一为 **`MXboxS`**（默认/简中/繁中 3 语言全部一致）
 - **包名 (applicationId)**：`com.ssmhdssmhd.android.tv` → **`com.ssmhdssmhd.mxboxs`**
 - **Gradle namespace**：同步更新为 `com.ssmhdssmhd.mxboxs`
+- **rootProject.name**：`settings.gradle` 中 `MoXiTV` → `MXboxS`
 - **源码目录迁移**：`com/ssmhdssmhd/android/tv/**` → `com/ssmhdssmhd/mxboxs/**`（含 `main/leanback/mobile` 三套源集）
 - **EventBus 注解索引**：`EventIndex` 包路径同步改为 `com.ssmhdssmhd.mxboxs.event.EventIndex`
 - **Proguard 规则**：bean 包 keep 规则同步到新包名
 - **Manifest meta-data Startup**：`com.ssmhdssmhd.android.tv.Startup` → `com.ssmhdssmhd.mxboxs.Startup`（AndroidX Startup InitializationProvider 里写死的类路径）
 - **APK 输出文件名**：默认 `${mode}-${abi}.apk` → **`MXboxS-${mode}-${abi}-${versionName}.apk`**
-  - TV 版：`MXboxS-leanback-arm64_v8a-5.5.24.apk`
-  - 手机版：`MXboxS-mobile-arm64_v8a-5.5.24.apk`
-- **CI 配套**：
+  - 手机版 arm64：`MXboxS-mobile-arm64_v8a-5.5.24.apk`
+  - 手机版 armeabi：`MXboxS-mobile-armeabi_v7a-5.5.24.apk`
+- **CI 配套（GitHub Actions）**：
   - Workflow 名：`Build MoXiTV Release` → **`Build MXboxS Release`**
   - APK Artifact 名：`MoXiTV-Release-APKs` → **`MXboxS-Release-APKs`**
-  - Keystore 主题 DN 改为 MXboxS (Shenzhen)
+  - Keystore 主题 DN 改为 MXboxS (Shenzhen)，alias `moxitv` → `mxboxs`，密码同步更新
+  - **构建目标聚焦 Mobile**：移除 TV (leanback) 构建步骤，新增 `armeabi-v7a` 架构，CI 现在产出 2 个 APK：mobile-arm64_v8a + mobile-armeabi_v7a
+- **local.properties**：签名 alias / 密码同步改为 `mxboxs` / `mxboxs123456`（与 CI 一致）
 - 版本：`versionCode 572→573` / `versionName 5.5.23→5.5.24`
 
 ### 其他说明

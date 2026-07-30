@@ -21,4 +21,4 @@ include ':app'
 include ':catvod'
 include ':chaquo'
 include ':quickjs'
-rootProject.name = "MoXiTV"
+rootProject.name = "MXboxS"

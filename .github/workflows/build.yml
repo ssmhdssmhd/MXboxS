@@ -44,28 +44,28 @@ jobs:
         run: |
           keytool -genkey -v \
             -keystore app/release.keystore \
-            -alias moxitv \
+            -alias mxboxs \
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
-            -storepass moxi123456 \
-            -keypass moxi123456 \
+            -storepass mxboxs123456 \
+            -keypass mxboxs123456 \
             -dname "CN=MXboxS, OU=MXboxS, O=MXboxS, L=Shenzhen, ST=Guangdong, C=CN"
 
       - name: Create local.properties
         run: |
           echo "storeFile=release.keystore" >> local.properties
-          echo "keyAlias=moxitv" >> local.properties
-          echo "storePassword=moxi123456" >> local.properties
-          echo "keyPassword=moxi123456" >> local.properties
+          echo "keyAlias=mxboxs" >> local.properties
+          echo "storePassword=mxboxs123456" >> local.properties
+          echo "keyPassword=mxboxs123456" >> local.properties
           [ -n "$ANDROID_HOME" ] && echo "sdk.dir=$ANDROID_HOME" >> local.properties || true
           [ -n "$ANDROID_SDK_ROOT" ] && echo "sdk.dir=$ANDROID_SDK_ROOT" >> local.properties || true
 
-      - name: Build Leanback arm64-v8a (TV)
-        run: set -o pipefail && ./gradlew assembleLeanbackArm64_v8aRelease 2>&1 | tee build-leanback-arm64.log
-
       - name: Build Mobile arm64-v8a (Phone)
         run: set -o pipefail && ./gradlew assembleMobileArm64_v8aRelease 2>&1 | tee build-mobile-arm64.log
+
+      - name: Build Mobile armeabi-v7a (Phone)
+        run: set -o pipefail && ./gradlew assembleMobileArmeabi_v7aRelease 2>&1 | tee build-mobile-armeabi.log
 
       - name: Upload Build Logs
         if: always()
