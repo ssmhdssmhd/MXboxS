@@ -24,7 +24,7 @@ public class PlayerSetting {
     private static final float MAX_SPEED = 5.0f;
 
     public static int getEngine() {
-        return Math.clamp(Prefers.getInt("player_engine", ENGINE_EXO), ENGINE_EXO, ENGINE_VLC);
+        return Math.clamp(Prefers.getInt("player_engine", ENGINE_IJK), ENGINE_EXO, ENGINE_VLC);
     }
 
     public static void putEngine(int engine) {

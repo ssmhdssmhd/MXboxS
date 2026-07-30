@@ -39,17 +39,18 @@ public final class PlayerEngineFactory {
     }
 
     private static PlayerEngine.Type resolve(PlaySpec spec) {
+        if (requiresExo(spec)) return EXO;
         if (PlayerSetting.isIjk() && isIjkReady()) return IJK;
         if (PlayerSetting.isVlc() && isVlcReady()) return VLC;
-        if (!isMpvReady()) return EXO;
-        if (requiresExo(spec)) return EXO;
-        return PlayerSetting.isMpv() ? MPV : EXO;
+        if (PlayerSetting.isMpv() && isMpvReady()) return MPV;
+        return isIjkReady() ? IJK : (isVlcReady() ? VLC : (isMpvReady() ? MPV : EXO));
     }
 
     private static PlayerEngine.Type resolve() {
-        if (PlayerSetting.isIjk() && isIjkReady()) return IJK;
-        if (PlayerSetting.isVlc() && isVlcReady()) return VLC;
-        return isMpvReady() ? MPV : EXO;
+        if (isIjkReady()) return IJK;
+        if (isVlcReady()) return VLC;
+        if (isMpvReady()) return MPV;
+        return EXO;
     }
 
     private static boolean requiresExo(PlaySpec spec) {
