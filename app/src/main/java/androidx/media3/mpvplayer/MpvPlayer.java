@@ -259,6 +259,9 @@ public class MpvPlayer implements Player {
     public TrackSelectionParameters getTrackSelectionParameters() { return exoPlayer.getTrackSelectionParameters(); }
 
     @Override
+    public void setTrackSelectionParameters(TrackSelectionParameters parameters) { exoPlayer.setTrackSelectionParameters(parameters); }
+
+    @Override
     public MediaMetadata getMediaMetadata() { return exoPlayer.getMediaMetadata(); }
 
     @Override
