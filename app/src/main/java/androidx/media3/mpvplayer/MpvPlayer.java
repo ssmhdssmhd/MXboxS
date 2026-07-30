@@ -3,6 +3,7 @@ package androidx.media3.mpvplayer;
 import android.content.Context;
 import android.os.Looper;
 import android.view.Surface;
+import android.view.TextureView;
 
 import androidx.media3.common.util.Size;
 
@@ -284,6 +285,9 @@ public class MpvPlayer implements Player {
 
     @Override
     public void clearVideoSurface(@Nullable Surface surface) { exoPlayer.clearVideoSurface(surface); }
+
+    @Override
+    public void clearVideoTextureView(@Nullable TextureView textureView) { exoPlayer.clearVideoTextureView(textureView); }
 
     @Override
     public void setVideoSurface(@Nullable Surface surface) { exoPlayer.setVideoSurface(surface); }
