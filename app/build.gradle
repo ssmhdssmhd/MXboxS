@@ -111,6 +111,9 @@ dependencies {
     implementation libs.lifecycle.service
     implementation libs.media
     implementation libs.media3.common
+    implementation libs.media3.exoplayer
+    implementation libs.media3.ui
+    implementation libs.media3.datasource
     implementation libs.palette
     implementation libs.recyclerview
     implementation libs.room.runtime
