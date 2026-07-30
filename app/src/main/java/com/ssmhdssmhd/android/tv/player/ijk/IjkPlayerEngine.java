@@ -18,7 +18,7 @@ import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.Tracks;
 import androidx.media3.common.VideoSize;
 import androidx.media3.common.text.CueGroup;
-import androidx.media3.common.BasePlayer;
+import androidx.media3.exoplayer.BasePlayer;
 
 import com.ssmhdssmhd.android.tv.bean.Sub;
 import com.ssmhdssmhd.android.tv.player.engine.PlayerEngine;

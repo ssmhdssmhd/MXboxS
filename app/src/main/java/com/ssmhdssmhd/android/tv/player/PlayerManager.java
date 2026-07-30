@@ -224,8 +224,6 @@ public class PlayerManager implements ParseCallback {
     public int getEngine() {
         return switch (engine.getType()) {
             case MPV -> PlayerSetting.ENGINE_MPV;
-            case IJK -> PlayerSetting.ENGINE_IJK;
-            case VLC -> PlayerSetting.ENGINE_VLC;
             default -> PlayerSetting.ENGINE_EXO;
         };
     }
