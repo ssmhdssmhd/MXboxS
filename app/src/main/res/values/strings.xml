@@ -31,8 +31,6 @@
     <string name="play_ed">ED</string>
     <string name="play_exo">EXO</string>
     <string name="play_mpv">MPV</string>
-    <string name="play_ijk">IJK</string>
-    <string name="play_vlc">VLC</string>
     <string name="play_other">Other</string>
     <string name="play_next">Next</string>
     <string name="play_prev">Prev</string>
@@ -211,16 +209,6 @@
     <string name="error_play_url">Unable to load url</string>
     <string name="error_play_flag">No flag data</string>
     <string name="error_play_timeout">Timed out</string>
-    <string name="error_play_ijk_io">IJK: IO error</string>
-    <string name="error_play_ijk_network">IJK: Network error</string>
-    <string name="error_play_ijk_decode">IJK: Decode error</string>
-    <string name="error_play_ijk_format">IJK: Format not supported</string>
-    <string name="error_play_ijk_unknown">IJK: Unknown error</string>
-    <string name="error_play_vlc_io">VLC: IO error</string>
-    <string name="error_play_vlc_network">VLC: Network error</string>
-    <string name="error_play_vlc_decode">VLC: Decode error</string>
-    <string name="error_play_vlc_format">VLC: Format not supported</string>
-    <string name="error_play_vlc_unknown">VLC: Unknown error</string>
     <string name="error_decode_fallback">Hardware decoding failed, switched to software decoding</string>
     <string name="error_play_tvbus">Error code: <xliff:g name="name">%s</xliff:g></string>
     <string name="error_detail">No play data</string>

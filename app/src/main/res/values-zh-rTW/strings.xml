@@ -31,8 +31,6 @@
     <string name="play_ed">片尾</string>
     <string name="play_exo">EXO</string>
     <string name="play_mpv">MPV</string>
-    <string name="play_ijk">IJK</string>
-    <string name="play_vlc">VLC</string>
     <string name="play_other">其它</string>
     <string name="play_next">下集</string>
     <string name="play_prev">上集</string>
@@ -210,16 +208,6 @@
     <string name="error_play_url">播放網址載入失敗</string>
     <string name="error_play_flag">暫無線路資料</string>
     <string name="error_play_timeout">連線逾時</string>
-    <string name="error_play_ijk_io">IJK: IO 錯誤</string>
-    <string name="error_play_ijk_network">IJK: 網路錯誤</string>
-    <string name="error_play_ijk_decode">IJK: 解碼錯誤</string>
-    <string name="error_play_ijk_format">IJK: 格式不支援</string>
-    <string name="error_play_ijk_unknown">IJK: 未知錯誤</string>
-    <string name="error_play_vlc_io">VLC: IO 錯誤</string>
-    <string name="error_play_vlc_network">VLC: 網路錯誤</string>
-    <string name="error_play_vlc_decode">VLC: 解碼錯誤</string>
-    <string name="error_play_vlc_format">VLC: 格式不支援</string>
-    <string name="error_play_vlc_unknown">VLC: 未知錯誤</string>
     <string name="error_decode_fallback">硬解失敗，已切換軟解</string>
     <string name="error_play_tvbus">錯誤代碼：<xliff:g name="name">%s</xliff:g></string>
     <string name="error_detail">暫無播放資料</string>
