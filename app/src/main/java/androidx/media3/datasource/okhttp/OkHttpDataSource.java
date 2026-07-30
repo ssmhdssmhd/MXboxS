@@ -1,8 +1,9 @@
 package androidx.media3.datasource.okhttp;
 
-import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.HttpDataSource;
+
+import java.util.Map;
 
 import okhttp3.OkHttpClient;
 
@@ -11,31 +12,6 @@ import okhttp3.OkHttpClient;
  * Falls back to DefaultHttpDataSource when the okhttp module is not available.
  */
 public class OkHttpDataSource extends DefaultHttpDataSource {
-
-    @Deprecated
-    public OkHttpDataSource() {
-        super();
-    }
-
-    @Deprecated
-    public OkHttpDataSource(String userAgent) {
-        super(userAgent);
-    }
-
-    @Deprecated
-    public OkHttpDataSource(String userAgent, int connectTimeoutMs, int readTimeoutMs) {
-        super(userAgent, connectTimeoutMs, readTimeoutMs);
-    }
-
-    @Deprecated
-    public OkHttpDataSource(String userAgent, int connectTimeoutMs, int readTimeoutMs, boolean allowCrossProtocolRedirects) {
-        super(userAgent, connectTimeoutMs, readTimeoutMs, allowCrossProtocolRedirects);
-    }
-
-    @Deprecated
-    public OkHttpDataSource(String userAgent, int connectTimeoutMs, int readTimeoutMs, boolean allowCrossProtocolRedirects, RequestProperties defaultRequestProperties) {
-        super(userAgent, connectTimeoutMs, readTimeoutMs, allowCrossProtocolRedirects, defaultRequestProperties);
-    }
 
     public static final class Factory implements HttpDataSource.Factory {
 
@@ -51,7 +27,7 @@ public class OkHttpDataSource extends DefaultHttpDataSource {
         }
 
         @Override
-        public HttpDataSource.Factory setDefaultRequestProperties(RequestProperties defaultRequestProperties) {
+        public HttpDataSource.Factory setDefaultRequestProperties(Map<String, String> defaultRequestProperties) {
             delegate.setDefaultRequestProperties(defaultRequestProperties);
             return this;
         }

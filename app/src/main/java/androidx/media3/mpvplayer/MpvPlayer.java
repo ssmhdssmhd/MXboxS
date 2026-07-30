@@ -2,6 +2,7 @@ package androidx.media3.mpvplayer;
 
 import android.content.Context;
 import android.os.Looper;
+import android.view.Surface;
 
 import androidx.annotation.Nullable;
 import androidx.media3.common.AudioAttributes;
@@ -204,18 +205,6 @@ public class MpvPlayer implements Player {
     public void seekForward() { exoPlayer.seekForward(); }
 
     @Override
-    @Deprecated
-    public boolean hasPrevious() { return exoPlayer.hasPrevious(); }
-
-    @Override
-    @Deprecated
-    public boolean hasPreviousMediaItem() { return exoPlayer.hasPreviousMediaItem(); }
-
-    @Override
-    @Deprecated
-    public void seekToPrevious() { exoPlayer.seekToPrevious(); }
-
-    @Override
     public void seekToPreviousMediaItem() { exoPlayer.seekToPreviousMediaItem(); }
 
     @Override
@@ -226,14 +215,6 @@ public class MpvPlayer implements Player {
 
     @Override
     public void seekToNextMediaItem() { exoPlayer.seekToNextMediaItem(); }
-
-    @Override
-    @Deprecated
-    public boolean hasNext() { return exoPlayer.hasNext(); }
-
-    @Override
-    @Deprecated
-    public boolean hasNextMediaItem() { return exoPlayer.hasNextMediaItem(); }
 
     @Override
     public void setPlaybackParameters(PlaybackParameters playbackParameters) { exoPlayer.setPlaybackParameters(playbackParameters); }
@@ -297,10 +278,10 @@ public class MpvPlayer implements Player {
     public void clearVideoSurface() { exoPlayer.clearVideoSurface(); }
 
     @Override
-    public void clearVideoSurface(@Nullable Object surface) { exoPlayer.clearVideoSurface(surface); }
+    public void clearVideoSurface(@Nullable Surface surface) { exoPlayer.clearVideoSurface(surface); }
 
     @Override
-    public void setVideoSurface(@Nullable Object surface) { exoPlayer.setVideoSurface(surface); }
+    public void setVideoSurface(@Nullable Surface surface) { exoPlayer.setVideoSurface(surface); }
 
     @Override
     public CueGroup getCurrentCues() { return exoPlayer.getCurrentCues(); }
@@ -325,6 +306,9 @@ public class MpvPlayer implements Player {
 
     @Override
     public void setDeviceMuted(boolean muted) { exoPlayer.setDeviceMuted(muted); }
+
+    @Override
+    public void setDeviceMuted(boolean muted, int flags) { exoPlayer.setDeviceMuted(muted, flags); }
 
     @Override
     public void setAudioAttributes(AudioAttributes audioAttributes, boolean handleAudioFocus) { exoPlayer.setAudioAttributes(audioAttributes, handleAudioFocus); }
