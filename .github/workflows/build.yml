@@ -64,10 +64,32 @@ jobs:
             app/build/reports/
           retention-days: 7
 
+      - name: Debug APK paths
+        if: always()
+        run: |
+          echo "=== APK output directory structure ==="
+          find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null || echo "No APK files found"
+          echo "=== All files in outputs ==="
+          ls -laR app/build/outputs/ 2>/dev/null || echo "No outputs directory"
+
       - name: Collect APKs
+        if: always()
         run: |
           mkdir -p output
-          find app/build/outputs/apk -name "mobile-*.apk" -exec cp {} output/ \;
+          APKS=$(find app/build/outputs -name "mobile-*.apk" 2>/dev/null)
+          if [ -z "$APKS" ]; then
+            echo "WARNING: No mobile APKs found! Searching for any APK..."
+            APKS=$(find app/build/outputs -name "*.apk" 2>/dev/null)
+          fi
+          if [ -n "$APKS" ]; then
+            echo "Found APKs:"
+            echo "$APKS"
+            cp -v $APKS output/ 2>/dev/null || true
+          else
+            echo "ERROR: No APK files found at all"
+          fi
+          echo "=== Output directory ==="
+          ls -la output/ 2>/dev/null || echo "Output directory empty"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
