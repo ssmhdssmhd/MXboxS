@@ -50,6 +50,8 @@ public interface PlayerEngine {
 
     enum Type {
         EXO,
-        MPV
+        MPV,
+        IJK,
+        VLC
     }
 }
