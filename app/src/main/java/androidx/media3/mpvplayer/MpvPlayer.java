@@ -351,6 +351,76 @@ public class MpvPlayer implements Player {
     @Override
     public AudioAttributes getAudioAttributes() { return exoPlayer.getAudioAttributes(); }
 
+    // Additional Player interface methods
+    @Override
+    public int getBufferedPercentage() { return exoPlayer.getBufferedPercentage(); }
+
+    @Override
+    public int getCurrentWindowIndex() { return exoPlayer.getCurrentWindowIndex(); }
+
+    @Override
+    public int getNextMediaItemIndex() { return exoPlayer.getNextMediaItemIndex(); }
+
+    @Override
+    public int getNextWindowIndex() { return exoPlayer.getNextWindowIndex(); }
+
+    @Override
+    public int getPreviousMediaItemIndex() { return exoPlayer.getPreviousMediaItemIndex(); }
+
+    @Override
+    public int getPreviousWindowIndex() { return exoPlayer.getPreviousWindowIndex(); }
+
+    @Override
+    public boolean hasNextMediaItem() { return exoPlayer.hasNextMediaItem(); }
+
+    @Override
+    public boolean hasPreviousMediaItem() { return exoPlayer.hasPreviousMediaItem(); }
+
+    @Override
+    public boolean isCurrentMediaItemDynamic() { return exoPlayer.isCurrentMediaItemDynamic(); }
+
+    @Override
+    public boolean isCurrentMediaItemLive() { return exoPlayer.isCurrentMediaItemLive(); }
+
+    @Override
+    public boolean isCurrentMediaItemSeekable() { return exoPlayer.isCurrentMediaItemSeekable(); }
+
+    @Override
+    public boolean isCurrentWindowDynamic() { return exoPlayer.isCurrentWindowDynamic(); }
+
+    @Override
+    public boolean isCurrentWindowLive() { return exoPlayer.isCurrentWindowLive(); }
+
+    @Override
+    public boolean isCurrentWindowSeekable() { return exoPlayer.isCurrentWindowSeekable(); }
+
+    @Override
+    public boolean isLoading() { return exoPlayer.isLoading(); }
+
+    @Override
+    public void mute() { exoPlayer.mute(); }
+
+    @Override
+    public void unmute() { exoPlayer.unmute(); }
+
+    @Override
+    public void replaceMediaItem(int index, MediaItem mediaItem) { exoPlayer.replaceMediaItem(index, mediaItem); }
+
+    @Override
+    public void replaceMediaItems(int fromIndex, int toIndex, List<MediaItem> mediaItems) { exoPlayer.replaceMediaItems(fromIndex, toIndex, mediaItems); }
+
+    @Override
+    public void seekToDefaultPosition() { exoPlayer.seekToDefaultPosition(); }
+
+    @Override
+    public void seekToDefaultPosition(int mediaItemIndex) { exoPlayer.seekToDefaultPosition(mediaItemIndex); }
+
+    @Override
+    public void seekToPrevious() { exoPlayer.seekToPrevious(); }
+
+    @Override
+    public void seekToPreviousMediaItem() { exoPlayer.seekToPreviousMediaItem(); }
+
     public static class Builder {
         private final Context context;
         private int decode;
