@@ -1,8 +1,8 @@
 # MXboxS
 
-基于 [FongMi/TV](https://github.com/FongMi/TV) 的二次开发项目，专注于 Android 手机端影视应用。
+基于 [FongMi/TV](https://github.com/FongMi/TV) 的二次开发项目，覆盖 **Android TV（leanback）** 与 **手机端（mobile）** 的影视应用。
 
-[![Build Mobile Release](https://github.com/ssmhdssmhd/MXboxS/actions/workflows/build.yml/badge.svg)](https://github.com/ssmhdssmhd/MXboxS/actions/workflows/build.yml)
+[![Build MXboxS Release](https://github.com/ssmhdssmhd/MXboxS/actions/workflows/build.yml/badge.svg)](https://github.com/ssmhdssmhd/MXboxS/actions/workflows/build.yml)
 
 ---
 
@@ -30,18 +30,24 @@
 
 ### 云端编译
 
-GitHub Actions 自动编译 mobile（手机版）发行版，提交到 `main` 或 `mobile` 分支即可触发。
+GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 或 `mobile` 分支即可触发。
 
-构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载。
+构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
+- `MXboxS-mobile-arm64_v8a-5.5.24.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.24.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.24.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.24.apk`（电视版 32 位）
 
 ### 本地编译
 
 ```bash
-# 编译手机版 arm64
-./gradlew assembleMobileArm64_v8aRelease
+# 手机版（Mobile）
+./gradlew assembleMobileArm64_v8aRelease       # arm64-v8a
+./gradlew assembleMobileArmeabi_v7aRelease      # armeabi-v7a
 
-# 编译手机版 armeabi-v7a
-./gradlew assembleMobileArmeabi_v7aRelease
+# 电视版（Leanback / Android TV）
+./gradlew assembleLeanbackArm64_v8aRelease      # arm64-v8a
+./gradlew assembleLeanbackArmeabi_v7aRelease    # armeabi-v7a
 ```
 
 ```

@@ -20,7 +20,15 @@
   - Workflow 名：`Build MoXiTV Release` → **`Build MXboxS Release`**
   - APK Artifact 名：`MoXiTV-Release-APKs` → **`MXboxS-Release-APKs`**
   - Keystore 主题 DN 改为 MXboxS (Shenzhen)，alias `moxitv` → `mxboxs`，密码同步更新
-  - **构建目标聚焦 Mobile**：移除 TV (leanback) 构建步骤，新增 `armeabi-v7a` 架构，CI 现在产出 2 个 APK：mobile-arm64_v8a + mobile-armeabi_v7a
+  - **构建目标同时覆盖 TV + Mobile**：一次运行产出 4 个 APK
+    - mobile-arm64_v8a / mobile-armeabi_v7a（手机版）
+    - leanback-arm64_v8a / leanback-armeabi_v7a（电视版，Android TV / 盒子）
+  - **构建诊断强化**：
+    - Create local.properties：优先读 `ANDROID_SDK_ROOT`，回退 `ANDROID_HOME`，写入后打印校验
+    - 新增 Print Gradle / Java env 步骤输出环境变量
+    - 构建命令加 `--stacktrace --no-daemon`，完成后立即 `find` 列 APK
+    - Upload Build Logs：`continue-on-error: true` + `if-no-files-found: ignore`
+    - Collect APKs：优先匹配 `MXboxS-*.apk` 新产物名，找不到直接 exit 1
 - **local.properties**：签名 alias / 密码同步改为 `mxboxs` / `mxboxs123456`（与 CI 一致）
 - 版本：`versionCode 572→573` / `versionName 5.5.23→5.5.24`
 

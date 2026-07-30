@@ -91,6 +91,20 @@ jobs:
           echo "=== Find APKs ==="
           find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
+      - name: Build Leanback arm64-v8a (Android TV)
+        run: |
+          set -o pipefail
+          ./gradlew assembleLeanbackArm64_v8aRelease --stacktrace --no-daemon 2>&1 | tee build-leanback-arm64.log
+          echo "=== Find APKs ==="
+          find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
+
+      - name: Build Leanback armeabi-v7a (Android TV)
+        run: |
+          set -o pipefail
+          ./gradlew assembleLeanbackArmeabi_v7aRelease --stacktrace --no-daemon 2>&1 | tee build-leanback-armeabi.log
+          echo "=== Find APKs ==="
+          find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
+
       - name: Upload Build Logs
         if: always()
         continue-on-error: true
