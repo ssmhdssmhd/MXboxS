@@ -19,8 +19,8 @@ android {
         applicationId "com.ssmhdssmhd.android.tv"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 569
-        versionName "5.5.20"
+        versionCode 570
+        versionName "5.5.21"
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.ssmhdssmhd.android.tv.event.EventIndex"]

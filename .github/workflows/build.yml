@@ -52,17 +52,11 @@ jobs:
           echo "keyAlias=moxitv" >> local.properties
           echo "storePassword=moxi123456" >> local.properties
 
-      - name: Build Mobile arm64-v8a
-        run: set -o pipefail && ./gradlew assembleMobileArm64_v8aRelease 2>&1 | tee build-mobile-arm64.log
-
-      - name: Build Mobile armeabi-v7a
-        run: set -o pipefail && ./gradlew assembleMobileArmeabi_v7aRelease 2>&1 | tee build-mobile-armv7a.log
-
-      - name: Build Leanback arm64-v8a
+      - name: Build Leanback arm64-v8a (TV)
         run: set -o pipefail && ./gradlew assembleLeanbackArm64_v8aRelease 2>&1 | tee build-leanback-arm64.log
 
-      - name: Build Leanback armeabi-v7a
-        run: set -o pipefail && ./gradlew assembleLeanbackArmeabi_v7aRelease 2>&1 | tee build-leanback-armv7a.log
+      - name: Build Mobile arm64-v8a (Phone)
+        run: set -o pipefail && ./gradlew assembleMobileArm64_v8aRelease 2>&1 | tee build-mobile-arm64.log
 
       - name: Upload Build Logs
         if: always()
@@ -74,14 +68,6 @@ jobs:
             app/build/reports/
           retention-days: 7
 
-      - name: Debug APK paths
-        if: always()
-        run: |
-          echo "=== APK output directory structure ==="
-          find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null || echo "No APK files found"
-          echo "=== All files in outputs ==="
-          ls -laR app/build/outputs/ 2>/dev/null || echo "No outputs directory"
-
       - name: Collect APKs
         if: always()
         run: |
@@ -92,7 +78,7 @@ jobs:
             echo "$APKS"
             cp -v $APKS output/ 2>/dev/null || true
           else
-            echo "ERROR: No APK files found at all!"
+            echo "ERROR: No APK files found!"
           fi
           echo "=== Output directory ==="
           ls -la output/ 2>/dev/null || echo "Output directory empty"
