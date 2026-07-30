@@ -97,6 +97,8 @@ public class ExoPlayerEngine implements PlayerEngine {
     private void startInternal(long position) {
         MediaItem item = MediaItemFactory.from(spec, decode);
         player.setMediaItem(item, position);
+        // AI quality optimization: apply quality settings
+        ExoUtil.applyQualitySettings(player);
         preCache.start(player, item);
         player.prepare();
         player.play();

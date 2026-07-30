@@ -67,6 +67,8 @@ public class MpvPlayerEngine implements PlayerEngine {
     @Override
     public void start(PlaySpec spec, long startPositionMs) {
         player.setMediaItem(MediaItemFactory.from(spec), startPositionMs);
+        // AI quality optimization: apply quality settings
+        MpvUtil.applyQualitySettings(player);
         player.prepare();
         player.play();
     }

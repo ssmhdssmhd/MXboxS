@@ -47,6 +47,13 @@ public class ExoUtil {
         return null;
     }
 
+    public static void applyQualitySettings(ExoPlayer player) {
+        try {
+            player.setVideoScalingMode(ExoPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
+        } catch (Throwable ignored) {
+        }
+    }
+
     public static Map<String, String> extractHeaders(MediaItem item) {
         Bundle extras = item.requestMetadata.extras;
         if (extras == null) return new HashMap<>();
@@ -63,7 +70,16 @@ public class ExoUtil {
         if (PlayerSetting.isPreferAAC()) builder.setPreferredAudioMimeType(MimeTypes.AUDIO_AAC);
         builder.setPreferredTextLanguages(LangUtil.getPreferredTextLanguages());
         builder.setTunnelingEnabled(PlayerSetting.isTunnelingEnabled());
+        // AI quality optimization: force highest bitrate for best quality
         builder.setForceHighestSupportedBitrate(true);
+        // Adaptive quality selection optimization
+        builder.setMaxVideoSize(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        builder.setMaxVideoBitrate(Integer.MAX_VALUE);
+        builder.setMaxVideoFrameRate(Integer.MAX_VALUE);
+        builder.setAllowVideoNonSeamlessAdaptiveness(true);
+        builder.setAllowAudioMixedSampleRateAdaptiveness(true);
+        builder.setAllowAudioMixedMimeTypeAdaptiveness(true);
+        builder.setAllowVideoMixedMimeTypeAdaptiveness(true);
         trackSelector.setParameters(builder.build());
         return trackSelector;
     }

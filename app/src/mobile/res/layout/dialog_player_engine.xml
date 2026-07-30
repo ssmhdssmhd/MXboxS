@@ -61,6 +61,26 @@
             android:textSize="14sp" />
 
         <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/ijk"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/shape_accent"
+            android:text="@string/play_ijk"
+            android:textColor="@color/selector_control"
+            android:textSize="14sp" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/vlc"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/shape_accent"
+            android:text="@string/play_vlc"
+            android:textColor="@color/selector_control"
+            android:textSize="14sp" />
+
+        <com.google.android.material.textview.MaterialTextView
             android:id="@+id/other"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

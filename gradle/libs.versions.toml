@@ -31,9 +31,11 @@ glide = "5.0.7"
 greenrobot = "3.3.1"
 gson = "2.14.0"
 guava = "33.6.0-android"
+ijkplayer = "0.8.8"
 jna = "5.19.1"
 jupnp = "3.0.4"
 juniversalchardet = "1.0.3"
+libvlc = "3.6.5"
 logger = "2.2.0"
 lottie = "6.7.1"
 material = "1.14.0"
@@ -93,11 +95,15 @@ glide-compiler = { group = "com.github.bumptech.glide", name = "compiler", versi
 glide-okhttp3-integration = { group = "com.github.bumptech.glide", name = "okhttp3-integration", version.ref = "glide" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 guava = { group = "com.google.guava", name = "guava", version.ref = "guava" }
+ijkplayer-java = { group = "tv.danmaku.ijk.media", name = "ijkplayer-java", version.ref = "ijkplayer" }
+ijkplayer-arm64 = { group = "tv.danmaku.ijk.media", name = "ijkplayer-arm64", version.ref = "ijkplayer" }
+ijkplayer-armv7a = { group = "tv.danmaku.ijk.media", name = "ijkplayer-armv7a", version.ref = "ijkplayer" }
 jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 juniversalchardet = { group = "com.googlecode.juniversalchardet", name = "juniversalchardet", version.ref = "juniversalchardet" }
 rtmp-client = { group = "com.github.mcxinyu", name = "LibRtmp-Client-for-Android", version.ref = "rtmpClient" }
 logger = { group = "com.orhanobut", name = "logger", version.ref = "logger" }
 lottie = { group = "com.airbnb.android", name = "lottie", version.ref = "lottie" }
+libvlc-all = { group = "org.videolan.android", name = "libvlc-all", version.ref = "libvlc" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 materialdesigncolors = { group = "com.github.bassaer", name = "materialdesigncolors", version.ref = "materialdesigncolors" }
 nanohttpd = { group = "org.nanohttpd", name = "nanohttpd", version.ref = "nanohttpd" }

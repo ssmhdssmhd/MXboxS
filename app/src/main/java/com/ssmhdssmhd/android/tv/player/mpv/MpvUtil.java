@@ -51,6 +51,26 @@ public final class MpvUtil {
         player.setSubtitleOptions(buildSubtitleConfig());
     }
 
+    public static void applyQualitySettings(MpvPlayer player) {
+        try {
+            player.setOptionString("profile", "high-quality");
+            player.setOptionString("hwdec", "mediacodec-copy");
+            player.setOptionString("vd-lavc-dr", "yes");
+            player.setOptionString("vd-lavc-threads", "auto");
+            player.setOptionString("vd-lavc-skiploopfilter", "none");
+            player.setOptionString("vd-lavc-skipframe", "none");
+            player.setOptionString("vd-lavc-skipidct", "none");
+            player.setOptionString("cache", "yes");
+            player.setOptionString("cache-default", "153600");
+            player.setOptionString("demuxer-max-bytes", "12582912");
+            player.setOptionString("demuxer-max-back-bytes", "6291456");
+            player.setOptionString("ao", "audiotrack,opensles");
+            player.setOptionString("audio-resample-filter-swal", "soxr");
+            player.setOptionString("audio-channels", "stereo");
+        } catch (Throwable ignored) {
+        }
+    }
+
     private static MpvPlayerConfig buildConfig() {
         MpvPlayerConfig.Builder builder = newConfigBuilder();
         addAndroidOptions(builder);
