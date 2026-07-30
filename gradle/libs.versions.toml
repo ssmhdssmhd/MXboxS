@@ -12,6 +12,7 @@ desugar = "2.1.5"
 leanback = "1.2.0"
 lifecycleService = "2.11.0"
 media = "1.8.0"
+media3 = "1.8.0"
 palette = "1.0.0"
 preference = "1.2.1"
 recyclerview = "1.4.0"
@@ -58,6 +59,7 @@ desugar = { group = "com.android.tools", name = "desugar_jdk_libs_nio", version.
 leanback = { group = "androidx.leanback", name = "leanback", version.ref = "leanback" }
 lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycleService" }
 media = { group = "androidx.media", name = "media", version.ref = "media" }
+media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
 palette = { group = "androidx.palette", name = "palette", version.ref = "palette" }
 preference = { group = "androidx.preference", name = "preference", version.ref = "preference" }
 recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
