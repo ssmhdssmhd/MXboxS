@@ -23,7 +23,7 @@ android {
         versionName "5.5.16"
         javaCompileOptions {
             annotationProcessorOptions {
-                arguments = ["room.schemaLocation": "$projectDir/schemas".toString()]
+                arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.ssmhdssmhd.android.tv.event.EventIndex"]
             }
         }
     }
