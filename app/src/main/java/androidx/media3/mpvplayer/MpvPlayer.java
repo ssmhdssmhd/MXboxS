@@ -2,6 +2,7 @@ package androidx.media3.mpvplayer;
 
 import android.content.Context;
 import android.os.Looper;
+import android.util.Size;
 import android.view.Surface;
 
 import androidx.annotation.Nullable;
@@ -267,6 +268,9 @@ public class MpvPlayer implements Player {
 
     @Override
     public VideoSize getVideoSize() { return exoPlayer.getVideoSize(); }
+
+    @Override
+    public Size getSurfaceSize() { return exoPlayer.getSurfaceSize(); }
 
     @Override
     public void setVolume(float volume) { exoPlayer.setVolume(volume); }
