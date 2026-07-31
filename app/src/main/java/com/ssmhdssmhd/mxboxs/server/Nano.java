@@ -8,6 +8,7 @@ import com.ssmhdssmhd.mxboxs.server.process.Cache;
 import com.ssmhdssmhd.mxboxs.server.process.Local;
 import com.ssmhdssmhd.mxboxs.server.process.Media;
 import com.ssmhdssmhd.mxboxs.server.process.Parse;
+import com.ssmhdssmhd.mxboxs.server.process.Player;
 import com.ssmhdssmhd.mxboxs.server.process.Proxy;
 import com.github.catvod.utils.Asset;
 
@@ -37,6 +38,7 @@ public class Nano extends NanoHTTPD {
         process.add(new Local());
         process.add(new Media());
         process.add(new Parse());
+        process.add(new Player());
         process.add(new Proxy());
     }
 

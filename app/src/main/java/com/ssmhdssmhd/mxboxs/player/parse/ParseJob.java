@@ -117,10 +117,30 @@ public class ParseJob implements ParseCallback {
 
     private void jsonParse(Parse item, String webUrl, boolean fatal) throws Exception {
         try (Response res = OkHttp.newCall(item.getUrl() + webUrl, item.getHeader()).execute()) {
-            JsonObject object = Json.parse(res.body().string()).getAsJsonObject();
+            if (res.code() < 200 || res.code() >= 400) {
+                if (fatal) onParseError();
+                return;
+            }
+            String body = res.body() != null ? res.body().string() : "";
+            if (TextUtils.isEmpty(body)) {
+                if (fatal) onParseError();
+                return;
+            }
+            JsonObject object;
+            try {
+                object = Json.parse(body).getAsJsonObject();
+            } catch (Exception e) {
+                if (fatal) onParseError();
+                return;
+            }
+            if (object == null) {
+                if (fatal) onParseError();
+                return;
+            }
             String url = Json.safeString(object, "url");
-            JsonObject data = object.getAsJsonObject("data");
-            if (url.isEmpty()) url = Json.safeString(data, "url");
+            JsonObject data;
+            try { data = object.getAsJsonObject("data"); } catch (Exception e) { data = null; }
+            if (url.isEmpty() && data != null) url = Json.safeString(data, "url");
             checkResult(getHeader(object), url, item.getName(), fatal);
         }
     }

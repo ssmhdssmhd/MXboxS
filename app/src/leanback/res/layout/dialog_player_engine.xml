@@ -1,17 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="24dp"
+    android:paddingBottom="16dp">
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="24dp"
-        android:paddingTop="24dp"
-        android:paddingBottom="16dp">
+        android:paddingBottom="12dp">
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/title"
@@ -19,7 +21,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/player_engine"
-            android:textColor="@color/white"
+            android:textColor="?attr/colorOnSurface"
             android:textSize="16sp" />
 
         <androidx.appcompat.widget.AppCompatImageView
@@ -28,66 +30,195 @@
             android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/player_debug"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
             android:src="@drawable/ic_action_debug" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
-    <androidx.appcompat.widget.LinearLayoutCompat
+    <!-- Engine cards -->
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- EXO -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="4dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/exo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/shape_accent"
+                android:text="@string/play_exo"
+                android:textColor="@color/selector_control"
+                android:textSize="14sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/exoDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="10dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                tools:text="@string/play_engine_desc_exo" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <!-- MPV -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="4dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/mpv"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/shape_accent"
+                android:text="@string/play_mpv"
+                android:textColor="@color/selector_control"
+                android:textSize="14sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/mpvDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="10dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                tools:text="@string/play_engine_desc_mpv" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <!-- System -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="4dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/system"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/shape_accent"
+                android:text="@string/play_system"
+                android:textColor="@color/selector_control"
+                android:textSize="14sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/systemDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="10dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                tools:text="@string/play_engine_desc_system" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <!-- IJK -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="4dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/ijk"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/shape_accent"
+                android:text="@string/play_ijk"
+                android:textColor="@color/selector_control"
+                android:textSize="14sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/ijkDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="10dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                tools:text="@string/play_engine_desc_ijk" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <!-- VLC -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="4dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/vlc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/shape_accent"
+                android:text="@string/play_vlc"
+                android:textColor="@color/selector_control"
+                android:textSize="14sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/vlcDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="10dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                tools:text="@string/play_engine_desc_vlc" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <!-- WEB (Built-in HLS.js) -->
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="8dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/web"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/shape_accent"
+                android:text="@string/play_web"
+                android:textColor="@color/selector_control"
+                android:textSize="14sp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/webDesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="8dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                tools:text="@string/play_engine_desc_web" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+    </LinearLayout>
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/other"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:paddingBottom="24dp">
+        android:layout_gravity="start"
+        android:background="@drawable/shape_accent"
+        android:text="@string/play_other"
+        android:textColor="@color/selector_control"
+        android:textSize="14sp" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/exo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/selector_chip_round"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:text="@string/play_exo"
-            android:textColor="@color/text"
-            android:textSize="14sp" />
-
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/mpv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/selector_chip_round"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:text="@string/play_mpv"
-            android:textColor="@color/text"
-            android:textSize="14sp" />
-
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/system"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/selector_chip_round"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:text="@string/play_system"
-            android:textColor="@color/text"
-            android:textSize="14sp" />
-
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/other"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/selector_chip_round"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:text="@string/play_other"
-            android:textColor="@color/text"
-            android:textSize="14sp" />
-
-    </androidx.appcompat.widget.LinearLayoutCompat>
 </androidx.appcompat.widget.LinearLayoutCompat>

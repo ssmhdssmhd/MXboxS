@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<title>MXboxS 内置播放器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    color: #fff;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  #wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; }
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    display: block;
+    outline: none;
+  }
+  #hint {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #fff;
+    background: rgba(0,0,0,0.5);
+    border-radius: 8px;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 10;
+    word-break: break-all;
+    opacity: 0;
+    transition: opacity .5s ease;
+  }
+  #hint.show { opacity: 1; }
+  #error {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    color: #ff8a80;
+    background: rgba(0,0,0,0.85);
+    font-size: 14px;
+    line-height: 1.6;
+    z-index: 20;
+  }
+  #error.show { display: flex; flex-direction: column; gap: 12px; }
+  #error .btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  #error button {
+    padding: 8px 16px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-radius: 20px;
+    font-size: 13px;
+  }
+  #error button:active { background: rgba(255,255,255,0.16); }
+  /* Controls */
+  .ctrl {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 8px 12px 14px;
+    background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 15;
+    transition: opacity .3s ease, transform .3s ease;
+  }
+  .ctrl.hide { opacity: 0; transform: translateY(8px); pointer-events: none; }
+  .bar {
+    position: relative;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+  .bar .buf {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: rgba(255,255,255,0.35);
+    border-radius: 2px;
+    width: 0;
+  }
+  .bar .prog {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: #2196f3;
+    border-radius: 2px;
+    width: 0;
+  }
+  .bar .dot {
+    position: absolute;
+    top: 50%;
+    width: 12px; height: 12px;
+    background: #2196f3;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 6px rgba(33,150,243,0.8);
+    left: 0;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.9);
+    font-variant-numeric: tabular-nums;
+  }
+  .btn {
+    border: 0;
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-radius: 16px;
+    padding: 4px 10px;
+    font-size: 12px;
+    line-height: 1.6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .btn:active { background: rgba(255,255,255,0.16); }
+  .btn.play { width: 32px; height: 32px; padding: 0; border-radius: 50%; background: #2196f3; }
+  .btn.play:active { background: #1976d2; }
+  .btn.play svg { width: 16px; height: 16px; fill: #fff; display: block; }
+  .spacer { flex: 1; }
+  #speedMenu {
+    position: absolute; right: 12px; bottom: 56px;
+    background: rgba(0,0,0,0.85);
+    border-radius: 8px;
+    padding: 4px;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 30;
+  }
+  #speedMenu.show { display: flex; }
+  #speedMenu button {
+    padding: 6px 16px;
+    border: 0;
+    background: transparent;
+    color: #fff;
+    text-align: left;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+  #speedMenu button.active { background: rgba(33,150,243,0.3); }
+  #speedMenu button:active { background: rgba(255,255,255,0.08); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <video id="v" playsinline webkit-playsinline x5-playsinline x-webkit-airplay="allow" crossorigin="anonymous" preload="auto"></video>
+</div>
+<div id="hint"></div>
+<div id="error">
+  <div id="errMsg"></div>
+  <div class="btns">
+    <button id="retryBtn">重新加载</button>
+    <button id="nativeBtn">调用原生播放器</button>
+  </div>
+</div>
+<div class="ctrl hide" id="ctrl">
+  <div class="bar" id="bar">
+    <div class="buf" id="buf"></div>
+    <div class="prog" id="prog"></div>
+    <div class="dot" id="dot"></div>
+  </div>
+  <div class="row">
+    <button class="btn play" id="playBtn" aria-label="播放/暂停">
+      <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <span id="cur">00:00</span>
+    <span>/</span>
+    <span id="dur">00:00</span>
+    <div class="spacer"></div>
+    <button class="btn" id="speedBtn">1.0x</button>
+    <button class="btn" id="fsBtn">全屏</button>
+  </div>
+  <div id="speedMenu">
+    <button data-s="0.5">0.5x</button>
+    <button data-s="0.75">0.75x</button>
+    <button data-s="1" class="active">1.0x</button>
+    <button data-s="1.25">1.25x</button>
+    <button data-s="1.5">1.5x</button>
+    <button data-s="2">2.0x</button>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js" onerror="fallbackHls()"></script>
+<script>
+(function(){
+  const URL_VIDEO = "%s";
+  const URL_SUB = "%s";
+  const UA = "%s";
+  const REFERER = "%s";
+  const video = document.getElementById("v");
+  const hint = document.getElementById("hint");
+  const err = document.getElementById("error");
+  const errMsg = document.getElementById("errMsg");
+  const retryBtn = document.getElementById("retryBtn");
+  const nativeBtn = document.getElementById("nativeBtn");
+  const ctrl = document.getElementById("ctrl");
+  const bar = document.getElementById("bar");
+  const buf = document.getElementById("buf");
+  const prog = document.getElementById("prog");
+  const dot = document.getElementById("dot");
+  const curEl = document.getElementById("cur");
+  const durEl = document.getElementById("dur");
+  const playBtn = document.getElementById("playBtn");
+  const playIcon = document.getElementById("playIcon");
+  const speedBtn = document.getElementById("speedBtn");
+  const fsBtn = document.getElementById("fsBtn");
+  const speedMenu = document.getElementById("speedMenu");
+  const PLAY_ICON = '<path d="M8 5v14l11-7z"/>';
+  const PAUSE_ICON = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+  let hls = null;
+  let ctrlTimer = null;
+  let lastXhr = null;
+
+  function showHint(t, ms) {
+    hint.textContent = t;
+    hint.classList.add("show");
+    clearTimeout(showHint._t);
+    if (ms) showHint._t = setTimeout(() => hint.classList.remove("show"), ms);
+  }
+
+  function fmt(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    sec = Math.floor(sec);
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    const pad = n => String(n).padStart(2, "0");
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+
+  function showError(msg) {
+    errMsg.textContent = msg || "播放失败";
+    err.classList.add("show");
+  }
+
+  function hideError() { err.classList.remove("show"); }
+
+  function hideCtrl() {
+    ctrl.classList.add("hide");
+    speedMenu.classList.remove("show");
+  }
+
+  function showCtrl() {
+    ctrl.classList.remove("hide");
+    clearTimeout(ctrlTimer);
+    ctrlTimer = setTimeout(hideCtrl, 3500);
+  }
+
+  function updatePlayIcon() {
+    playIcon.innerHTML = video.paused ? PLAY_ICON : PAUSE_ICON;
+  }
+
+  function setupSubtitle() {
+    if (!URL_SUB) return;
+    try {
+      const track = document.createElement("track");
+      track.kind = "subtitles";
+      track.label = "默认字幕";
+      track.srclang = "zh";
+      track.src = URL_SUB;
+      track.default = true;
+      video.appendChild(track);
+      setTimeout(() => {
+        try {
+          const tracks = video.textTracks;
+          if (tracks && tracks.length > 0) tracks[0].mode = "showing";
+        } catch (e) {}
+      }, 500);
+    } catch (e) {}
+  }
+
+  function applyXhrOverride() {
+    try {
+      const Native = window.XMLHttpRequest;
+      window.XMLHttpRequest = function () {
+        const xhr = new Native();
+        const _open = xhr.open;
+        const _send = xhr.send;
+        const _set = xhr.setRequestHeader;
+        xhr.open = function () {
+          this._url = arguments[1];
+          return _open.apply(this, arguments);
+        };
+        xhr.setRequestHeader = function (k, v) {
+          if (/^(user-agent|referer|origin)$/i.test(k)) return;
+          return _set.apply(this, arguments);
+        };
+        xhr.send = function () {
+          try {
+            if (UA && !/^data:|^blob:/.test(this._url || "")) _set.call(this, "User-Agent", UA);
+            if (REFERER && !/^data:|^blob:/.test(this._url || "")) _set.call(this, "Referer", REFERER);
+          } catch (e) {}
+          return _send.apply(this, arguments);
+        };
+        lastXhr = xhr;
+        return xhr;
+      };
+    } catch (e) {}
+  }
+
+  function tryFetchOverride() {
+    const _f = window.fetch;
+    if (typeof _f !== "function") return;
+    window.fetch = function (input, init) {
+      try {
+        init = init || {};
+        const hdrs = new Headers(init.headers || {});
+        if (UA) hdrs.set("User-Agent", UA);
+        if (REFERER) hdrs.set("Referer", REFERER);
+        init.headers = hdrs;
+      } catch (e) {}
+      return _f.apply(this, arguments);
+    };
+  }
+
+  function nativePlay() {
+    // Send play URL back to native
+    try {
+      const Android = window.Android || (window.parent && window.parent.Android);
+      if (Android && typeof Android.onSniff === "function") {
+        Android.onSniff(URL_VIDEO, JSON.stringify({}), "web_player_native_fallback");
+      }
+    } catch (e) {}
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "mxboxs_parse", url: URL_VIDEO, from: "web_player_fallback" }, "*");
+      }
+    } catch (e) {}
+    // Also try system intent
+    try { location.href = "intent:" + URL_VIDEO + "#Intent;type=video/*;end"; }
+    catch (e) { showHint("无法打开原生播放器", 2500); }
+  }
+
+  function isHls(u) {
+    if (!u) return false;
+    return /\.m3u8($|\?)/i.test(u) || /\/index\.m3u8/i.test(u);
+  }
+
+  function loadVideo() {
+    hideError();
+    setupSubtitle();
+    if (isHls(URL_VIDEO) && window.Hls && window.Hls.isSupported()) {
+      try {
+        if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 60,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+          liveSyncDurationCount: 3,
+          xhrSetup: function (xhr, url) {
+            try {
+              if (UA) xhr.setRequestHeader("User-Agent", UA);
+              if (REFERER) xhr.setRequestHeader("Referer", REFERER);
+            } catch (e) {}
+          },
+          fetchSetup: function (context, initParams) {
+            try {
+              if (!initParams.headers) initParams.headers = {};
+              if (UA) initParams.headers["User-Agent"] = UA;
+              if (REFERER) initParams.headers["Referer"] = REFERER;
+            } catch (e) {}
+          }
+        });
+        hls.loadSource(URL_VIDEO);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function (ev, data) {
+          showHint("HLS 已就绪 · " + (data.levels || []).length + " 条码率", 2500);
+          try { video.play().catch(() => {}); } catch (e) {}
+        });
+        hls.on(Hls.Events.ERROR, function (ev, data) {
+          if (!data || data.fatal) {
+            // Try to recover once, then fallback
+            if (hls && data && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              try { hls.startLoad(); return; } catch (e) {}
+            }
+            showError("HLS 加载失败：" + (data && data.details ? data.details : "未知错误"));
+          }
+        });
+        return;
+      } catch (e) {
+        showHint("HLS.js 初始化失败，尝试原生播放", 2500);
+      }
+    }
+    // Fallback: direct src
+    try {
+      video.src = URL_VIDEO;
+      video.play().catch(() => {});
+    } catch (e) {
+      showError("视频加载失败：" + e.message);
+    }
+  }
+
+  // Controls
+  function onBarDown(e) {
+    e.preventDefault();
+    const rect = bar.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const ratio = Math.max(0, Math.min(1, x / rect.width));
+    seekByRatio(ratio);
+    const move = ev => {
+      const rect2 = bar.getBoundingClientRect();
+      const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect2.left;
+      seekByRatio(Math.max(0, Math.min(1, cx / rect2.width)));
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    window.addEventListener("touchmove", move, { passive: false });
+    window.addEventListener("touchend", up);
+  }
+
+  function seekByRatio(ratio) {
+    if (!isFinite(video.duration)) return;
+    try { video.currentTime = video.duration * ratio; } catch (e) {}
+  }
+
+  function updateBar() {
+    const dur = isFinite(video.duration) ? video.duration : 0;
+    const cur = isFinite(video.currentTime) ? video.currentTime : 0;
+    const bufR = (video.buffered && video.buffered.length) ? video.buffered.end(video.buffered.length - 1) / dur : 0;
+    const curR = dur > 0 ? cur / dur : 0;
+    prog.style.width = (curR * 100).toFixed(3) + "%";
+    buf.style.width = (Math.max(0, Math.min(1, bufR)) * 100).toFixed(3) + "%";
+    dot.style.left = (curR * 100).toFixed(3) + "%";
+    curEl.textContent = fmt(cur);
+    durEl.textContent = fmt(dur);
+  }
+
+  function toggleFullscreen() {
+    const doc = document;
+    const el = document.documentElement;
+    const isFs = doc.fullscreenElement || doc.webkitFullscreenElement;
+    if (!isFs) {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitEnterFullscreen;
+      if (req) req.call(el);
+      else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+    } else {
+      const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+      if (exit) exit.call(doc);
+    }
+  }
+
+  function setSpeed(s) {
+    try { video.playbackRate = Number(s) || 1; } catch (e) {}
+    speedBtn.textContent = video.playbackRate.toFixed(2).replace(/\.?0+$/, "") + "x";
+    speedMenu.querySelectorAll("button").forEach(b => {
+      b.classList.toggle("active", Math.abs(Number(b.dataset.s) - video.playbackRate) < 0.001);
+    });
+  }
+
+  // Attach events
+  playBtn.addEventListener("click", function () {
+    if (video.paused) video.play().catch(() => {});
+    else video.pause();
+  });
+  video.addEventListener("play", updatePlayIcon);
+  video.addEventListener("pause", updatePlayIcon);
+  video.addEventListener("ended", updatePlayIcon);
+  video.addEventListener("loadedmetadata", () => { durEl.textContent = fmt(video.duration); showCtrl(); });
+  video.addEventListener("timeupdate", updateBar);
+  video.addEventListener("progress", updateBar);
+  video.addEventListener("error", () => showError("视频播放错误：" + (video.error && video.error.message ? video.error.message : "无法播放")));
+  video.addEventListener("waiting", () => showHint("缓冲中...", 1500));
+  video.addEventListener("canplay", () => showHint("", 100));
+  bar.addEventListener("mousedown", onBarDown);
+  bar.addEventListener("touchstart", onBarDown, { passive: false });
+  ["click", "touchstart"].forEach(ev => {
+    document.getElementById("wrap").addEventListener(ev, function (e) {
+      if (e.target.closest(".ctrl")) return;
+      if (ctrl.classList.contains("hide")) showCtrl();
+      else hideCtrl();
+    });
+  });
+  fsBtn.addEventListener("click", toggleFullscreen);
+  speedBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    speedMenu.classList.toggle("show");
+    clearTimeout(ctrlTimer);
+  });
+  speedMenu.addEventListener("click", function (e) {
+    const btn = e.target.closest("button[data-s]");
+    if (btn) setSpeed(btn.dataset.s);
+    speedMenu.classList.remove("show");
+  });
+  retryBtn.addEventListener("click", loadVideo);
+  nativeBtn.addEventListener("click", nativePlay);
+
+  // Apply overrides first so Hls.js uses our headers
+  applyXhrOverride();
+  tryFetchOverride();
+
+  // Start
+  window.fallbackHls = function () {
+    // Hls.js CDN failed; try to play directly (native)
+    showHint("HLS.js 加载失败，尝试原生 HLS 播放", 3000);
+  };
+
+  function start() {
+    showHint("正在加载：" + (URL_VIDEO || "(空)"), 4000);
+    if (!URL_VIDEO) { showError("未提供视频地址"); return; }
+    if (window.Hls) {
+      loadVideo();
+    } else {
+      // Hls.js might still be loading; wait
+      let tries = 0;
+      const timer = setInterval(() => {
+        tries++;
+        if (window.Hls) { clearInterval(timer); loadVideo(); }
+        else if (tries > 60) { clearInterval(timer); loadVideo(); } // fallback
+      }, 100);
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+  // Also expose an API for native calling
+  window.__mxboxsPlayer = {
+    play: () => video.play().catch(() => {}),
+    pause: () => video.pause(),
+    seek: (t) => { if (isFinite(t)) video.currentTime = t; },
+    speed: setSpeed,
+    fullscreen: toggleFullscreen,
+    reload: loadVideo,
+    destroy: () => { try { if (hls) hls.destroy(); } catch (e) {} try { video.removeAttribute("src"); video.load(); } catch (e) {} }
+  };
+  // Notify native of the final resolved URL we are playing
+  try {
+    const Android = window.Android || (window.parent && window.parent.Android);
+    if (Android && typeof Android.onSniff === "function") {
+      Android.onSniff(URL_VIDEO, JSON.stringify({ ua: UA, referer: REFERER }), "web_player");
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

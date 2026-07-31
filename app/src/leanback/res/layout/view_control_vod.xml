@@ -11,11 +11,31 @@
     android:paddingEnd="24dp"
     android:paddingBottom="16dp">
 
-    <androidx.media3.ui.PlayerSeekView
-        android:id="@+id/seek"
+    <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
+
+        <androidx.media3.ui.PlayerSeekView
+            android:id="@+id/seek"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/fullscreen"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="12dp"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="center"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_control_fullscreen" />
+
+    </androidx.appcompat.widget.LinearLayoutCompat>
 
     <include
         android:id="@+id/action"

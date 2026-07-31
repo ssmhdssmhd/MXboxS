@@ -11,6 +11,11 @@ public class PlayerSetting {
     public static final int ENGINE_EXO = 0;
     public static final int ENGINE_MPV = 1;
     public static final int ENGINE_SYSTEM = 2;
+    public static final int ENGINE_IJK = 3;
+    public static final int ENGINE_VLC = 4;
+    public static final int ENGINE_WEB = 5;
+    public static final int ENGINE_MIN = ENGINE_EXO;
+    public static final int ENGINE_MAX = ENGINE_WEB;
     public static final int RENDER_SURFACE = 0;
     public static final int RENDER_TEXTURE = 1;
     public static final int MIN_SCALE = 0;
@@ -23,11 +28,11 @@ public class PlayerSetting {
     private static final float MAX_SPEED = 5.0f;
 
     public static int getEngine() {
-        return Math.clamp(Prefers.getInt("player_engine", ENGINE_EXO), ENGINE_EXO, ENGINE_SYSTEM);
+        return Math.clamp(Prefers.getInt("player_engine", ENGINE_EXO), ENGINE_MIN, ENGINE_MAX);
     }
 
     public static void putEngine(int engine) {
-        Prefers.put("player_engine", Math.clamp(engine, ENGINE_EXO, ENGINE_SYSTEM));
+        Prefers.put("player_engine", Math.clamp(engine, ENGINE_MIN, ENGINE_MAX));
         if (!isMpv() && !isSystem() && isTunnel()) Prefers.put("render", RENDER_SURFACE);
     }
 
@@ -37,6 +42,36 @@ public class PlayerSetting {
 
     public static boolean isSystem() {
         return getEngine() == ENGINE_SYSTEM;
+    }
+
+    public static boolean isIjk() {
+        return getEngine() == ENGINE_IJK;
+    }
+
+    public static boolean isVlc() {
+        return getEngine() == ENGINE_VLC;
+    }
+
+    public static boolean isWeb() {
+        return getEngine() == ENGINE_WEB;
+    }
+
+    public static boolean isIjkAvailable() {
+        try {
+            Class.forName("tv.danmaku.ijk.media.player.IjkMediaPlayer");
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    public static boolean isVlcAvailable() {
+        try {
+            Class.forName("org.videolan.libvlc.LibVLC");
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     public static boolean isMpvGpuNext() {
