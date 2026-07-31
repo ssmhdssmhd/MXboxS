@@ -112,6 +112,9 @@ public class ParseJob implements ParseCallback {
             case 4:
                 superParse(webUrl, flag);
                 break;
+            case 5:
+                builtinParse(webUrl);
+                break;
         }
     }
 
@@ -141,29 +144,104 @@ public class ParseJob implements ParseCallback {
         List<Parse> json = VodConfig.get().getParses(1, flag);
         List<Parse> webs = VodConfig.get().getParses(0, flag);
         int count = json.size() + (webs.isEmpty() ? 0 : 1);
+        if (count == 0) {
+            // 没有可用解析器，直接尝试 AI 智能解析 fallback
+            if (aiSmartParseFallback(webUrl)) return;
+            onParseError();
+            return;
+        }
         CountDownLatch latch = new CountDownLatch(count);
         for (Parse item : json) {
             Future<?> future = infinite.submit(() -> {
                 try {
                     jsonParse(item, webUrl, false);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    // 单个解析失败不影响其它，只记录（避免污染日志）
                 } finally {
-                    latch.countDown();
+                    try { latch.countDown(); } catch (Exception ignored) {}
                 }
             });
             futures.add(future);
         }
         if (!webs.isEmpty()) startWeb(latch, webs, webUrl);
-        latch.await(30, TimeUnit.SECONDS);
-        // Ensure all remaining futures are handled - count down for any that were cancelled before running
-        for (Future<?> f : futures) {
-            if (f.isCancelled()) {
-                // Already cancelled, but the latch won't be counted down for it
-                // The latch timeout already handled this case
+        try {
+            boolean ok = latch.await(30, TimeUnit.SECONDS);
+            // 未完成的 future 不影响 latch，但保证我们不会直接 NPE
+            for (Future<?> f : futures) {
+                try { if (!f.isDone()) f.cancel(true); } catch (Exception ignored) {}
+            }
+            if (!ok && !done.get()) {
+                // 超时但还没成功，尝试 AI 智能解析 fallback
+                if (!aiSmartParseFallback(webUrl)) onParseError();
+            } else if (!done.get()) {
+                // 正常完成但解析失败，尝试 AI fallback
+                if (!aiSmartParseFallback(webUrl)) onParseError();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            if (!done.get()) {
+                if (!aiSmartParseFallback(webUrl)) onParseError();
             }
         }
-        if (!done.get()) onParseError();
+    }
+
+    /**
+     * AI 智能解析 fallback：
+     * 当传统解析（json / mix / extend / 超级）失败时，
+     * 先通过启发式规则嗅探页面中的真实视频 URL（m3u8/mp4/flv...），
+     * 若命中则直接用该 URL 播放，不再依赖第三方解析站。
+     */
+    private boolean aiSmartParseFallback(String webUrl) {
+        if (done.get()) return true;
+        try {
+            Map<String, String> headers = parse != null ? parse.getHeader() : new HashMap<>();
+            // 1) 如果本身就是 m3u8 / mp4 / flv 等直链，直接放行
+            String lc = webUrl == null ? "" : webUrl.toLowerCase();
+            if (lc.endsWith(".m3u8") || lc.contains(".m3u8?")
+                    || lc.endsWith(".mp4") || lc.contains(".mp4?")
+                    || lc.endsWith(".flv") || lc.contains(".flv?")
+                    || lc.endsWith(".m4v") || lc.contains(".m4v?")
+                    || lc.endsWith(".ts") || lc.contains(".ts?")) {
+                onParseSuccess(headers, webUrl, "AI-Direct");
+                return true;
+            }
+            // 2) 用简单 HTTP GET 抓页面正文，正则扫常见视频 URL
+            String body = safeGetBody(webUrl, headers);
+            if (body != null && body.length() > 0) {
+                String sniffed = UrlUtil.sniffVideo(body, webUrl, "m3u8", "mp4", "flv", "m4v", "index.m3u8", "playlist.m3u8");
+                if (sniffed != null && !sniffed.isEmpty()) {
+                    onParseSuccess(headers, sniffed, "AI-Sniff");
+                    return true;
+                }
+            }
+            // 3) 失败：返回 false，让上层决定走 onParseError
+            return false;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private String safeGetBody(String url, Map<String, String> headers) {
+        try (Response res = OkHttp.newCall(url, headers).execute()) {
+            if (res.body() != null) {
+                String s = res.body().string();
+                if (s.length() > 512 * 1024) s = s.substring(0, 512 * 1024);
+                return s;
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    /**
+     * 内置 m3u8/m3u8/mp4 直链解析：
+     * 1) 若 webUrl 本身是视频直链，直接放行；
+     * 2) 否则抓取 HTML/JS 正文，调用 UrlUtil.sniffVideo 启发式正则嗅探视频地址；
+     * 3) 再失败时走 onParseError 让上层提示/重试。
+     */
+    private void builtinParse(String webUrl) {
+        if (done.get()) return;
+        if (aiSmartParseFallback(webUrl)) return;
+        onParseError();
     }
 
     private void startWeb(CountDownLatch latch, List<Parse> items, String webUrl) {

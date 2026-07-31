@@ -64,6 +64,9 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
         binding.exo.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_EXO));
         binding.mpv.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_MPV));
         binding.system.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_SYSTEM));
+        if (binding.ali != null) binding.ali.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_ALI));
+        if (binding.nova != null) binding.nova.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_NOVA));
+        if (binding.ijk != null) binding.ijk.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_IJK));
     }
 
     private void selectDebug(View view) {
@@ -96,6 +99,9 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
         binding.exo.setSelected(engine == PlayerSetting.ENGINE_EXO);
         binding.mpv.setSelected(engine == PlayerSetting.ENGINE_MPV);
         binding.system.setSelected(engine == PlayerSetting.ENGINE_SYSTEM);
+        if (binding.ali != null) binding.ali.setSelected(engine == PlayerSetting.ENGINE_ALI);
+        if (binding.nova != null) binding.nova.setSelected(engine == PlayerSetting.ENGINE_NOVA);
+        if (binding.ijk != null) binding.ijk.setSelected(engine == PlayerSetting.ENGINE_IJK);
         binding.debug.setSelected(activity != null && activity.isDebugViewVisible());
     }
 
@@ -103,6 +109,9 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
         return switch (getCurrentEngine(player)) {
             case PlayerSetting.ENGINE_MPV -> binding.mpv;
             case PlayerSetting.ENGINE_SYSTEM -> binding.system;
+            case PlayerSetting.ENGINE_ALI -> binding.ali != null ? binding.ali : binding.exo;
+            case PlayerSetting.ENGINE_NOVA -> binding.nova != null ? binding.nova : binding.exo;
+            case PlayerSetting.ENGINE_IJK -> binding.ijk != null ? binding.ijk : binding.exo;
             default -> binding.exo;
         };
     }

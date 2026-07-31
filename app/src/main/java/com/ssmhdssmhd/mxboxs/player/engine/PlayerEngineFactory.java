@@ -1,7 +1,10 @@
 package com.ssmhdssmhd.mxboxs.player.engine;
 
+import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.ALI;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.EXO;
+import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.IJK;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.MPV;
+import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.NOVA;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.SYSTEM;
 
 import androidx.media3.common.Player;
@@ -28,6 +31,8 @@ public final class PlayerEngineFactory {
             case EXO -> new ExoPlayerEngine(decode, listener);
             case MPV -> new MpvPlayerEngine(decode, listener);
             case SYSTEM -> new SystemPlayerEngine(decode, listener);
+            // 新增引擎：未集成原生 so 时降级到 ExoPlayer，保证不崩溃
+            case ALI, NOVA, IJK -> new ExoPlayerEngine(decode, listener);
         };
     }
 
@@ -36,15 +41,32 @@ public final class PlayerEngineFactory {
     }
 
     private static PlayerEngine.Type resolve(PlaySpec spec) {
-        if (!isMpvReady()) return PlayerEngine.Type.EXO;
         if (requiresExo(spec)) return PlayerEngine.Type.EXO;
-        if (PlayerSetting.isSystem()) return PlayerEngine.Type.SYSTEM;
-        return PlayerSetting.isMpv() ? MPV : EXO;
+        PlayerEngine.Type preferred = resolveFromSetting();
+        if (preferred == MPV && !isMpvReady()) return EXO;
+        return preferred;
     }
 
     private static PlayerEngine.Type resolve() {
-        if (PlayerSetting.isSystem()) return PlayerEngine.Type.SYSTEM;
-        return isMpvReady() ? MPV : EXO;
+        PlayerEngine.Type preferred = resolveFromSetting();
+        if (preferred == MPV && !isMpvReady()) return EXO;
+        return preferred;
+    }
+
+    /**
+     * 将 PlayerSetting 中保存的 engine 常量映射到枚举。
+     * 新增引擎（ALI/NOVA/IJK）在未引入专用实现时会在 create 里降级到 Exo，
+     * 这里直接返回对应枚举类型以便 UI / 配置面板区分展示。
+     */
+    private static PlayerEngine.Type resolveFromSetting() {
+        return switch (PlayerSetting.getEngine()) {
+            case PlayerSetting.ENGINE_MPV -> MPV;
+            case PlayerSetting.ENGINE_SYSTEM -> SYSTEM;
+            case PlayerSetting.ENGINE_ALI -> ALI;
+            case PlayerSetting.ENGINE_NOVA -> NOVA;
+            case PlayerSetting.ENGINE_IJK -> IJK;
+            default -> EXO;
+        };
     }
 
     private static boolean requiresExo(PlaySpec spec) {

@@ -225,6 +225,9 @@ public class PlayerManager implements ParseCallback {
         return switch (engine.getType()) {
             case MPV -> PlayerSetting.ENGINE_MPV;
             case SYSTEM -> PlayerSetting.ENGINE_SYSTEM;
+            case ALI -> PlayerSetting.ENGINE_ALI;
+            case NOVA -> PlayerSetting.ENGINE_NOVA;
+            case IJK -> PlayerSetting.ENGINE_IJK;
             default -> PlayerSetting.ENGINE_EXO;
         };
     }

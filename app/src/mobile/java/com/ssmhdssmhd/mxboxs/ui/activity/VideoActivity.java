@@ -339,6 +339,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.control.right.lock.setOnClickListener(view -> onLock());
         mBinding.control.right.rotate.setOnClickListener(view -> onRotate());
         mBinding.control.danmaku.setOnClickListener(view -> onDanmakuShow());
+        if (mBinding.control.fullscreen != null) mBinding.control.fullscreen.setOnClickListener(view -> onFullscreen());
         mBinding.control.action.text.setOnClickListener(this::onTrack);
         mBinding.control.action.audio.setOnClickListener(this::onTrack);
         mBinding.control.action.video.setOnClickListener(this::onTrack);
@@ -1078,6 +1079,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         setRequestedOrientation(PlaybackOrientation.getEnterFullscreenOrientation(player().isPortrait()));
         mBinding.control.title.setVisibility(View.VISIBLE);
         setRotate(player().isPortrait());
+        updateFullscreenIcon();
         mKeyDown.resetScale();
         App.post(mR3, 2000);
         hideControl();
@@ -1091,10 +1093,27 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.episode.postDelayed(() -> mBinding.episode.scrollToPosition(mEpisodeAdapter.getPosition()), 100);
         mBinding.control.title.setVisibility(View.INVISIBLE);
         mBinding.video.setLayoutParams(mFrameParams);
+        updateFullscreenIcon();
         mKeyDown.resetScale();
         App.post(mR3, 2000);
         setRotate(false);
         hideControl();
+    }
+
+    private void onFullscreen() {
+        if (isFullscreen()) exitFullscreen();
+        else enterFullscreen();
+    }
+
+    private void updateFullscreenIcon() {
+        if (mBinding.control != null && mBinding.control.fullscreen != null) {
+            mBinding.control.fullscreen.setImageResource(isFullscreen()
+                    ? R.drawable.ic_control_fullscreen_exit
+                    : R.drawable.ic_control_fullscreen_enter);
+            mBinding.control.fullscreen.setContentDescription(getString(isFullscreen()
+                    ? R.string.play_fullscreen_exit
+                    : R.string.play_fullscreen));
+        }
     }
 
     private void setTransition() {

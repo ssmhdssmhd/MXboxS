@@ -2,6 +2,65 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.26] - 2026-08-01
+
+### 超级解析 AI 智能兜底 + 内置解析器
+
+- **修复「超级解析」报错与无响应问题**：`ParseJob.superParse()` 增加三层兜底，任何一层命中即成功回调，避免 `onParseError()` 的空白页：
+  1. 无可用解析器时 → 直接走 AI 智能解析，不再抛错；
+  2. 解析超时/中断 → AI fallback；
+  3. 解析正常完成但未出 URL → AI fallback。
+- **AI 智能嗅探（`aiSmartParseFallback`）**：
+  - 识别后缀/query 直链：`.m3u8`、`.mp4`、`.flv`、`.m4v`、`.ts`（含 `?` 参数）→ 直接播放，标记来源 `AI-Direct`；
+  - 否则抓取页面 HTML/JS，用启发式正则扫常见视频地址（支持相对路径拼接）→ 命中后标记来源 `AI-Sniff`。
+- **内置 m3u8 解析器（Built-in, type=5）**：`Parse.builtin()` 注册进 `VodConfig` 的解析器列表，默认位于首位；逻辑直接复用 AI 嗅探流程，不依赖第三方解析站。
+- **工具链补齐**：`UrlUtil.sniffVideo` / `sniffByKeys` / `resolve` 组合，确保从任意页面正文里抓出真实视频地址。
+
+### 进度条旁边新增全屏按钮（Mobile + Leanback）
+
+- 解决「第一次知道转横屏，退出全屏后不知道在哪里全屏」的可用性问题：
+  - Mobile：`app/src/mobile/res/layout/view_control_vod.xml` → 在进度条/倍速右侧新增 `@+id/fullscreen` 图标按钮；
+  - Leanback：`app/src/leanback/res/layout/view_control_vod.xml` → 同样位置新增，`focusable=true` 方便遥控器导航；
+  - 新增 drawable：`ic_control_fullscreen_enter.xml`（四角箭头向外）、`ic_control_fullscreen_exit.xml`（四角箭头向内）；
+  - 多语言字符串：`play_fullscreen` / `play_fullscreen_exit`（英/简中/繁中）；
+  - 点击逻辑：两边 `VideoActivity#onFullscreen()` 切换进入/退出 `enterFullscreen()`、`exitFullscreen()`，同步更新图标和 contentDescription。
+
+### 播放器引擎扩展（Ali / Nova / IJK）
+
+- `PlayerEngine.Type` 枚举新增：`ALI`、`NOVA`、`IJK`，共 6 档引擎（EXO / MPV / SYSTEM / ALI / NOVA / IJK）。
+- `PlayerEngineFactory.create` 路由：`ALI / NOVA / IJK` 目前先走 Exo 兜底实现（避免本地缺库时崩溃），后续若接入底层 so，只需替换对应分支实现。
+- `PlayerSetting` 扩展：
+  - `ENGINE_ALI=3 / ENGINE_NOVA=4 / ENGINE_IJK=5 / ENGINE_MAX=ENGINE_IJK`
+  - `isAli()` / `isNova()` / `isIjk()` 判断器
+  - `putEngine(index)` 边界正确 clamp，原 MPV / SYSTEM 的渲染约束不变。
+- 引擎对话框 / 引擎列表：`select_engine` string-array 对齐新增 `Ali / Nova / IJK`，`PlaybackAction` 引擎文本从数组拿 → 所有页面显示一致。
+
+### 播放器引擎详细设置面板
+
+- 在设置里「播放器引擎」可点击切换的基础上，为不同引擎显示专属参数（切换引擎时自动隐藏无关项）：
+  - **MPV 专属**：`mpv.conf` 导入 / `gpu-next` / `vulkan` 开关；
+  - **Exo / Ali / Nova / IJK（Exo 兼容分支）专属**：解码设置入口、智能去广告、隧道模式 Tunnel、音频软解偏好、视频软解偏好、AAC 优先、DV7 HEVC 回退；
+  - **共享项**（所有引擎显示）：渲染器、缩放比例、字幕样式、长按倍速、后台播放、预载设置、UA 设置、音频直通（Exo/MPV 双兼容）。
+- 涉及文件：
+  - `fragment_setting_player.xml`（mobile）
+  - `activity_setting_player.xml`（leanback）
+  - `SettingPlayerFragment` / `SettingPlayerActivity` → 新增点击事件、显示文本刷新、`setVisible()` 按引擎分组切换可见性。
+- `PlayerSetting` 已存全部参数的 getter/putter：
+  - `isTunnel / putTunnel`、`isAudioPassThrough / putAudioPassThrough`
+  - `isAudioPrefer / putAudioPrefer`、`isVideoPrefer / putVideoPrefer`
+  - `isPreferAAC / putPreferAAC`、`isDv7HevcFallback / putDv7HevcFallback`
+
+### 版本 & CI
+
+- `versionCode`：574 → **575**，`versionName`：`5.5.25` → **`5.5.26`**
+- README：版本表、云端编译产物名、功能特性（AI 解析 / 全屏按钮 / 更多引擎 / 详细参数）同步更新
+- GitHub Actions（`.github/workflows/build.yml`）保持：
+  - push 到 `main` / `mobile` 分支 → 出 Artifact（含 TV + 手机共 4 APK）
+  - push tag `v*` → 自动创建 GitHub Release，挂载 4 APK
+  - 4 个 build task：`Mobile arm64 / Mobile armeabi / Leanback arm64 / Leanback armeabi`，依次 assemble `assemble{Variant}Release`
+
+---
+
 ## [v5.5.25] - 2026-07-31
 
 ### 视频播放器进度条与交互优化

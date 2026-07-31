@@ -203,6 +203,8 @@ public class VodConfig extends BaseConfig {
 
     private void setParses(List<Parse> parses) {
         if (!parses.isEmpty()) parses.add(0, Parse.god());
+        boolean hasBuiltin = parses.stream().anyMatch(p -> p.getType() != null && p.getType() == 5);
+        if (!hasBuiltin) parses.add(0, Parse.builtin());
         this.parses = parses;
     }
 

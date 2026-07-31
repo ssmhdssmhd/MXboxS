@@ -23,20 +23,20 @@
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.24 (573) |
+| 版本 | v5.5.26 (575) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
 
 ### 云端编译
 
-GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 或 `mobile` 分支即可触发。
+GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 或 `mobile` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.24.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.24.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.24.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.24.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.26.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.26.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.26.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.26.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 
@@ -94,18 +94,26 @@ GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体
 ## 功能特性
 
 ### 播放器
-- 双引擎可切换（设置中选择，默认可选）：
+- 多引擎可切换（设置中选择，默认可选）：
   - **ExoPlayer (Media3 1.11.0-rc01)**：默认引擎，支持 HLS/DASH/SmoothStreaming/RTSP、DRM (Widevine/PlayReady/ClearKey)、AI 画质优化（强制最高码率 + 视频缩放裁剪）、OkHttp + 磁盘缓存
   - **MPV (MpvPlayer)**：硬解 mediacodec-copy、画质 profile=high-quality、去环路滤波、soxr 重采样、字幕样式可配、Vulkan/GpuNext 开关、磁盘预载
+  - **System Player**：系统原生播放器
+  - **Ali / Nova / IJK**：兼容扩展引擎（引擎选择器中提供，缺失底层库时自动回退到 ExoPlayer）
 - 渲染：SurfaceView（默认） / TextureView，支持隧道模式（Tunneling）
 - 字幕：SRT / SSA / ASS 外挂字幕，支持动态添加、位置/大小调节
 - 画中画（PiP）、倍速播放、背景音频（含 PiP 模式）
-- 自动降级：DRM 或 SMB 源自动切换到 EXO；MPV 不可用时回退 EXO
+- 详细引擎参数：音频直通、音频/视频软解偏好、AAC 优先、DV7 HEVC 回退、隧道模式、AdBlock、UA、长按倍速等
+- 自动降级：DRM 或 SMB 源自动切换到 EXO；MPV 不可用时回退 EXO；Ali/Nova/IJK 不可用时回退 EXO
+- 进度条旁 **全屏按钮**：进入/退出全屏不再依赖旋转方向，新手用户可直接点击图标
+- **内置 m3u8/mp4 解析器（Built-in）**：直出解析或启发式正则嗅探页面内视频直链，不依赖第三方解析站
 
 ### 点播
 - 多站点分类浏览，Filter 筛选
 - 多站点并行搜索
 - 播放失败自动换源
+- **超级解析（Super Parse）AI 智能 fallback**：当 JSON / WebView 解析站全部失败或超时时，自动触发 AI 启发式嗅探：
+  1. 若 webUrl 本身就是 m3u8/mp4/flv/m4v/ts 直链 → 直接播放；
+  2. 否则抓取页面正文，正则扫常见视频 URL（含相对路径拼接）→ 命中后直接播放；
 - 观看记录、收藏、无痕模式
 - 手势控制（亮度/音量/进度）
 

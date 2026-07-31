@@ -54,6 +54,18 @@ public class Parse implements Diffable<Parse> {
         return parse;
     }
 
+    /**
+     * 内置 m3u8 直链嗅探解析器（type = 5）。
+     * 不依赖第三方解析站，直接通过 HTTP + 启发式正则抓取页面里的
+     * m3u8 / mp4 / flv 等真实视频地址。
+     */
+    public static Parse builtin() {
+        Parse parse = new Parse();
+        parse.setName(ResUtil.getString(R.string.parse_builtin));
+        parse.setType(5);
+        return parse;
+    }
+
     public String getName() {
         return TextUtils.isEmpty(name) ? "" : name;
     }

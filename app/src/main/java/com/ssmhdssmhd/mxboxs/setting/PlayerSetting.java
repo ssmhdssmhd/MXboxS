@@ -11,6 +11,10 @@ public class PlayerSetting {
     public static final int ENGINE_EXO = 0;
     public static final int ENGINE_MPV = 1;
     public static final int ENGINE_SYSTEM = 2;
+    public static final int ENGINE_ALI = 3;
+    public static final int ENGINE_NOVA = 4;
+    public static final int ENGINE_IJK = 5;
+    public static final int ENGINE_MAX = ENGINE_IJK;
     public static final int RENDER_SURFACE = 0;
     public static final int RENDER_TEXTURE = 1;
     public static final int MIN_SCALE = 0;
@@ -23,11 +27,11 @@ public class PlayerSetting {
     private static final float MAX_SPEED = 5.0f;
 
     public static int getEngine() {
-        return Math.clamp(Prefers.getInt("player_engine", ENGINE_EXO), ENGINE_EXO, ENGINE_SYSTEM);
+        return Math.clamp(Prefers.getInt("player_engine", ENGINE_EXO), ENGINE_EXO, ENGINE_MAX);
     }
 
     public static void putEngine(int engine) {
-        Prefers.put("player_engine", Math.clamp(engine, ENGINE_EXO, ENGINE_SYSTEM));
+        Prefers.put("player_engine", Math.clamp(engine, ENGINE_EXO, ENGINE_MAX));
         if (!isMpv() && !isSystem() && isTunnel()) Prefers.put("render", RENDER_SURFACE);
     }
 
@@ -37,6 +41,18 @@ public class PlayerSetting {
 
     public static boolean isSystem() {
         return getEngine() == ENGINE_SYSTEM;
+    }
+
+    public static boolean isAli() {
+        return getEngine() == ENGINE_ALI;
+    }
+
+    public static boolean isNova() {
+        return getEngine() == ENGINE_NOVA;
+    }
+
+    public static boolean isIjk() {
+        return getEngine() == ENGINE_IJK;
     }
 
     public static boolean isMpvGpuNext() {

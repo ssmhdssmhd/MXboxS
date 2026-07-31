@@ -50,6 +50,12 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, S
         mBinding.adblockText.setText(Setting.getSwitch(Setting.isAdblock()));
         mBinding.mpvVulkanText.setText(Setting.getSwitch(PlayerSetting.isMpvVulkan()));
         mBinding.mpvGpuNextText.setText(Setting.getSwitch(PlayerSetting.isMpvGpuNext()));
+        mBinding.tunnelText.setText(Setting.getSwitch(PlayerSetting.isTunnel()));
+        mBinding.audioPassThroughText.setText(Setting.getSwitch(PlayerSetting.isAudioPassThrough()));
+        mBinding.audioPreferText.setText(Setting.getSwitch(PlayerSetting.isAudioPrefer()));
+        mBinding.videoPreferText.setText(Setting.getSwitch(PlayerSetting.isVideoPrefer()));
+        mBinding.preferAacText.setText(Setting.getSwitch(PlayerSetting.isPreferAAC()));
+        mBinding.dv7FallbackText.setText(Setting.getSwitch(PlayerSetting.isDv7HevcFallback()));
         mBinding.backgroundText.setText(Setting.getSwitch(PlayerSetting.isBackgroundOn()));
         mBinding.scaleText.setText((scale = ResUtil.getStringArray(R.array.select_scale))[PlayerSetting.getScale()]);
         mBinding.captionText.setText((caption = ResUtil.getStringArray(R.array.select_caption))[PlayerSetting.isCaption() ? 1 : 0]);
@@ -68,6 +74,12 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, S
         mBinding.speed.setOnClickListener(this::onSpeed);
         mBinding.background.setOnClickListener(this::onBackground);
         mBinding.adblock.setOnClickListener(this::setAdblock);
+        mBinding.tunnel.setOnClickListener(this::setTunnel);
+        mBinding.audioPassThrough.setOnClickListener(this::setAudioPassThrough);
+        mBinding.audioPrefer.setOnClickListener(this::setAudioPrefer);
+        mBinding.videoPrefer.setOnClickListener(this::setVideoPrefer);
+        mBinding.preferAac.setOnClickListener(this::setPreferAac);
+        mBinding.dv7Fallback.setOnClickListener(this::setDv7Fallback);
         mBinding.preload.setOnClickListener(this::onPreloadSetting);
         mBinding.decode.setOnClickListener(this::onDecodeSetting);
         mBinding.ua.setOnClickListener(this::onUa);
@@ -82,6 +94,12 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, S
         mBinding.mpvGpuNext.setVisibility(mpv ? View.VISIBLE : View.GONE);
         mBinding.decode.setVisibility(exo ? View.VISIBLE : View.GONE);
         mBinding.adblock.setVisibility(exo ? View.VISIBLE : View.GONE);
+        mBinding.tunnel.setVisibility(exo ? View.VISIBLE : View.GONE);
+        mBinding.audioPassThrough.setVisibility(exo || mpv ? View.VISIBLE : View.GONE);
+        mBinding.audioPrefer.setVisibility(exo ? View.VISIBLE : View.GONE);
+        mBinding.videoPrefer.setVisibility(exo ? View.VISIBLE : View.GONE);
+        mBinding.preferAac.setVisibility(exo ? View.VISIBLE : View.GONE);
+        mBinding.dv7Fallback.setVisibility(exo ? View.VISIBLE : View.GONE);
         mBinding.caption.setVisibility(PlayerSetting.hasCaption() ? View.VISIBLE : View.GONE);
     }
 
@@ -153,6 +171,37 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, S
     private void setAdblock(View view) {
         Setting.putAdblock(!Setting.isAdblock());
         mBinding.adblockText.setText(Setting.getSwitch(Setting.isAdblock()));
+    }
+
+    private void setTunnel(View view) {
+        PlayerSetting.putTunnel(!PlayerSetting.isTunnel());
+        mBinding.tunnelText.setText(Setting.getSwitch(PlayerSetting.isTunnel()));
+        setVisible();
+    }
+
+    private void setAudioPassThrough(View view) {
+        PlayerSetting.putAudioPassThrough(!PlayerSetting.isAudioPassThrough());
+        mBinding.audioPassThroughText.setText(Setting.getSwitch(PlayerSetting.isAudioPassThrough()));
+    }
+
+    private void setAudioPrefer(View view) {
+        PlayerSetting.putAudioPrefer(!PlayerSetting.isAudioPrefer());
+        mBinding.audioPreferText.setText(Setting.getSwitch(PlayerSetting.isAudioPrefer()));
+    }
+
+    private void setVideoPrefer(View view) {
+        PlayerSetting.putVideoPrefer(!PlayerSetting.isVideoPrefer());
+        mBinding.videoPreferText.setText(Setting.getSwitch(PlayerSetting.isVideoPrefer()));
+    }
+
+    private void setPreferAac(View view) {
+        PlayerSetting.putPreferAAC(!PlayerSetting.isPreferAAC());
+        mBinding.preferAacText.setText(Setting.getSwitch(PlayerSetting.isPreferAAC()));
+    }
+
+    private void setDv7Fallback(View view) {
+        PlayerSetting.putDv7HevcFallback(!PlayerSetting.isDv7HevcFallback());
+        mBinding.dv7FallbackText.setText(Setting.getSwitch(PlayerSetting.isDv7HevcFallback()));
     }
 
     private void onPreloadSetting(View view) {

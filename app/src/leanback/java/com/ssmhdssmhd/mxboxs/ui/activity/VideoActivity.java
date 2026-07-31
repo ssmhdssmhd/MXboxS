@@ -319,6 +319,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         mBinding.control.action.opening.setOnClickListener(view -> onOpening());
         mBinding.control.action.ending.setOnLongClickListener(view -> onEndingReset());
         mBinding.control.action.opening.setOnLongClickListener(view -> onOpeningReset());
+        if (mBinding.control.fullscreen != null) mBinding.control.fullscreen.setOnClickListener(view -> onFullscreen());
         mBinding.video.setOnTouchListener((view, event) -> mKeyDown.onTouchEvent(event));
         mBinding.flag.addOnChildViewHolderSelectedListener(new OnChildViewHolderSelectedListener() {
             @Override
@@ -789,6 +790,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         mBinding.flag.setSelectedPosition(mFlagAdapter.getPosition());
         mKeyDown.setFull(true);
         setFullscreen(true);
+        updateFullscreenIcon();
         mFocus2 = null;
     }
 
@@ -798,8 +800,25 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         getFocus1().requestFocus();
         mKeyDown.setFull(false);
         setFullscreen(false);
+        updateFullscreenIcon();
         mFocus2 = null;
         hideInfo();
+    }
+
+    private void onFullscreen() {
+        if (isFullscreen()) exitFullscreen();
+        else enterFullscreen();
+    }
+
+    private void updateFullscreenIcon() {
+        if (mBinding.control != null && mBinding.control.fullscreen != null) {
+            mBinding.control.fullscreen.setImageResource(isFullscreen()
+                    ? R.drawable.ic_control_fullscreen_exit
+                    : R.drawable.ic_control_fullscreen_enter);
+            mBinding.control.fullscreen.setContentDescription(getString(isFullscreen()
+                    ? R.string.play_fullscreen_exit
+                    : R.string.play_fullscreen));
+        }
     }
 
     private void onContent() {

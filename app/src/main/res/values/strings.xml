@@ -32,11 +32,16 @@
     <string name="play_exo">EXO</string>
     <string name="play_mpv">MPV</string>
     <string name="play_system">System</string>
+    <string name="play_ali">Ali</string>
+    <string name="play_nova">Nova</string>
+    <string name="play_ijk">IJK</string>
     <string name="play_other">Other</string>
     <string name="play_next">Next</string>
     <string name="play_prev">Prev</string>
     <string name="play_stop">Stop</string>
     <string name="play_repeat">Repeat</string>
+    <string name="play_fullscreen">Fullscreen</string>
+    <string name="play_fullscreen_exit">Exit fullscreen</string>
     <string name="play_forward">→</string>
     <string name="play_backward">←</string>
     <string name="play_speed">1.00</string>
@@ -114,6 +119,7 @@
     <!-- Parse -->
     <string name="parse">Parse</string>
     <string name="parse_god">Super</string>
+    <string name="parse_builtin">Built-in</string>
     <string name="parse_from">Parse from: <xliff:g name="name">%s</xliff:g></string>
 
     <!-- Push -->
@@ -249,6 +255,9 @@
         <item>EXO</item>
         <item>MPV</item>
         <item>System</item>
+        <item>Ali</item>
+        <item>Nova</item>
+        <item>IJK</item>
     </string-array>
 
     <string-array name="select_render">
