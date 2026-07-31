@@ -10,6 +10,7 @@ public class PlayerSetting {
 
     public static final int ENGINE_EXO = 0;
     public static final int ENGINE_MPV = 1;
+    public static final int ENGINE_SYSTEM = 2;
     public static final int RENDER_SURFACE = 0;
     public static final int RENDER_TEXTURE = 1;
     public static final int MIN_SCALE = 0;
@@ -22,16 +23,20 @@ public class PlayerSetting {
     private static final float MAX_SPEED = 5.0f;
 
     public static int getEngine() {
-        return Math.clamp(Prefers.getInt("player_engine", ENGINE_EXO), ENGINE_EXO, ENGINE_MPV);
+        return Math.clamp(Prefers.getInt("player_engine", ENGINE_EXO), ENGINE_EXO, ENGINE_SYSTEM);
     }
 
     public static void putEngine(int engine) {
-        Prefers.put("player_engine", Math.clamp(engine, ENGINE_EXO, ENGINE_MPV));
-        if (!isMpv() && isTunnel()) Prefers.put("render", RENDER_SURFACE);
+        Prefers.put("player_engine", Math.clamp(engine, ENGINE_EXO, ENGINE_SYSTEM));
+        if (!isMpv() && !isSystem() && isTunnel()) Prefers.put("render", RENDER_SURFACE);
     }
 
     public static boolean isMpv() {
         return getEngine() == ENGINE_MPV;
+    }
+
+    public static boolean isSystem() {
+        return getEngine() == ENGINE_SYSTEM;
     }
 
     public static boolean isMpvGpuNext() {
@@ -56,7 +61,7 @@ public class PlayerSetting {
 
     public static void putRender(int render) {
         Prefers.put("render", Math.clamp(render, RENDER_SURFACE, RENDER_TEXTURE));
-        if (!isMpv() && isTunnel() && getRender() == RENDER_TEXTURE) Prefers.put("tunnel", false);
+        if ((!isMpv() && !isSystem()) && isTunnel() && getRender() == RENDER_TEXTURE) Prefers.put("tunnel", false);
     }
 
     public static boolean isTunnel() {
@@ -65,7 +70,7 @@ public class PlayerSetting {
 
     public static void putTunnel(boolean tunnel) {
         Prefers.put("tunnel", tunnel);
-        if (!isMpv() && tunnel) Prefers.put("render", RENDER_SURFACE);
+        if ((!isMpv() && !isSystem()) && tunnel) Prefers.put("render", RENDER_SURFACE);
     }
 
     public static boolean isTunnelingEnabled() {
@@ -182,5 +187,78 @@ public class PlayerSetting {
 
     public static void putDv7HevcFallback(boolean fallback) {
         Prefers.put("dv7_hevc_fallback", fallback);
+    }
+
+    // AI 设置相关
+    public static boolean isAiQualityBoost() {
+        return Prefers.getBoolean("ai_quality_boost", true);
+    }
+
+    public static void putAiQualityBoost(boolean boost) {
+        Prefers.put("ai_quality_boost", boost);
+    }
+
+    public static boolean isAiHdr() {
+        return Prefers.getBoolean("ai_hdr");
+    }
+
+    public static void putAiHdr(boolean hdr) {
+        Prefers.put("ai_hdr", hdr);
+    }
+
+    public static boolean isAiDenoise() {
+        return Prefers.getBoolean("ai_denoise");
+    }
+
+    public static void putAiDenoise(boolean denoise) {
+        Prefers.put("ai_denoise", denoise);
+    }
+
+    public static boolean isAiSharpness() {
+        return Prefers.getBoolean("ai_sharpness");
+    }
+
+    public static void putAiSharpness(boolean sharpness) {
+        Prefers.put("ai_sharpness", sharpness);
+    }
+
+    public static boolean isAiSmoothPlayback() {
+        return Prefers.getBoolean("ai_smooth_playback");
+    }
+
+    public static void putAiSmoothPlayback(boolean smooth) {
+        Prefers.put("ai_smooth_playback", smooth);
+    }
+
+    public static boolean isAiAutoFrameRate() {
+        return Prefers.getBoolean("ai_auto_fps");
+    }
+
+    public static void putAiAutoFrameRate(boolean auto) {
+        Prefers.put("ai_auto_fps", auto);
+    }
+
+    public static boolean isAiAudioEnhance() {
+        return Prefers.getBoolean("ai_audio_enhance", true);
+    }
+
+    public static void putAiAudioEnhance(boolean enhance) {
+        Prefers.put("ai_audio_enhance", enhance);
+    }
+
+    public static boolean isAiBassBoost() {
+        return Prefers.getBoolean("ai_bass_boost");
+    }
+
+    public static void putAiBassBoost(boolean bass) {
+        Prefers.put("ai_bass_boost", bass);
+    }
+
+    public static boolean isAiDialogEnhance() {
+        return Prefers.getBoolean("ai_dialog_enhance", true);
+    }
+
+    public static void putAiDialogEnhance(boolean dialog) {
+        Prefers.put("ai_dialog_enhance", dialog);
     }
 }

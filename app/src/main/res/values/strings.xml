@@ -31,6 +31,7 @@
     <string name="play_ed">ED</string>
     <string name="play_exo">EXO</string>
     <string name="play_mpv">MPV</string>
+    <string name="play_system">System</string>
     <string name="play_other">Other</string>
     <string name="play_next">Next</string>
     <string name="play_prev">Prev</string>
@@ -124,6 +125,9 @@
     <string name="setting_live">Live</string>
     <string name="setting_wall">Wallpaper</string>
     <string name="setting_player">Player setting</string>
+    <string name="setting_ai">AI setting</string>
+    <string name="setting_ai_title">AI 智能设置</string>
+    <string name="setting_ai_summary">一键优化画质、音质与流畅度</string>
     <string name="setting_danmaku">Danmaku setting</string>
     <string name="setting_incognito">Incognito mode</string>
     <string name="setting_theme_color">Theme color</string>
@@ -244,6 +248,7 @@
     <string-array name="select_engine">
         <item>EXO</item>
         <item>MPV</item>
+        <item>System</item>
         <item>IJK</item>
         <item>VLC</item>
     </string-array>

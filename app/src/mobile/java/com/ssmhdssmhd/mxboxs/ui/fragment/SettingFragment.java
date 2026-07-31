@@ -28,6 +28,7 @@ import com.ssmhdssmhd.mxboxs.impl.SiteListener;
 import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
 import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.ssmhdssmhd.mxboxs.ui.activity.HomeActivity;
+import com.ssmhdssmhd.mxboxs.ui.activity.SettingAiActivity;
 import com.ssmhdssmhd.mxboxs.ui.base.BaseFragment;
 import com.ssmhdssmhd.mxboxs.ui.dialog.ConfigDialog;
 import com.ssmhdssmhd.mxboxs.ui.dialog.HistoryDialog;
@@ -121,6 +122,7 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
         mBinding.cache.setOnClickListener(this::onCache);
         mBinding.backup.setOnClickListener(this::onBackup);
         mBinding.player.setOnClickListener(this::onPlayer);
+        mBinding.aiSetting.setOnClickListener(this::onAiSetting);
         mBinding.danmaku.setOnClickListener(this::onDanmaku);
         mBinding.restore.setOnClickListener(this::onRestore);
         mBinding.version.setOnClickListener(this::onVersion);
@@ -244,6 +246,10 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
 
     private void onPlayer(View view) {
         getRoot().change(2);
+    }
+
+    private void onAiSetting(View view) {
+        SettingAiActivity.start(requireActivity());
     }
 
     private void onDanmaku(View view) {

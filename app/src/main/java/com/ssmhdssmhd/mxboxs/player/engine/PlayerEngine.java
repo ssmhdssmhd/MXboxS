@@ -50,6 +50,7 @@ public interface PlayerEngine {
 
     enum Type {
         EXO,
-        MPV
+        MPV,
+        SYSTEM
     }
 }

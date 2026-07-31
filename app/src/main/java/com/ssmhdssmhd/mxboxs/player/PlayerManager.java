@@ -224,6 +224,7 @@ public class PlayerManager implements ParseCallback {
     public int getEngine() {
         return switch (engine.getType()) {
             case MPV -> PlayerSetting.ENGINE_MPV;
+            case SYSTEM -> PlayerSetting.ENGINE_SYSTEM;
             default -> PlayerSetting.ENGINE_EXO;
         };
     }

@@ -61,6 +61,16 @@
             android:textSize="14sp" />
 
         <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/system"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/shape_accent"
+            android:text="@string/play_system"
+            android:textColor="@color/selector_control"
+            android:textSize="14sp" />
+
+        <com.google.android.material.textview.MaterialTextView
             android:id="@+id/other"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

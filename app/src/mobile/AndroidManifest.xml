@@ -118,6 +118,10 @@
             android:supportsPictureInPicture="true" />
 
         <activity
+            android:name=".ui.activity.SettingAiActivity"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout" />
+
+        <activity
             android:name=".ui.activity.ScanActivity"
             android:configChanges="screenSize|smallestScreenSize|screenLayout" />
 

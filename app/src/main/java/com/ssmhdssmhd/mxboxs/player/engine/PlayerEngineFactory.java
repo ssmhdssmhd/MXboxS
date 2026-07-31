@@ -2,12 +2,14 @@ package com.ssmhdssmhd.mxboxs.player.engine;
 
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.EXO;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.MPV;
+import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.SYSTEM;
 
 import androidx.media3.common.Player;
 
 import com.ssmhdssmhd.mxboxs.player.exo.ExoPlayerEngine;
 import com.ssmhdssmhd.mxboxs.player.media.PlaySpec;
 import com.ssmhdssmhd.mxboxs.player.mpv.MpvPlayerEngine;
+import com.ssmhdssmhd.mxboxs.player.system.SystemPlayerEngine;
 import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
 import com.ssmhdssmhd.mxboxs.utils.UrlUtil;
 
@@ -25,6 +27,7 @@ public final class PlayerEngineFactory {
         return switch (type) {
             case EXO -> new ExoPlayerEngine(decode, listener);
             case MPV -> new MpvPlayerEngine(decode, listener);
+            case SYSTEM -> new SystemPlayerEngine(decode, listener);
         };
     }
 
@@ -33,12 +36,14 @@ public final class PlayerEngineFactory {
     }
 
     private static PlayerEngine.Type resolve(PlaySpec spec) {
-        if (!isMpvReady()) return EXO;
-        if (requiresExo(spec)) return EXO;
+        if (!isMpvReady()) return PlayerEngine.Type.EXO;
+        if (requiresExo(spec)) return PlayerEngine.Type.EXO;
+        if (PlayerSetting.isSystem()) return PlayerEngine.Type.SYSTEM;
         return PlayerSetting.isMpv() ? MPV : EXO;
     }
 
     private static PlayerEngine.Type resolve() {
+        if (PlayerSetting.isSystem()) return PlayerEngine.Type.SYSTEM;
         return isMpvReady() ? MPV : EXO;
     }
 

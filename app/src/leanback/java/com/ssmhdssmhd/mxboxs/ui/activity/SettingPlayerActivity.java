@@ -74,11 +74,12 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, S
     }
 
     private void setVisible() {
-        boolean exo = !PlayerSetting.isMpv();
+        boolean exo = !PlayerSetting.isMpv() && !PlayerSetting.isSystem();
+        boolean mpv = PlayerSetting.isMpv();
         if (PlayerSetting.isBackgroundPiP()) PlayerSetting.putBackground(1);
-        mBinding.mpvConf.setVisibility(exo ? View.GONE : View.VISIBLE);
-        mBinding.mpvVulkan.setVisibility(exo ? View.GONE : View.VISIBLE);
-        mBinding.mpvGpuNext.setVisibility(exo ? View.GONE : View.VISIBLE);
+        mBinding.mpvConf.setVisibility(mpv ? View.VISIBLE : View.GONE);
+        mBinding.mpvVulkan.setVisibility(mpv ? View.VISIBLE : View.GONE);
+        mBinding.mpvGpuNext.setVisibility(mpv ? View.VISIBLE : View.GONE);
         mBinding.decode.setVisibility(exo ? View.VISIBLE : View.GONE);
         mBinding.adblock.setVisibility(exo ? View.VISIBLE : View.GONE);
         mBinding.caption.setVisibility(PlayerSetting.hasCaption() ? View.VISIBLE : View.GONE);

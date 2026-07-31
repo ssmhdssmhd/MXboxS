@@ -76,9 +76,35 @@ public class WallConfig extends BaseConfig {
     @Override
     protected void load(Config config) throws Throwable {
         File file = FileUtil.getWall(0);
-        checkUrl(config.getUrl(), file);
+        String realUrl = resolveRealUrl(config.getUrl());
+        checkUrl(realUrl, file);
         setWallType(file);
         setSnapshot(file);
+    }
+
+    private String resolveRealUrl(String url) {
+        try {
+            // 尝试获取 URL 内容，判断是否为 JSON
+            String content = com.github.catvod.net.OkHttp.string(UrlUtil.convert(url));
+            if (content != null && !content.isEmpty()) {
+                com.google.gson.JsonElement element = com.github.catvod.utils.Json.parse(content);
+                if (element.isJsonObject()) {
+                    com.google.gson.JsonObject object = element.getAsJsonObject();
+                    // 尝试从常见字段中提取壁纸 URL
+                    if (object.has("wallpaper")) return object.get("wallpaper").getAsString();
+                    if (object.has("url")) return object.get("url").getAsString();
+                    if (object.has("img")) return object.get("img").getAsString();
+                    if (object.has("image")) return object.get("image").getAsString();
+                    // 如果没有上述字段，可能本身就是图片URL字符串或者对象结构不对
+                } else if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
+                    // 如果返回的是纯字符串，则直接作为 URL
+                    return element.getAsString();
+                }
+            }
+        } catch (Exception e) {
+            // 获取内容失败（非 JSON 或网络问题），回退使用原始 URL
+        }
+        return url;
     }
 
     @Override
