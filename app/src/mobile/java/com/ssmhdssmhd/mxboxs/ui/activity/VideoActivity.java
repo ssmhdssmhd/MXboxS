@@ -1246,7 +1246,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         engine.setColorMode(DanmakuSetting.getColorMode());
         engine.setTimeOffsetMs(DanmakuSetting.getTimeOffsetMs());
         mBinding.danmakuView.setDanmakuEnabled(DanmakuSetting.isShow());
-        player().setDanmakuEnabled(false);
+        if (player() != null) player().setDanmakuEnabled(false);
     }
 
     private void createKeep() {

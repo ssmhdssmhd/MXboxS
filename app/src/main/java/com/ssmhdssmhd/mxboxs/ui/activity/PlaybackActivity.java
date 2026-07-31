@@ -72,7 +72,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     protected PlayerManager player() {
-        return mService.player();
+        return mService != null ? mService.player() : null;
     }
 
     protected boolean isRedirect() {
