@@ -319,7 +319,6 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         mBinding.control.action.opening.setOnClickListener(view -> onOpening());
         mBinding.control.action.ending.setOnLongClickListener(view -> onEndingReset());
         mBinding.control.action.opening.setOnLongClickListener(view -> onOpeningReset());
-        mBinding.control.fullscreen.setOnClickListener(view -> onFullscreenToggle());
         mBinding.video.setOnTouchListener((view, event) -> mKeyDown.onTouchEvent(event));
         mBinding.flag.addOnChildViewHolderSelectedListener(new OnChildViewHolderSelectedListener() {
             @Override
@@ -1339,14 +1338,6 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     private void setFullscreen(boolean fullscreen) {
         this.fullscreen = fullscreen;
-        if (mBinding.control.fullscreen != null) {
-            mBinding.control.fullscreen.setImageResource(fullscreen ? R.drawable.ic_control_fullscreen_exit : R.drawable.ic_control_fullscreen);
-        }
-    }
-
-    private void onFullscreenToggle() {
-        if (isFullscreen()) exitFullscreen();
-        else enterFullscreen();
     }
 
     public boolean isUseParse() {

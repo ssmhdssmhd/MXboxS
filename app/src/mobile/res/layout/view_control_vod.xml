@@ -191,15 +191,6 @@
                 android:textSize="12sp"
                 tools:text="10:00" />
 
-            <androidx.appcompat.widget.AppCompatImageView
-                android:id="@+id/fullscreen"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="4dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:scaleType="center"
-                android:src="@drawable/ic_control_fullscreen" />
-
         </androidx.appcompat.widget.LinearLayoutCompat>
 
         <include

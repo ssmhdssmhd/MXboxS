@@ -338,7 +338,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.control.title.setOnLongClickListener(view -> onChange());
         mBinding.control.right.lock.setOnClickListener(view -> onLock());
         mBinding.control.right.rotate.setOnClickListener(view -> onRotate());
-        mBinding.control.fullscreen.setOnClickListener(view -> onFullscreenToggle());
         mBinding.control.danmaku.setOnClickListener(view -> onDanmakuShow());
         mBinding.control.action.text.setOnClickListener(this::onTrack);
         mBinding.control.action.audio.setOnClickListener(this::onTrack);
@@ -1502,15 +1501,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void setFullscreen(boolean fullscreen) {
         Util.toggleFullscreen(this, this.fullscreen = fullscreen);
-        if (mBinding.control.fullscreen != null) {
-            mBinding.control.fullscreen.setImageResource(fullscreen ? R.drawable.ic_control_fullscreen_exit : R.drawable.ic_control_fullscreen);
-        }
-    }
-
-    private void onFullscreenToggle() {
-        if (isLock()) return;
-        if (isFullscreen()) exitFullscreen();
-        else enterFullscreen();
     }
 
     public boolean isUseParse() {

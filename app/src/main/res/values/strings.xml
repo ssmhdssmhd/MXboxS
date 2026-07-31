@@ -32,9 +32,6 @@
     <string name="play_exo">EXO</string>
     <string name="play_mpv">MPV</string>
     <string name="play_system">System</string>
-    <string name="play_ijk">IJK</string>
-    <string name="play_vlc">VLC</string>
-    <string name="play_web">内置 Web</string>
     <string name="play_other">Other</string>
     <string name="play_next">Next</string>
     <string name="play_prev">Prev</string>
@@ -58,14 +55,6 @@
     <string name="play_track_text">Text</string>
     <string name="play_track_audio">Audio</string>
     <string name="play_track_video">Video</string>
-    <string name="play_engine_detail">引擎详细设置</string>
-    <string name="play_engine_ai">AI 智能引擎</string>
-    <string name="play_engine_desc_exo">Media3 ExoPlayer，兼容性最好，支持 HDR / 杜比视界，首选</string>
-    <string name="play_engine_desc_mpv">libmpv 引擎，格式支持最全，本地文件和高码率首选</string>
-    <string name="play_engine_desc_system">系统播放器，低功耗、稳定性高</string>
-    <string name="play_engine_desc_ijk">ijkplayer 引擎，兼容性优秀（若已安装 so）</string>
-    <string name="play_engine_desc_vlc">VLC 引擎，支持最全的媒体格式</string>
-    <string name="play_engine_desc_web">内置 Web 播放器（HLS.js），解决跨域防盗链问题</string>
     <string name="offset_text">Text offset</string>
     <string name="offset_audio">Audio offset</string>
     <string name="offset_setting">Offset settings</string>
@@ -260,9 +249,6 @@
         <item>EXO</item>
         <item>MPV</item>
         <item>System</item>
-        <item>IJK</item>
-        <item>VLC</item>
-        <item>Web</item>
     </string-array>
 
     <string-array name="select_render">

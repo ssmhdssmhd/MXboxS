@@ -1,220 +1,26 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-TW">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
-    <meta name="referrer" content="no-referrer">
-    <title>AI Super Parse</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
-        #container { position: absolute; inset: 0; }
-        iframe {
-            position: absolute;
-            left: -9999px;
-            top: -9999px;
-            width: 1px;
-            height: 1px;
-            opacity: 0;
-            pointer-events: none;
-            border: 0;
-        }
-        iframe.active {
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 1;
-            pointer-events: auto;
-        }
-    </style>
+    <title>解析</title>
 </head>
+
 <body>
     <div id="container"></div>
     <script>
-    (function () {
         const jxs = "%s";
         const url = "%s";
-        const list = (jxs || "").split(";").filter(Boolean);
-        const container = document.getElementById("container");
-        const sniffRegexes = [
-            /["']([^"']*\.m3u8[^"']*)["']/gi,
-            /["']([^"']*\.mp4[^"']*)["']/gi,
-            /url["']?\s*[:=]\s*["']([^"']+)["']/gi,
-            /src["']?\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4|flv|webm)[^"']*)["']/gi,
-            /video(?:\_url)?["']?\s*[:=]\s*["']([^"']+)["']/gi,
-            /playUrl["']?\s*[:=]\s*["']([^"']+)["']/gi
-        ];
-        const sniffed = new Set();
-        const win = window;
-        const Android = win.Android || (win.parent && win.parent.Android);
-
-        function report(urlFinal, headers, from) {
-            try {
-                const hdrs = typeof headers === "string" ? headers : JSON.stringify(headers || {});
-                if (Android && typeof Android.onSniff === "function") {
-                    Android.onSniff(urlFinal, hdrs, from || "ai_parse");
-                    return true;
-                }
-                if (win.parent && win.parent !== win) {
-                    try {
-                        win.parent.postMessage({
-                            type: "mxboxs_parse",
-                            url: urlFinal,
-                            headers: headers || {},
-                            from: from || "ai_parse"
-                        }, "*");
-                    } catch (e) {}
-                }
-            } catch (e) {}
-            return false;
-        }
-
-        function isMedia(u) {
-            if (!u) return false;
-            if (u.indexOf(".m3u8") > 0) return true;
-            if (u.indexOf(".mp4") > 0) return true;
-            if (u.indexOf(".flv") > 0) return true;
-            if (u.indexOf(".webm") > 0) return true;
-            if (u.indexOf("m3u8?") > 0) return true;
-            if (u.indexOf("/index.m3u8") > 0) return true;
-            return false;
-        }
-
-        function absoluteUrl(base, u) {
-            try { return new URL(u, base).href; }
-            catch (e) { return u; }
-        }
-
-        function sniffText(base, text) {
-            if (!text) return;
-            for (const re of sniffRegexes) {
-                let m;
-                while ((m = re.exec(text)) !== null) {
-                    let cand = m[1];
-                    try { cand = decodeURIComponent(cand); } catch (e) {}
-                    cand = absoluteUrl(base, cand);
-                    if (isMedia(cand) && !sniffed.has(cand)) {
-                        sniffed.add(cand);
-                        report(cand, {}, "ai_sniff");
-                    }
-                }
-            }
-        }
-
-        // Intercept XHR and fetch to catch requests containing media URLs from the parse page
-        (function intercept() {
-            const px = win.XMLHttpRequest.prototype;
-            const _open = px.open;
-            const _send = px.send;
-            px.open = function (m, u) {
-                this._mxUrl = u;
-                return _open.apply(this, arguments);
-            };
-            px.send = function () {
-                try {
-                    const u = this._mxUrl;
-                    if (u && isMedia(u) && !sniffed.has(u)) {
-                        sniffed.add(u);
-                        report(u, {}, "ai_xhr");
-                    }
-                    if (u) {
-                        try {
-                            this.addEventListener("load", function () {
-                                try { sniffText(u, this.responseText || ""); } catch (e) {}
-                            });
-                        } catch (e) {}
-                    }
-                } catch (e) {}
-                return _send.apply(this, arguments);
-            };
-            const _fetch = win.fetch;
-            if (typeof _fetch === "function") {
-                win.fetch = function (input, init) {
-                    try {
-                        let u = typeof input === "string" ? input : (input && input.url ? input.url : "");
-                        if (u && isMedia(u) && !sniffed.has(u)) {
-                            sniffed.add(u);
-                            report(u, {}, "ai_fetch");
-                        }
-                    } catch (e) {}
-                    return _fetch.apply(this, arguments).then(function (res) {
-                        try {
-                            const clone = res.clone();
-                            const u = res.url || "";
-                            clone.text().then(function (t) { sniffText(u, t); }).catch(function () {});
-                        } catch (e) {}
-                        return res;
-                    });
-                };
-            }
-            const _assign = Object.assign;
-            // Optionally patch Image to catch poster/src
-            const _img = win.Image.prototype;
-        })();
-
-        // Initial page script / html sniff
-        function sniffCurrentPage() {
-            const base = location.href;
-            sniffText(base, document.documentElement.outerHTML);
-            const scripts = document.querySelectorAll("script");
-            scripts.forEach(function (s) {
-                if (s.textContent) sniffText(base, s.textContent);
-                if (s.src) {
-                    try {
-                        fetch(s.src, { credentials: "include" })
-                            .then(function (r) { return r.text(); })
-                            .then(function (t) { sniffText(s.src, t); })
-                            .catch(function () {});
-                    } catch (e) {}
-                }
-            });
-        }
-
-        list.forEach(function (item) {
-            const iframe = document.createElement("iframe");
-            iframe.referrerPolicy = "no-referrer";
-            iframe.setAttribute("allow", "autoplay; fullscreen; encrypted-media");
-            iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox");
-            try {
-                iframe.src = item + url;
-            } catch (e) {
-                iframe.src = item;
-            }
+        const list = jxs.split(";");
+        const container = document.getElementById('container');
+        list.forEach(item => {
+            const iframe = document.createElement('iframe');
+            iframe.src = item + url;
+            iframe.sandbox = 'allow-scripts allow-same-origin allow-forms';
             container.appendChild(iframe);
-            // Activate first iframe so it can render and perform XHR/fetch
-            if (!document.querySelector("iframe.active")) iframe.classList.add("active");
         });
-
-        // Periodical deep sniff
-        setTimeout(sniffCurrentPage, 500);
-        setTimeout(sniffCurrentPage, 1500);
-        setTimeout(sniffCurrentPage, 4000);
-
-        // Listen to postMessage from iframes
-        win.addEventListener("message", function (ev) {
-            try {
-                const d = ev.data || {};
-                if (typeof d === "object" && (d.type === "mxboxs_parse" || d.url) && typeof d.url === "string") {
-                    if (isMedia(d.url) && !sniffed.has(d.url)) {
-                        sniffed.add(d.url);
-                        report(d.url, d.headers || {}, d.from || "ai_message");
-                    }
-                }
-                if (typeof d === "string") {
-                    const u = d.trim();
-                    if (isMedia(u) && !sniffed.has(u)) {
-                        sniffed.add(u);
-                        report(u, {}, "ai_message_string");
-                    }
-                }
-            } catch (e) {}
-        });
-
-        // Also expose for page calling
-        win.__mxboxsReport = report;
-        win.__mxboxsSniffed = sniffed;
-    })();
     </script>
 </body>
+
 </html>

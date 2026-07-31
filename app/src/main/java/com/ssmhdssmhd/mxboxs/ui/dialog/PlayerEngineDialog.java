@@ -11,7 +11,6 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewbinding.ViewBinding;
 
-import com.ssmhdssmhd.mxboxs.R;
 import com.ssmhdssmhd.mxboxs.databinding.DialogPlayerEngineBinding;
 import com.ssmhdssmhd.mxboxs.playback.PlaybackAction;
 import com.ssmhdssmhd.mxboxs.player.PlayerManager;
@@ -54,8 +53,6 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
 
     @Override
     protected void initView() {
-        updateAvailability();
-        updateDescriptions();
         setSelected();
         getSelectedView().requestFocus();
     }
@@ -67,45 +64,6 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
         binding.exo.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_EXO));
         binding.mpv.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_MPV));
         binding.system.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_SYSTEM));
-        binding.ijk.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_IJK));
-        binding.vlc.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_VLC));
-        binding.web.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_WEB));
-    }
-
-    private void updateAvailability() {
-        // IJK: only clickable if available, otherwise visually disabled
-        boolean ijkAvail = PlayerSetting.isIjkAvailable();
-        binding.ijk.setEnabled(ijkAvail);
-        binding.ijk.setAlpha(ijkAvail ? 1.0f : 0.45f);
-        binding.ijk.setClickable(ijkAvail);
-        binding.ijkDesc.setAlpha(ijkAvail ? 1.0f : 0.45f);
-
-        boolean vlcAvail = PlayerSetting.isVlcAvailable();
-        binding.vlc.setEnabled(vlcAvail);
-        binding.vlc.setAlpha(vlcAvail ? 1.0f : 0.45f);
-        binding.vlc.setClickable(vlcAvail);
-        binding.vlcDesc.setAlpha(vlcAvail ? 1.0f : 0.45f);
-
-        boolean mpvAvail = com.ssmhdssmhd.mxboxs.player.mpv.MpvPlayerEngine.isAvailable();
-        binding.mpv.setEnabled(mpvAvail);
-        binding.mpv.setAlpha(mpvAvail ? 1.0f : 0.45f);
-        binding.mpv.setClickable(mpvAvail);
-        binding.mpvDesc.setAlpha(mpvAvail ? 1.0f : 0.45f);
-
-        // WEB engine is always available via the built-in HLS.js player endpoint
-        binding.web.setEnabled(true);
-        binding.web.setAlpha(1.0f);
-    }
-
-    private void updateDescriptions() {
-        binding.exoDesc.setText(R.string.play_engine_desc_exo);
-        binding.mpvDesc.setText(R.string.play_engine_desc_mpv);
-        binding.systemDesc.setText(R.string.play_engine_desc_system);
-        if (PlayerSetting.isIjkAvailable()) binding.ijkDesc.setText(R.string.play_engine_desc_ijk);
-        else binding.ijkDesc.setText(getString(R.string.play_engine_desc_ijk) + "（本机未包含 so 库）");
-        if (PlayerSetting.isVlcAvailable()) binding.vlcDesc.setText(R.string.play_engine_desc_vlc);
-        else binding.vlcDesc.setText(getString(R.string.play_engine_desc_vlc) + "（本机未包含 so 库）");
-        binding.webDesc.setText(R.string.play_engine_desc_web);
     }
 
     private void selectDebug(View view) {
@@ -138,9 +96,6 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
         binding.exo.setSelected(engine == PlayerSetting.ENGINE_EXO);
         binding.mpv.setSelected(engine == PlayerSetting.ENGINE_MPV);
         binding.system.setSelected(engine == PlayerSetting.ENGINE_SYSTEM);
-        binding.ijk.setSelected(engine == PlayerSetting.ENGINE_IJK);
-        binding.vlc.setSelected(engine == PlayerSetting.ENGINE_VLC);
-        binding.web.setSelected(engine == PlayerSetting.ENGINE_WEB);
         binding.debug.setSelected(activity != null && activity.isDebugViewVisible());
     }
 
@@ -148,9 +103,6 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
         return switch (getCurrentEngine(player)) {
             case PlayerSetting.ENGINE_MPV -> binding.mpv;
             case PlayerSetting.ENGINE_SYSTEM -> binding.system;
-            case PlayerSetting.ENGINE_IJK -> binding.ijk.isEnabled() ? binding.ijk : binding.exo;
-            case PlayerSetting.ENGINE_VLC -> binding.vlc.isEnabled() ? binding.vlc : binding.exo;
-            case PlayerSetting.ENGINE_WEB -> binding.web;
             default -> binding.exo;
         };
     }
