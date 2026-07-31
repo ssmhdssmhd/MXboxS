@@ -61,6 +61,8 @@ import com.ssmhdssmhd.mxboxs.event.CastEvent;
 import com.ssmhdssmhd.mxboxs.event.RefreshEvent;
 import com.ssmhdssmhd.mxboxs.impl.CustomTarget;
 import com.ssmhdssmhd.mxboxs.model.VideoViewModel;
+import com.ssmhdssmhd.mxboxs.player.danmaku.DanmakuEngine;
+import com.ssmhdssmhd.mxboxs.player.danmaku.DanmakuParser;
 import com.ssmhdssmhd.mxboxs.player.util.PlayerHelper;
 import com.ssmhdssmhd.mxboxs.service.PlaybackService;
 import com.ssmhdssmhd.mxboxs.setting.DanmakuSetting;
@@ -304,6 +306,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mR4 = this::showEmpty;
         mPiP = new PiP();
         checkDanmakuImg();
+        initDanmaku();
         setRecyclerView();
         setVideoView();
         setViewModel();
@@ -550,6 +553,42 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     @Override
     public void loadDanmaku(Result result, History history, Episode episode) {
         VodPlaybackMedia.searchDanmaku(result, history, episode, player()::setDanmaku, player()::addDanmaku);
+        if (DanmakuSetting.isLoad()) {
+            loadDanmakuToEngine(history.getVodName(), episode.getName());
+        }
+    }
+
+    private void loadDanmakuToEngine(String name, String episode) {
+        if (!DanmakuApi.canSearch()) return;
+        DanmakuParser.loadDanmakuList(name, episode, new DanmakuParser.OnDanmakuLoadedListener() {
+            @Override
+            public void onDanmakuLoaded(java.util.List<DanmakuEngine.DanmakuItem> items) {
+                App.post(() -> {
+                    DanmakuEngine engine = mBinding.danmakuView.getEngine();
+                    engine.clearItems();
+                    for (DanmakuEngine.DanmakuItem item : items) {
+                        engine.addItem(item);
+                    }
+                    engine.setVisible(DanmakuSetting.isShow());
+                    engine.setScrollAreaRatio(DanmakuSetting.getScrollAreaRatio());
+                    engine.setDurationMs(DanmakuSetting.getDurationMs());
+                    engine.setMaxScrollLines(DanmakuSetting.getMaxScrollLines());
+                    engine.setMaxTopLines(DanmakuSetting.getMaxTopLines());
+                    engine.setMaxBottomLines(DanmakuSetting.getMaxBottomLines());
+                    engine.setTextScale(DanmakuSetting.getTextScale());
+                    engine.setTransparency(DanmakuSetting.getTransparency());
+                    engine.setStyleMode(DanmakuSetting.getStyleMode());
+                    engine.setColorMode(DanmakuSetting.getColorMode());
+                    engine.setTimeOffsetMs(DanmakuSetting.getTimeOffsetMs());
+                    mBinding.danmakuView.setDanmakuEnabled(DanmakuSetting.isShow());
+                    player().setDanmakuEnabled(false);
+                });
+            }
+
+            @Override
+            public void onDanmakuError(String error) {
+            }
+        });
     }
 
     @Override
@@ -913,7 +952,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void onDanmakuShow() {
         DanmakuSetting.putShow(!DanmakuSetting.isShow());
         checkDanmakuImg();
-        syncDanmakuEnabled();
+        mBinding.danmakuView.setDanmakuEnabled(DanmakuSetting.isShow());
     }
 
     private void onRepeat() {
@@ -1193,6 +1232,23 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.control.danmaku.setImageResource(DanmakuSetting.isShow() ? R.drawable.ic_control_danmaku_on : R.drawable.ic_control_danmaku_off);
     }
 
+    private void initDanmaku() {
+        DanmakuEngine engine = mBinding.danmakuView.getEngine();
+        engine.setVisible(DanmakuSetting.isShow());
+        engine.setScrollAreaRatio(DanmakuSetting.getScrollAreaRatio());
+        engine.setDurationMs(DanmakuSetting.getDurationMs());
+        engine.setMaxScrollLines(DanmakuSetting.getMaxScrollLines());
+        engine.setMaxTopLines(DanmakuSetting.getMaxTopLines());
+        engine.setMaxBottomLines(DanmakuSetting.getMaxBottomLines());
+        engine.setTextScale(DanmakuSetting.getTextScale());
+        engine.setTransparency(DanmakuSetting.getTransparency());
+        engine.setStyleMode(DanmakuSetting.getStyleMode());
+        engine.setColorMode(DanmakuSetting.getColorMode());
+        engine.setTimeOffsetMs(DanmakuSetting.getTimeOffsetMs());
+        mBinding.danmakuView.setDanmakuEnabled(DanmakuSetting.isShow());
+        player().setDanmakuEnabled(false);
+    }
+
     private void createKeep() {
         Keep keep = new Keep();
         keep.setKey(getHistoryKey());
@@ -1306,6 +1362,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 checkControl();
                 player().reset();
                 mClock.setCallback(this);
+                mBinding.control.currentTime.setText(player().getPositionTime(0));
+                mBinding.control.durationTime.setText(player().getDurationTime());
                 if (!isFullscreen() && !isInPictureInPictureMode()) {
                     enterFullscreen();
                 }
@@ -1349,6 +1407,11 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         long duration = player().getDuration();
         if (position < 0 || duration <= 0) return;
         mVod.onTimeChanged(time, position, duration);
+        mBinding.control.currentTime.setText(player().getPositionTime(0));
+        mBinding.control.durationTime.setText(player().getDurationTime());
+        if (mBinding.danmakuView.getEngine().isVisible()) {
+            mBinding.danmakuView.updateDanmaku(position, duration);
+        }
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
@@ -1526,11 +1589,17 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.widget.time.setText(player().getPositionTime(time));
         mBinding.widget.seek.setVisibility(View.VISIBLE);
         hideProgress();
+        if (mBinding.danmakuView.getEngine().isVisible()) {
+            mBinding.danmakuView.seekTo(player().getPosition() + time);
+        }
     }
 
     @Override
     public void onSeekEnd(long time) {
         seekTo(time);
+        if (mBinding.danmakuView.getEngine().isVisible()) {
+            mBinding.danmakuView.seekTo(time);
+        }
     }
 
     @Override

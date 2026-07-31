@@ -28,6 +28,12 @@
             android:layout_height="match_parent"
             app:surface_type="surface_view" />
 
+        <com.ssmhdssmhd.mxboxs.player.danmaku.DanmakuView
+            android:id="@+id/danmakuView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
         <include
             android:id="@+id/widget"
             layout="@layout/view_widget_vod"

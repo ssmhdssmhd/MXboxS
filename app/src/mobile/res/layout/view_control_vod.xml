@@ -157,12 +157,41 @@
         android:orientation="vertical"
         android:paddingBottom="8dp">
 
-        <androidx.media3.ui.PlayerSeekView
-            android:id="@+id/seek"
+        <androidx.appcompat.widget.LinearLayoutCompat
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             android:paddingStart="16dp"
-            android:paddingEnd="16dp" />
+            android:paddingEnd="16dp">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/currentTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFeatureSettings="tnum"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                tools:text="00:00" />
+
+            <androidx.media3.ui.PlayerSeekView
+                android:id="@+id/seek"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/durationTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFeatureSettings="tnum"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                tools:text="10:00" />
+
+        </androidx.appcompat.widget.LinearLayoutCompat>
 
         <include
             android:id="@+id/action"
