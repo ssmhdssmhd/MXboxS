@@ -86,7 +86,7 @@ public class SystemPlayerEngine implements PlayerEngine {
             });
             
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                listener.onPlayerError(new PlaybackException("System player error: " + what, null));
+                listener.onPlayerError(new PlaybackException("System player error: " + what, null, PlaybackException.ERROR_CODE_REMOTE_ERROR));
                 return true;
             });
             
@@ -102,9 +102,9 @@ public class SystemPlayerEngine implements PlayerEngine {
             mediaPlayer.prepareAsync();
             listener.onPlaybackStateChanged(Player.STATE_BUFFERING);
         } catch (IOException e) {
-            listener.onPlayerError(new PlaybackException("Failed to start system player", e));
+            listener.onPlayerError(new PlaybackException("Failed to start system player", e, PlaybackException.ERROR_CODE_IO_UNSPECIFIED));
         } catch (Exception e) {
-            listener.onPlayerError(new PlaybackException("System player error", e));
+            listener.onPlayerError(new PlaybackException("System player error", e, PlaybackException.ERROR_CODE_UNSPECIFIED));
         }
     }
 

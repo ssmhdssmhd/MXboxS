@@ -32,6 +32,25 @@
 - **local.properties**：签名 alias / 密码同步改为 `mxboxs` / `mxboxs123456`（与 CI 一致）
 - 版本：`versionCode 572→573` / `versionName 5.5.23→5.5.24`
 
+### Media3 1.11.0-rc01 API 兼容性修复（构建期补全）
+- **PlaybackException 构造器升级**：三参数 `(message, cause, errorCode)` 替代旧两参数调用
+  - `SystemPlayerEngine#onError` → `ERROR_CODE_REMOTE_ERROR`
+  - `SystemPlayerEngine#start` IOException → `ERROR_CODE_IO_UNSPECIFIED`
+  - 通用 Exception → `ERROR_CODE_UNSPECIFIED`
+- **PlayerView.RESIZE_MODE_FIT 迁移**：`PlayerView.RESIZE_MODE_FIT` → `AspectRatioFrameLayout.RESIZE_MODE_FIT`（Media3 1.11+ 将常量移到 AspectRatioFrameLayout）
+  - `PlaybackActivity#configurePlayerView()` 同步更新并导入新类
+- **MIME 类型常量修正**：`MimeTypes.VIDEO_MKV` → **`MimeTypes.VIDEO_MATROSKA`**（Media3 中 MKV 已重命名为 MATROSKA 常量）
+  - `MediaItemFactory#guessMimeType` 已适配
+
+### Leanback (电视版) 资源缺失补全
+- **color/selector_item 新增到 main**：原仅 mobile flavor 存在，但 `shape_item.xml` / `shape_item_round.xml` 在 main drawable 中引用，导致 Leanback 构建报 `resource color/selector_item not found`
+- **style/ToolbarTextAppearance 新增到 main**：原仅 mobile flavor 存在，但 `activity_setting_ai.xml` 在 main layout 中引用，导致 Leanback 构建报 `resource style/ToolbarTextAppearance not found`
+- 两项资源均补入 `app/src/main/res/**` 以共享给两个 flavor
+
+### v5.5.22 遗留清理（二次确认）
+- `select_engine` 字符串数组残留 `IJK` / `VLC` 项 → 最终确认只剩 `EXO` / `MPV` / `System` 三项
+- 默认 `strings.xml`（默认语言）与 zh-rCN / zh-rTW 三套资源均已对齐
+
 ### 其他说明
 - FileProvider authority `${applicationId}.provider`、startup authority `${applicationId}.androidx-startup`、ActionReceiver intent-filter `com.ssmhdssmhd.*.stop/play/pause/prev/next/audio`、CastActivity `com.ssmhdssmhd.*.cast` 均用 manifest 占位符，随 applicationId 变更自动生效，无需手动改
 - 布局中自定义 View 全限定类名（`com.ssmhdssmhd.android.tv.ui.custom.*`）已随 453 文件 sed 批量替换为新包名

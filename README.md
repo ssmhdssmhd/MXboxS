@@ -38,6 +38,15 @@ GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体
 - `MXboxS-leanback-arm64_v8a-5.5.24.apk`（电视版 arm64，推荐盒子/电视）
 - `MXboxS-leanback-armeabi_v7a-5.5.24.apk`（电视版 32 位）
 
+### v5.5.24 本地构建产物校验
+
+| APK 文件 | 大小 | SHA-256 |
+|----------|------|---------|
+| `MXboxS-mobile-arm64_v8a-5.5.24.apk` | 47 MB | `9c3ff40818b9eacdc902e623ff00dac822eb5cb486ae4d4a97e2deac99ecb90c` |
+| `MXboxS-mobile-armeabi_v7a-5.5.24.apk` | 40 MB | `5969d95f121c48452a604fe7d094b276f361da8477ad1964957f5b0d2192e7b3` |
+| `MXboxS-leanback-arm64_v8a-5.5.24.apk` | 47 MB | `56ca2ef16a4a3314fb06f5fdee2ad5c337625f350d2d70ed80c905a2daa01a38` |
+| `MXboxS-leanback-armeabi_v7a-5.5.24.apk` | 40 MB | `1677fd77a4be5d593d99ae8e791b7b57e7e1ee9fba8cb1862b2b79d491c2fbb1` |
+
 ### 本地编译
 
 ```bash

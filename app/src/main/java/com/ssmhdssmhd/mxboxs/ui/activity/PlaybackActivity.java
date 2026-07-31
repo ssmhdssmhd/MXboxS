@@ -26,6 +26,7 @@ import androidx.media3.exoplayer.drm.FrameworkMediaDrm;
 import androidx.media3.session.MediaController;
 import androidx.media3.session.SessionToken;
 import androidx.media3.ui.CaptionStyleCompat;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerSeekView;
 import androidx.media3.ui.PlayerView;
 import androidx.media3.ui.TimeBar;
@@ -360,7 +361,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     private void configurePlayerView() {
         PlayerView playerView = getPlayerView();
-        playerView.setResizeMode(PlayerView.RESIZE_MODE_FIT);
+        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
         playerView.getSubtitleView().setStyle(getCaptionStyle());
         playerView.getSubtitleView().setApplyEmbeddedStyles(true);
         playerView.getSubtitleView().setApplyEmbeddedFontSizes(false);

@@ -249,8 +249,6 @@
         <item>EXO</item>
         <item>MPV</item>
         <item>System</item>
-        <item>IJK</item>
-        <item>VLC</item>
     </string-array>
 
     <string-array name="select_render">

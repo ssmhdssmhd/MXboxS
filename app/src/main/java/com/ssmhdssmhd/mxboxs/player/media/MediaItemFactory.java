@@ -50,7 +50,7 @@ public final class MediaItemFactory {
                 return MimeTypes.VIDEO_MP4;
             }
             if (lowerUrl.contains(".mkv")) {
-                return MimeTypes.VIDEO_MKV;
+                return MimeTypes.VIDEO_MATROSKA;
             }
             if (lowerUrl.contains(".webm")) {
                 return MimeTypes.VIDEO_WEBM;
