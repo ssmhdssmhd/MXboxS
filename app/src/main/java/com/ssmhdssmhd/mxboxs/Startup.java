@@ -5,7 +5,6 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.startup.Initializer;
 
-import com.ssmhdssmhd.mxboxs.event.EventIndex;
 import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.ssmhdssmhd.mxboxs.ui.activity.CrashActivity;
 import com.github.catvod.bean.Doh;
@@ -28,7 +27,11 @@ public class Startup implements Initializer<Void> {
     public Void create(@NonNull Context context) {
         CaocConfig.Builder.create().trackActivities(true).backgroundMode(CaocConfig.BACKGROUND_MODE_SILENT).errorActivity(CrashActivity.class).apply();
         Logger.addLogAdapter(new AndroidLogAdapter(PrettyFormatStrategy.newBuilder().methodCount(0).showThreadInfo(false).tag("TV").build()));
-        EventBus.builder().addIndex(new EventIndex()).installDefaultEventBus();
+        try {
+            EventBus.builder().addIndex(new com.ssmhdssmhd.mxboxs.event.EventIndex()).installDefaultEventBus();
+        } catch (Exception e) {
+            EventBus.builder().installDefaultEventBus();
+        }
         OkHttp.dns().setDoh(Doh.objectFrom(Setting.getDoh()));
         return null;
     }

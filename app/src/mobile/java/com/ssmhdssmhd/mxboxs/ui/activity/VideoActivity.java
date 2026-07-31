@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -67,6 +68,7 @@ import com.ssmhdssmhd.mxboxs.player.util.PlayerHelper;
 import com.ssmhdssmhd.mxboxs.service.PlaybackService;
 import com.ssmhdssmhd.mxboxs.setting.DanmakuSetting;
 import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
+import com.ssmhdssmhd.mxboxs.utils.FrameExtractor;
 import com.ssmhdssmhd.mxboxs.ui.adapter.EpisodeAdapter;
 import com.ssmhdssmhd.mxboxs.ui.adapter.FlagAdapter;
 import com.ssmhdssmhd.mxboxs.ui.adapter.QualityAdapter;
@@ -1182,8 +1184,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     protected void onScrubbingChanged(boolean scrubbing) {
-        if (scrubbing) App.removeCallbacks(mR1);
-        else if (isVisible(mBinding.control.getRoot())) setR1Callback();
+        if (scrubbing) {
+            App.removeCallbacks(mR1);
+        } else {
+            if (mBinding != null) mBinding.widget.framePreview.setVisibility(View.GONE);
+            if (isVisible(mBinding.control.getRoot())) setR1Callback();
+        }
     }
 
     private void setArtwork(String url) {
@@ -1597,9 +1603,47 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     @Override
     public void onSeekEnd(long time) {
         seekTo(time);
+        mBinding.widget.framePreview.setVisibility(View.GONE);
         if (mBinding.danmakuView.getEngine().isVisible()) {
             mBinding.danmakuView.seekTo(time);
         }
+    }
+
+    @Override
+    protected void onSeekPositionChanged(long positionMs) {
+        if (player() == null) return;
+        long duration = player().getDuration();
+        if (duration <= 0) return;
+        if (positionMs < 0) positionMs = 0;
+        if (positionMs > duration) positionMs = duration;
+        String currentTime = Util.timeMs(positionMs);
+        String totalTime = Util.timeMs(duration);
+        mBinding.widget.frameTime.setText(currentTime + " / " + totalTime);
+        mBinding.widget.framePreview.setVisibility(View.VISIBLE);
+        loadFramePreview(positionMs, duration);
+    }
+
+    private long lastFrameRequestTime;
+    private Bitmap lastFrameBitmap;
+
+    private void loadFramePreview(long positionMs, long durationMs) {
+        if (player() == null) return;
+        String url = player().getUrl();
+        if (TextUtils.isEmpty(url)) return;
+        long now = System.currentTimeMillis();
+        if (now - lastFrameRequestTime < 100) return;
+        lastFrameRequestTime = now;
+        new Thread(() -> {
+            Bitmap frame = FrameExtractor.getFrame(url, positionMs, 200, 112, durationMs);
+            if (frame != null && !frame.isRecycled()) {
+                lastFrameBitmap = frame;
+                runOnUiThread(() -> {
+                    if (mBinding != null && mBinding.widget.framePreview.getVisibility() == View.VISIBLE) {
+                        mBinding.widget.frameThumb.setImageBitmap(frame);
+                    }
+                });
+            }
+        }).start();
     }
 
     @Override

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -19,7 +18,7 @@
         tools:text="@string/error_play_url"
         tools:visibility="visible" />
 
-    <androidx.appcompat.widget.LinearLayoutCompat
+    <android.widget.LinearLayout
         android:id="@+id/seek"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -29,7 +28,8 @@
         android:gravity="center"
         android:orientation="horizontal"
         android:visibility="gone"
-        tools:visibility="visible">
+        tools:visibility="visible"
+        xmlns:androidx="http://schemas.android.com/apk/res-auto">
 
         <androidx.appcompat.widget.AppCompatImageView
             android:id="@+id/action"
@@ -47,7 +47,7 @@
             android:textSize="14sp"
             tools:text="00:00:00" />
 
-    </androidx.appcompat.widget.LinearLayoutCompat>
+    </android.widget.LinearLayout>
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/speed"
@@ -58,7 +58,7 @@
         android:src="@drawable/ic_widget_forward"
         android:visibility="gone" />
 
-    <androidx.appcompat.widget.LinearLayoutCompat
+    <android.widget.LinearLayout
         android:id="@+id/bright"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -68,6 +68,8 @@
         android:gravity="center"
         android:orientation="horizontal"
         android:visibility="gone"
+        xmlns:androidx="http://schemas.android.com/apk/res-auto"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
         tools:visibility="visible">
 
         <androidx.appcompat.widget.AppCompatImageView
@@ -84,9 +86,9 @@
             app:indicatorColor="@color/white"
             app:trackColor="@color/grey_500" />
 
-    </androidx.appcompat.widget.LinearLayoutCompat>
+    </android.widget.LinearLayout>
 
-    <androidx.appcompat.widget.LinearLayoutCompat
+    <android.widget.LinearLayout
         android:id="@+id/volume"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -96,6 +98,8 @@
         android:gravity="center"
         android:orientation="horizontal"
         android:visibility="gone"
+        xmlns:androidx="http://schemas.android.com/apk/res-auto"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
         tools:visibility="visible">
 
         <androidx.appcompat.widget.AppCompatImageView
@@ -112,5 +116,42 @@
             app:indicatorColor="@color/white"
             app:trackColor="@color/grey_500" />
 
-    </androidx.appcompat.widget.LinearLayoutCompat>
+    </android.widget.LinearLayout>
+
+    <android.widget.LinearLayout
+        android:id="@+id/framePreview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="100dp"
+        android:background="@drawable/shape_widget"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="4dp"
+        android:visibility="gone"
+        xmlns:androidx="http://schemas.android.com/apk/res-auto"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        tools:visibility="visible">
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/frameThumb"
+            android:layout_width="200dp"
+            android:layout_height="112dp"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            android:background="@color/black" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/frameTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:fontFeatureSettings="tnum"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:paddingTop="2dp"
+            tools:text="00:00 / 10:00" />
+
+    </android.widget.LinearLayout>
+
 </FrameLayout>

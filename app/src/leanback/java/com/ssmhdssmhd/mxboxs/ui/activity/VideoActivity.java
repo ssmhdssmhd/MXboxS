@@ -3,6 +3,7 @@ package com.ssmhdssmhd.mxboxs.ui.activity;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -78,6 +79,7 @@ import com.ssmhdssmhd.mxboxs.playback.vod.VodPlaybackController;
 import com.ssmhdssmhd.mxboxs.playback.vod.VodPlaybackHost;
 import com.ssmhdssmhd.mxboxs.playback.vod.VodPlaybackMedia;
 import com.ssmhdssmhd.mxboxs.utils.Clock;
+import com.ssmhdssmhd.mxboxs.utils.FrameExtractor;
 import com.ssmhdssmhd.mxboxs.utils.FileChooser;
 import com.ssmhdssmhd.mxboxs.utils.ImgUtil;
 import com.ssmhdssmhd.mxboxs.utils.KeyUtil;
@@ -1038,7 +1040,45 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     @Override
     protected void onScrubbingChanged(boolean scrubbing) {
         if (scrubbing) App.removeCallbacks(mR1);
-        else if (isVisible(mBinding.control.getRoot())) setR1Callback();
+        else {
+            if (mBinding != null) mBinding.widget.framePreview.setVisibility(View.GONE);
+            if (isVisible(mBinding.control.getRoot())) setR1Callback();
+        }
+    }
+
+    @Override
+    protected void onSeekPositionChanged(long positionMs) {
+        if (player() == null) return;
+        long duration = player().getDuration();
+        if (duration <= 0) return;
+        if (positionMs < 0) positionMs = 0;
+        if (positionMs > duration) positionMs = duration;
+        String currentTime = Util.timeMs(positionMs);
+        String totalTime = Util.timeMs(duration);
+        mBinding.widget.frameTime.setText(currentTime + " / " + totalTime);
+        mBinding.widget.framePreview.setVisibility(View.VISIBLE);
+        loadFramePreview(positionMs, duration);
+    }
+
+    private long lastFrameRequestTime;
+
+    private void loadFramePreview(long positionMs, long durationMs) {
+        if (player() == null) return;
+        String url = player().getUrl();
+        if (TextUtils.isEmpty(url)) return;
+        long now = System.currentTimeMillis();
+        if (now - lastFrameRequestTime < 100) return;
+        lastFrameRequestTime = now;
+        new Thread(() -> {
+            Bitmap frame = FrameExtractor.getFrame(url, positionMs, 200, 112, durationMs);
+            if (frame != null && !frame.isRecycled()) {
+                runOnUiThread(() -> {
+                    if (mBinding != null && mBinding.widget.framePreview.getVisibility() == View.VISIBLE) {
+                        mBinding.widget.frameThumb.setImageBitmap(frame);
+                    }
+                });
+            }
+        }).start();
     }
 
     private void setR2Callback() {
@@ -1340,6 +1380,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     public void onSeekEnd(long time) {
         mKeyDown.reset();
         seekTo(time);
+        if (mBinding != null) mBinding.widget.framePreview.setVisibility(View.GONE);
     }
 
     @Override

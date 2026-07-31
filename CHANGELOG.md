@@ -2,6 +2,37 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.25] - 2026-07-31
+
+### 视频播放器进度条与交互优化
+
+- **进度条修复**：重写 `PlayerSeekView` 组件，确保进度条正常显示和实时更新
+  - 接入 Media3 Player.Listener 监听播放状态变化
+  - 新增 Handler 定时更新（500ms），实时刷新播放位置和缓冲进度
+  - 正确处理 `TIME_UNSET` 常量，避免异常值导致 UI 错误
+  - 支持拖动（scrubbing）状态管理，拖动时暂停自动更新
+- **视频缩略图预览**：新增拖动进度条时的视频帧预览功能
+  - 新增 `FrameExtractor` 工具类，使用 `MediaMetadataRetriever` 提取视频帧
+  - 在进度条上方显示缩略图和时间戳，拖动时实时更新
+  - 支持帧缓存和异步加载，避免主线程卡顿
+  - 布局优化：缩略图 200x112dp，时间戳显示当前/总时长
+- **亮度/音量手势控制（哔哩哔哩风格）**：
+  - 全屏左右分区：**左半屏** 控制亮度，**右半屏** 控制音量
+  - 下滑降低亮度/音量，上滑增加亮度/音量
+  - 修复 `isSide()` 方法返回值，确保全屏手势区域正确识别
+  - 支持连续滑动调节，提升操作流畅度
+- **崩溃修复**：
+  - 修复 `VideoActivity` 在 PlaybackService 未绑定时的 NPE 崩溃
+  - `player()` 方法增加 null 检查，返回安全 null
+  - `initDanmaku()`、`onSeekPositionChanged()` 等方法增加空指针防护
+  - `onScrubStop()` 回调使用 `PlaybackActivity.this` 消除匿名类方法遮蔽
+- **UI 组件迁移**：
+  - `LinearLayoutCompat` → `LinearLayout`（修复数据绑定类型解析失败）
+  - 同步更新 mobile 和 leanback 两个 flavor 的 widget 布局
+- 版本：`versionCode 573→574` / `versionName 5.5.24→5.5.25`
+
+---
+
 ## [v5.5.24] - 2026-07-30
 
 ### 应用标识大版本调整

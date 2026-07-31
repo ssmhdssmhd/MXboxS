@@ -90,8 +90,7 @@ public class CustomKeyDown extends GestureDetector.SimpleOnGestureListener imple
     }
 
     private boolean isSide(MotionEvent e) {
-        int four = ResUtil.getScreenWidth(activity) / 4;
-        return !(e.getX() > four) || !(e.getX() < four * 3);
+        return true;
     }
 
     private void reset() {
@@ -178,7 +177,7 @@ public class CustomKeyDown extends GestureDetector.SimpleOnGestureListener imple
 
     private void setBright(float deltaY) {
         int height = videoView.getMeasuredHeight();
-        float brightness = deltaY * 2.0f / height + bright;
+        float brightness = -deltaY * 2.0f / height + bright;
         if (brightness < 0) brightness = 0f;
         if (brightness > 1.0f) brightness = 1.0f;
         WindowManager.LayoutParams attributes = activity.getWindow().getAttributes();
@@ -190,7 +189,7 @@ public class CustomKeyDown extends GestureDetector.SimpleOnGestureListener imple
     private void setVolume(float deltaY) {
         int height = videoView.getMeasuredHeight();
         int maxVolume = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-        float deltaV = deltaY * 2.0f / height * maxVolume;
+        float deltaV = -deltaY * 2.0f / height * maxVolume;
         float index = volume + deltaV;
         if (index > maxVolume) index = maxVolume;
         if (index < 0) index = 0;

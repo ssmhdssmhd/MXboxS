@@ -272,19 +272,26 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         getSeekView().getTimeBar().addListener(new TimeBar.OnScrubListener() {
             @Override
             public void onScrubStart(@NonNull TimeBar timeBar, long position) {
-                PlaybackActivity.this.setScrubbing(true);
+                setScrubbing(true);
+                getSeekView().setScrubbing(true);
             }
 
             @Override
             public void onScrubMove(@NonNull TimeBar timeBar, long position) {
-                PlaybackActivity.this.setScrubbing(true);
+                setScrubbing(true);
+                getSeekView().setScrubbing(true);
+                onSeekPositionChanged(position);
             }
 
             @Override
             public void onScrubStop(@NonNull TimeBar timeBar, long position, boolean canceled) {
+                getSeekView().setScrubbing(false);
                 PlaybackActivity.this.onScrubStop(canceled);
             }
         });
+    }
+
+    protected void onSeekPositionChanged(long position) {
     }
 
     protected boolean isScrubbing() {
@@ -292,7 +299,8 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     protected void onScrubStop(boolean canceled) {
-        if (!canceled && mController != null && mController.isCommandAvailable(Player.COMMAND_PLAY_PAUSE)) mController.play();
+        if (!canceled && mController != null && mController.isCommandAvailable(Player.COMMAND_PLAY_PAUSE))
+            mController.play();
         setScrubbing(false);
     }
 
