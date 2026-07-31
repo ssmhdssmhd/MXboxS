@@ -111,7 +111,11 @@ public class ExoPlayerEngine implements PlayerEngine {
     }
 
     private ErrorAction retryFormat(int errorCode) {
-        spec.setFormat(ExoUtil.getMimeType(errorCode));
+        String mimeType = ExoUtil.getMimeType(errorCode);
+        if (mimeType == null) {
+            return ErrorAction.FATAL;
+        }
+        spec.setFormat(mimeType);
         startInternal(player.getCurrentPosition());
         return ErrorAction.RECOVERED;
     }

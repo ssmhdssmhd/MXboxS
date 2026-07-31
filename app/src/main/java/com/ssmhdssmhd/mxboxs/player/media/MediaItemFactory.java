@@ -2,6 +2,7 @@ package com.ssmhdssmhd.mxboxs.player.media;
 
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.MimeTypes;
 
 import com.ssmhdssmhd.mxboxs.bean.Drm;
 import com.ssmhdssmhd.mxboxs.bean.Sub;
@@ -22,14 +23,43 @@ public final class MediaItemFactory {
     }
 
     private static MediaItem.Builder buildUpon(PlaySpec spec) {
+        String mimeType = resolveMimeType(spec);
         return new MediaItem.Builder().setUri(spec.getUri())
                 .setSubtitleConfigurations(buildSubtitleConfigs(spec.getSubs()))
                 .setDrmConfiguration(buildDrmConfig(spec.getDrm()))
                 .setRequestMetadata(buildRequestMetadata(spec))
                 .setMediaMetadata(spec.getMetadata())
-                .setMimeType(spec.getFormat())
+                .setMimeType(mimeType)
                 .setImageDurationMs(15000)
                 .setMediaId(spec.getKey());
+    }
+
+    private static String resolveMimeType(PlaySpec spec) {
+        String format = spec.getFormat();
+        if (format != null && !format.isEmpty()) return format;
+        String url = spec.getUrl();
+        if (url != null) {
+            String lowerUrl = url.toLowerCase();
+            if (lowerUrl.contains(".m3u8") || lowerUrl.contains(".m3u8?")) {
+                return MimeTypes.APPLICATION_M3U8;
+            }
+            if (lowerUrl.contains(".mpd") || lowerUrl.contains(".mpd?")) {
+                return MimeTypes.APPLICATION_MPD;
+            }
+            if (lowerUrl.contains(".mp4") || lowerUrl.contains(".mp4?")) {
+                return MimeTypes.VIDEO_MP4;
+            }
+            if (lowerUrl.contains(".mkv")) {
+                return MimeTypes.VIDEO_MKV;
+            }
+            if (lowerUrl.contains(".webm")) {
+                return MimeTypes.VIDEO_WEBM;
+            }
+            if (lowerUrl.contains(".ts")) {
+                return MimeTypes.VIDEO_MPEG;
+            }
+        }
+        return null;
     }
 
     private static MediaItem.RequestMetadata buildRequestMetadata(PlaySpec spec) {

@@ -1306,6 +1306,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 checkControl();
                 player().reset();
                 mClock.setCallback(this);
+                if (!isFullscreen() && !isInPictureInPictureMode()) {
+                    enterFullscreen();
+                }
                 break;
             case Player.STATE_ENDED:
                 hideProgress();
@@ -1385,9 +1388,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         int videoHeight = player().getVideoHeight();
         if (videoWidth == 0 || videoHeight == 0) return;
         int viewWidth = ResUtil.getScreenWidth();
-        int minHeight = ResUtil.dp2px(150);
-        int maxHeight = ResUtil.getScreenHeight() / 2;
-        int calculated = (int) (viewWidth * ((float) videoHeight / videoWidth));
+        int minHeight = ResUtil.dp2px(200);
+        int maxHeight = (int) (ResUtil.getScreenHeight() * 0.6);
+        float aspectRatio = (float) videoHeight / videoWidth;
+        int calculated = (int) (viewWidth * aspectRatio);
         int finalHeight = Math.clamp(calculated, minHeight, Math.max(minHeight, maxHeight));
         if (finalHeight == mBinding.video.getHeight()) return;
         if (mAnimator.isRunning()) mAnimator.cancel();

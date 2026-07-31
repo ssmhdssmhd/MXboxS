@@ -94,8 +94,17 @@ public class MediaSourceFactory implements MediaSource.Factory {
     @NonNull
     @Override
     public MediaSource createMediaSource(@NonNull MediaItem mediaItem) {
-        getHttpDataSourceFactory().setDefaultRequestProperties(ExoUtil.extractHeaders(mediaItem));
-        return defaultMediaSourceFactory.createMediaSource(mediaItem);
+        DataSource.Factory dataSourceFactory = createDataSourceFactory(mediaItem);
+        return new DefaultMediaSourceFactory(dataSourceFactory, getExtractorsFactory()).createMediaSource(mediaItem);
+    }
+
+    private DataSource.Factory createDataSourceFactory(MediaItem mediaItem) {
+        Map<String, String> headers = ExoUtil.extractHeaders(mediaItem);
+        HttpDataSource.Factory httpFactory = new OkHttpDataSource.Factory(OkHttp.player());
+        if (headers != null && !headers.isEmpty()) {
+            httpFactory.setDefaultRequestProperties(headers);
+        }
+        return () -> getCacheDataSource(new DefaultDataSource.Factory(App.get(), httpFactory)).createDataSource();
     }
 
     private ExtractorsFactory getExtractorsFactory() {

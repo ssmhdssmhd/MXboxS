@@ -39,6 +39,7 @@ public class ParseJob implements ParseCallback {
 
     private final AtomicBoolean done = new AtomicBoolean();
     private final List<CustomWebView> webViews;
+    private final List<Future<?>> futures;
     private ExecutorService executor;
     private ExecutorService infinite;
     private ParseCallback callback;
@@ -48,6 +49,7 @@ public class ParseJob implements ParseCallback {
         this.executor = Executors.newSingleThreadExecutor();
         this.infinite = Executors.newCachedThreadPool();
         this.webViews = new ArrayList<>();
+        this.futures = new ArrayList<>();
         this.callback = callback;
     }
 
@@ -140,10 +142,61 @@ public class ParseJob implements ParseCallback {
         List<Parse> webs = VodConfig.get().getParses(0, flag);
         int count = json.size() + (webs.isEmpty() ? 0 : 1);
         CountDownLatch latch = new CountDownLatch(count);
-        for (Parse item : json) infinite.execute(() -> jsonParse(latch, item, webUrl));
-        if (!webs.isEmpty()) startWeb(webs, webUrl);
-        latch.await();
-        onParseError();
+        for (Parse item : json) {
+            Future<?> future = infinite.submit(() -> {
+                try {
+                    jsonParse(item, webUrl, false);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    latch.countDown();
+                }
+            });
+            futures.add(future);
+        }
+        if (!webs.isEmpty()) startWeb(latch, webs, webUrl);
+        latch.await(30, TimeUnit.SECONDS);
+        // Ensure all remaining futures are handled - count down for any that were cancelled before running
+        for (Future<?> f : futures) {
+            if (f.isCancelled()) {
+                // Already cancelled, but the latch won't be counted down for it
+                // The latch timeout already handled this case
+            }
+        }
+        if (!done.get()) onParseError();
+    }
+
+    private void startWeb(CountDownLatch latch, List<Parse> items, String webUrl) {
+        StringBuilder sb = new StringBuilder();
+        for (Parse item : items) sb.append(item.getUrl()).append(";");
+        startWeb(latch, new HashMap<>(), Server.get().getAddress("/parse?jxs=" + Util.substring(sb.toString()) + "&url=" + webUrl));
+    }
+
+    private void startWeb(CountDownLatch latch, Map<String, String> headers, String url) {
+        startWeb(latch, "", "", headers, url, "");
+    }
+
+    private void startWeb(CountDownLatch latch, String key, String from, Map<String, String> headers, String url, String click) {
+        if (!WebViewUtil.support()) {
+            try { latch.countDown(); } catch (Exception ignored) {}
+        } else {
+            App.post(() -> {
+                CustomWebView webView = CustomWebView.create(App.get()).start(key, from, headers, url, click, new ParseCallback() {
+                    @Override
+                    public void onParseSuccess(Map<String, String> h, String u, String f) {
+                        try { latch.countDown(); } catch (Exception ignored) {}
+                        ParseJob.this.onParseSuccess(h, u, f);
+                    }
+
+                    @Override
+                    public void onParseError() {
+                        try { latch.countDown(); } catch (Exception ignored) {}
+                        ParseJob.this.onParseError();
+                    }
+                }, !url.contains("player/?url="));
+                webViews.add(webView);
+            });
+        }
     }
 
     private void jsonParse(CountDownLatch latch, Parse item, String webUrl) {
@@ -221,6 +274,8 @@ public class ParseJob implements ParseCallback {
     }
 
     public void stop() {
+        for (Future<?> future : futures) future.cancel(true);
+        futures.clear();
         if (executor != null) executor.shutdownNow();
         if (infinite != null) infinite.shutdownNow();
         infinite = null;

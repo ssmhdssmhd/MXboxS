@@ -23,17 +23,17 @@
         <item name="cornerSizeBottomLeft">8dp</item>
     </style>
 
-    <style name="Player">
+    <style name="Player" parent="">
         <item name="resize_mode">fit</item>
         <item name="use_artwork">true</item>
         <item name="use_controller">false</item>
     </style>
 
-    <style name="Player.Vod">
+    <style name="Player.Vod" parent="Player">
         <item name="keep_content_on_player_reset">false</item>
     </style>
 
-    <style name="Player.Live">
+    <style name="Player.Live" parent="Player">
         <item name="keep_content_on_player_reset">true</item>
     </style>
 

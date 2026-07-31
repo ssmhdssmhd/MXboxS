@@ -360,11 +360,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     private void configurePlayerView() {
         PlayerView playerView = getPlayerView();
-        // Custom FongMi methods not available in standard Media3 - commented out
-        // playerView.setRender(PlayerSetting.getRender());
-        // playerView.setDanmakuOkHttpClient(OkHttp.player());
-        // playerView.setDanmakuEnabled(DanmakuSetting.isShow());
-        // playerView.setDanmakuConfig(DanmakuSetting.getConfig());
+        playerView.setResizeMode(PlayerView.RESIZE_MODE_FIT);
         playerView.getSubtitleView().setStyle(getCaptionStyle());
         playerView.getSubtitleView().setApplyEmbeddedStyles(true);
         playerView.getSubtitleView().setApplyEmbeddedFontSizes(false);
