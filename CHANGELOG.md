@@ -2,6 +2,50 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.27] - 2026-08-01
+
+### 深度优化「内置解析」与「超级解析」报错问题
+
+#### 一、HTTP 层全链路强化（根治 "Bad HTTP Status / 403 / 3xx 重定向"）
+
+- **`ParseJob.jsonParse()` 请求前必补默认 Headers**：用 `UrlUtil.mergeDefaultHeaders()` 强制补齐 `User-Agent`（Android Chrome Mobile UA）和 `Referer`（解析站地址），避免被源站的 UA/防盗链拦截。
+- **HTTP 状态码强过滤**：`jsonParse` 与 `safeGetBody` 新增 `!res.isSuccessful()` 判定，只接受 `2xx` 响应；`3xx/4xx/5xx` 一律不往下走（避免把 403 错误页 / 302 跳转页当 JSON 或 HTML 去解析，直接导致解析报错或嗅探失败）。
+- **JSON 解析全防御**：`raw` 为空、`Json.parse` 抛错、`data` 节点缺失/非 object 三类场景全部捕获，不再一路抛异常走到 `onParseError`。
+- **`safeGetBody` 正文抓取强化**：
+  - 使用 `mergeDefaultHeaders` 补 UA/Referer，HTML 页面抓取成功率显著提升；
+  - 先看 `Content-Type`：若已经是 `video/* / audio/* / octet-stream / image/*` 的二进制响应，直接 `return null`，不再把视频流误当 HTML 正则扫（节省大量带宽和时间）；
+  - 正文上限从 `512KB` 放宽到 `1MB`，适配某些把 m3u8 地址塞进长 JS 的站点。
+
+#### 二、AI 智能嗅探（`aiSmartParseFallback`）多候选 + 轻量探测双保险
+
+- **从「单命中 → Top8 候选 + 逐个校验」**：`UrlUtil.sniffVideoCandidates(..., topN=8, ...)` 返回最多 8 个去重候选，`aiSmartParseFallback` 按顺序逐个 `probeVideoUrl` 做轻量探测，**第一个可达即成功回调**，命中率远高于旧版「第一个拿不到就 GG」。
+- **`probeVideoUrl` 轻量探测机制**（新增工具方法）：
+  - 视频后缀直链走**快路径**：`.m3u8/.mp4/.flv/.m4v/.ts/.mkv/.webm`（含 query 形式）直接信任，不发探测请求（避免某些站点 HEAD 被封反而把可用链接误判）；
+  - 非直链先 `HEAD`（10s 短超时 client），若 `HEAD` 被 403/405 → 回退 `GET Range: bytes=0-0`；
+  - 状态码接受 `2xx / 206 Partial Content / 416 Range Not Satisfiable`（后两者都表示目标文件真实存在）；
+  - `isVideoLikeResponse` 按 `Content-Type` / `Content-Length` 双维度判定：
+    - 正例：`video/* / audio/* / mpegurl / x-mpegurl / octet-stream / mp4 / mp2t / x-flv / webm / matroska`，或响应体 `> 256KB`；
+    - 反例：`text/html / application/json / text/plain` 直接排除。
+- **三路兜底策略**：直链判定 → Top8 候选逐个探测 → 最后把 webUrl 本身当视频探测一次（来源 `AI-Probe`），任何一路命中都回调成功。
+
+#### 三、`UrlUtil.sniffVideoCandidates` 再添 4 轮解码嗅探
+
+在原有「引号优先 / 无引号兜底」两轮基础上，新增：
+1. **JSON 转义还原轮**：`\"` → `"`、`\/` → `/`，适配大多数把地址塞进 JSON 字符串的接口；
+2. **URLDecoder 解码轮**：对 `%xx / +` 形式整体 `URLDecoder.decode` 一次再扫，解决两层 URL encode 导致正则命中不到的问题；
+3. **Base64 片段扫描轮**：正则抓 `atob(...)` 里的 base64 片段 / 长 base64 串（长度 32~4096，4 字节对齐），`Base64.decode` 后再扫；
+4. **Base64 → URLDecoder 二级解码轮**：兼容 `encodeURIComponent(atob(...))` 这种常见组合。
+
+候选去重用 `LinkedHashSet`，保证命中顺序稳定且不重复。
+
+#### 四、超级解析（`superParse`）并发模型再升级：JSON + WebView + AI 三路齐发
+
+- **AI fallback 不再等失败后再跑**：`CountDownLatch` 从 `count` 改为 `count + 1`，**AI 解析作为独立并发的一路直接 submit**，给 JSON/Web 留 3s 先发窗口，之后一起抢成功回调。
+- **最长等待 30s → 15s**：`latch.await` 超时从 30 秒砍半，15s 内没任何一路成功就立即走最后一次 AI 保底，避免用户长时间黑屏。
+- **latch 异常分支兜底依然保留**：超时 / 中断 / 正常完成但 `!done.get()` 三种出口都会再触发一次 `aiSmartParseFallback`，确保不遗漏任何成功机会。
+
+---
+
 ## [v5.5.26] - 2026-08-01
 
 ### 超级解析 AI 智能兜底 + 内置解析器

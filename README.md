@@ -23,7 +23,7 @@
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.26 (575) |
+| 版本 | v5.5.27 (576) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
@@ -33,10 +33,10 @@
 GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 或 `mobile` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.26.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.26.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.26.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.26.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.27.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.27.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.27.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.27.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 

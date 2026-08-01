@@ -33,6 +33,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import okhttp3.Headers;
+import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class ParseJob implements ParseCallback {
@@ -119,11 +122,29 @@ public class ParseJob implements ParseCallback {
     }
 
     private void jsonParse(Parse item, String webUrl, boolean fatal) throws Exception {
-        try (Response res = OkHttp.newCall(item.getUrl() + webUrl, item.getHeader()).execute()) {
-            JsonObject object = Json.parse(res.body().string()).getAsJsonObject();
+        Map<String, String> headers = UrlUtil.mergeDefaultHeaders(item.getHeader(), item.getUrl());
+        try (Response res = OkHttp.newCall(item.getUrl() + webUrl, headers).execute()) {
+            if (!res.isSuccessful() || res.body() == null) {
+                if (fatal) onParseError();
+                return;
+            }
+            String raw = res.body().string();
+            if (TextUtils.isEmpty(raw)) {
+                if (fatal) onParseError();
+                return;
+            }
+            JsonObject object;
+            try {
+                object = Json.parse(raw).getAsJsonObject();
+            } catch (Throwable t) {
+                if (fatal) onParseError();
+                return;
+            }
             String url = Json.safeString(object, "url");
-            JsonObject data = object.getAsJsonObject("data");
-            if (url.isEmpty()) url = Json.safeString(data, "url");
+            try {
+                JsonObject data = object.getAsJsonObject("data");
+                if (url.isEmpty()) url = Json.safeString(data, "url");
+            } catch (Throwable ignored) {}
             checkResult(getHeader(object), url, item.getName(), fatal);
         }
     }
@@ -144,13 +165,16 @@ public class ParseJob implements ParseCallback {
         List<Parse> json = VodConfig.get().getParses(1, flag);
         List<Parse> webs = VodConfig.get().getParses(0, flag);
         int count = json.size() + (webs.isEmpty() ? 0 : 1);
-        if (count == 0) {
+        // AI 智能解析作为独立并发的一路，不再等全部失败再兜底，命中率更高、响应更快
+        int aiCount = 1;
+        int total = count + aiCount;
+        if (total == 0) {
             // 没有可用解析器，直接尝试 AI 智能解析 fallback
             if (aiSmartParseFallback(webUrl)) return;
             onParseError();
             return;
         }
-        CountDownLatch latch = new CountDownLatch(count);
+        CountDownLatch latch = new CountDownLatch(total);
         for (Parse item : json) {
             Future<?> future = infinite.submit(() -> {
                 try {
@@ -164,17 +188,29 @@ public class ParseJob implements ParseCallback {
             futures.add(future);
         }
         if (!webs.isEmpty()) startWeb(latch, webs, webUrl);
+        // 并发启动 AI fallback 一路（不用等 json/web 解析失败）
+        Future<?> aiFuture = infinite.submit(() -> {
+            try {
+                // 给 json/web 解析留 3 秒的先发窗口，避免白抢资源
+                try { Thread.sleep(3000L); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                if (!done.get()) aiSmartParseFallback(webUrl);
+            } catch (Throwable ignored) {
+            } finally {
+                try { latch.countDown(); } catch (Exception ignored) {}
+            }
+        });
+        futures.add(aiFuture);
         try {
-            boolean ok = latch.await(30, TimeUnit.SECONDS);
+            boolean ok = latch.await(15, TimeUnit.SECONDS);
             // 未完成的 future 不影响 latch，但保证我们不会直接 NPE
             for (Future<?> f : futures) {
                 try { if (!f.isDone()) f.cancel(true); } catch (Exception ignored) {}
             }
             if (!ok && !done.get()) {
-                // 超时但还没成功，尝试 AI 智能解析 fallback
+                // 超时但还没成功，再给 AI 一次保底机会
                 if (!aiSmartParseFallback(webUrl)) onParseError();
             } else if (!done.get()) {
-                // 正常完成但解析失败，尝试 AI fallback
+                // 正常完成但解析失败，再 AI 兜底
                 if (!aiSmartParseFallback(webUrl)) onParseError();
             }
         } catch (InterruptedException e) {
@@ -190,44 +226,158 @@ public class ParseJob implements ParseCallback {
      * 当传统解析（json / mix / extend / 超级）失败时，
      * 先通过启发式规则嗅探页面中的真实视频 URL（m3u8/mp4/flv...），
      * 若命中则直接用该 URL 播放，不再依赖第三方解析站。
+     * 多候选 URL 逐个做轻量校验（HTTP 状态码 / Content-Type），
+     * 只要有一个可达即成功回调，显著提升命中率。
      */
     private boolean aiSmartParseFallback(String webUrl) {
         if (done.get()) return true;
         try {
-            Map<String, String> headers = parse != null ? parse.getHeader() : new HashMap<>();
-            // 1) 如果本身就是 m3u8 / mp4 / flv 等直链，直接放行
+            Map<String, String> baseHeaders = parse != null ? parse.getHeader() : new HashMap<>();
+            Map<String, String> headers = UrlUtil.mergeDefaultHeaders(baseHeaders, webUrl);
+            // 1) 如果本身就是 m3u8 / mp4 / flv 等直链，先做可达性校验，通过则直接放行
             String lc = webUrl == null ? "" : webUrl.toLowerCase();
-            if (lc.endsWith(".m3u8") || lc.contains(".m3u8?")
+            boolean isDirectVideo = lc.endsWith(".m3u8") || lc.contains(".m3u8?")
                     || lc.endsWith(".mp4") || lc.contains(".mp4?")
                     || lc.endsWith(".flv") || lc.contains(".flv?")
                     || lc.endsWith(".m4v") || lc.contains(".m4v?")
-                    || lc.endsWith(".ts") || lc.contains(".ts?")) {
-                onParseSuccess(headers, webUrl, "AI-Direct");
-                return true;
-            }
-            // 2) 用简单 HTTP GET 抓页面正文，正则扫常见视频 URL
-            String body = safeGetBody(webUrl, headers);
-            if (body != null && body.length() > 0) {
-                String sniffed = UrlUtil.sniffVideo(body, webUrl, "m3u8", "mp4", "flv", "m4v", "index.m3u8", "playlist.m3u8");
-                if (sniffed != null && !sniffed.isEmpty()) {
-                    onParseSuccess(headers, sniffed, "AI-Sniff");
+                    || lc.endsWith(".ts") || lc.contains(".ts?");
+            if (isDirectVideo) {
+                if (probeVideoUrl(webUrl, headers)) {
+                    onParseSuccess(headers, webUrl, "AI-Direct");
                     return true;
                 }
             }
-            // 3) 失败：返回 false，让上层决定走 onParseError
+            // 2) 用简单 HTTP GET 抓页面正文，正则扫常见视频 URL，拿 Top 5 候选逐个校验
+            String body = safeGetBody(webUrl, headers);
+            if (body != null && body.length() > 0) {
+                List<String> candidates = UrlUtil.sniffVideoCandidates(body, webUrl, 8,
+                        "m3u8", "mp4", "flv", "m4v", "index.m3u8", "playlist.m3u8", "ts");
+                if (candidates != null && !candidates.isEmpty()) {
+                    for (String cand : candidates) {
+                        if (done.get()) return true;
+                        if (TextUtils.isEmpty(cand)) continue;
+                        Map<String, String> candHeaders = UrlUtil.mergeDefaultHeaders(baseHeaders, cand);
+                        if (probeVideoUrl(cand, candHeaders)) {
+                            onParseSuccess(candHeaders, cand, "AI-Sniff");
+                            return true;
+                        }
+                    }
+                }
+            }
+            // 3) 即使嗅探没有命中候选，最后也兜底尝试：直接用 webUrl 当直链放一次（Content-Type 校验）
+            if (!isDirectVideo && probeVideoUrl(webUrl, headers)) {
+                onParseSuccess(headers, webUrl, "AI-Probe");
+                return true;
+            }
+            // 4) 全部失败：返回 false，让上层决定走 onParseError
             return false;
         } catch (Throwable ignored) {
             return false;
         }
     }
 
-    private String safeGetBody(String url, Map<String, String> headers) {
-        try (Response res = OkHttp.newCall(url, headers).execute()) {
-            if (res.body() != null) {
-                String s = res.body().string();
-                if (s.length() > 512 * 1024) s = s.substring(0, 512 * 1024);
-                return s;
+    /**
+     * 轻量探测一个视频 URL 是否可达：
+     * 优先 HEAD（省流量），若 HEAD 被 403/405 则回退到 GET Range:0-0；
+     * 要求 2xx 状态码 + Content-Type 非纯 HTML/text，或 Content-Length 明显大于典型 HTML 页。
+     */
+    private boolean probeVideoUrl(String url, Map<String, String> headers) {
+        if (TextUtils.isEmpty(url) || done.get()) return false;
+        // 快路径：如果后缀已经明确是视频，跳过探测直接信任（某些站点 HEAD 会被封）
+        String lc = url.toLowerCase();
+        boolean trustExt = lc.endsWith(".m3u8") || lc.contains(".m3u8?")
+                || lc.endsWith(".mp4") || lc.contains(".mp4?")
+                || lc.endsWith(".flv") || lc.contains(".flv?")
+                || lc.endsWith(".m4v") || lc.contains(".m4v?")
+                || lc.endsWith(".ts") || lc.contains(".ts?")
+                || lc.endsWith(".mkv") || lc.contains(".mkv?")
+                || lc.endsWith(".webm") || lc.contains(".webm?");
+        if (trustExt) return true;
+        try {
+            Response headRes = null;
+            try {
+                Request.Builder headBuilder = new Request.Builder().url(url).method("HEAD", null);
+                if (headers != null && !headers.isEmpty()) headBuilder.headers(Headers.of(headers));
+                headRes = OkHttp.client(10000L).newCall(headBuilder.build()).execute();
+                if (headRes.isSuccessful() && isVideoLikeResponse(headRes)) return true;
+            } catch (Throwable ignored) {
+            } finally {
+                closeQuietly(headRes);
             }
+            // HEAD 不行，回退 GET Range 0-0
+            Map<String, String> rangeHeaders = new HashMap<>(headers != null ? headers : new HashMap<>());
+            rangeHeaders.put(HttpHeaders.RANGE, "bytes=0-0");
+            Request.Builder getBuilder = new Request.Builder().url(url).get();
+            if (!rangeHeaders.isEmpty()) getBuilder.headers(Headers.of(rangeHeaders));
+            try (Response getRes = OkHttp.client(10000L).newCall(getBuilder.build()).execute()) {
+                int code = getRes.code();
+                // 200 / 206 都算可用；416 Range Not Satisfiable 但存在资源也 OK
+                boolean codeOk = (code >= 200 && code < 300) || code == 416;
+                if (!codeOk) return false;
+                // 若 416，但没有 Accept-Ranges / Content-Range，也可能是假的
+                if (code == 416) {
+                    String cr = getRes.header("Content-Range");
+                    String ar = getRes.header("Accept-Ranges");
+                    if (TextUtils.isEmpty(cr) && TextUtils.isEmpty(ar)) return false;
+                }
+                return isVideoLikeResponse(getRes) || code == 416;
+            }
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private boolean isVideoLikeResponse(Response res) {
+        if (res == null) return false;
+        String ct = res.header(HttpHeaders.CONTENT_TYPE);
+        String cl = res.header(HttpHeaders.CONTENT_LENGTH);
+        if (!TextUtils.isEmpty(ct)) {
+            String lc = ct.toLowerCase();
+            if (lc.contains("video") || lc.contains("audio")
+                    || lc.contains("mpegurl") || lc.contains("x-mpegurl")
+                    || lc.contains("octet-stream") || lc.contains("mp4")
+                    || lc.contains("mp2t") || lc.contains("x-flv")
+                    || lc.contains("webm") || lc.contains("matroska")) {
+                return true;
+            }
+            // 明确是 HTML / JSON / text 的排除
+            if (lc.contains("text/html") || lc.contains("application/json") || lc.contains("text/plain")) {
+                return false;
+            }
+        }
+        if (!TextUtils.isEmpty(cl)) {
+            try {
+                long len = Long.parseLong(cl.trim());
+                if (len > 256 * 1024) return true; // > 256KB 基本不可能是错误页面
+            } catch (Throwable ignored) {}
+        }
+        return false;
+    }
+
+    private void closeQuietly(Response res) {
+        if (res == null) return;
+        try { res.close(); } catch (Throwable ignored) {}
+    }
+
+    private String safeGetBody(String url, Map<String, String> headers) {
+        if (TextUtils.isEmpty(url)) return null;
+        Map<String, String> h = UrlUtil.mergeDefaultHeaders(headers, url);
+        try (Response res = OkHttp.newCall(url, h).execute()) {
+            // 只接受 2xx，拒绝把 403/404/5xx 的错误页面当正文去嗅探
+            if (!res.isSuccessful() || res.body() == null) return null;
+            // 若 Content-Type 是二进制/视频，没必要当正文去正则，直接跳过
+            String ct = res.header(HttpHeaders.CONTENT_TYPE);
+            if (!TextUtils.isEmpty(ct)) {
+                String lc = ct.toLowerCase();
+                if (lc.contains("video") || lc.contains("audio")
+                        || lc.contains("octet-stream") || lc.contains("image")) {
+                    return null;
+                }
+            }
+            String s = res.body().string();
+            if (TextUtils.isEmpty(s)) return null;
+            if (s.length() > 1024 * 1024) s = s.substring(0, 1024 * 1024);
+            return s;
         } catch (Throwable ignored) {}
         return null;
     }
