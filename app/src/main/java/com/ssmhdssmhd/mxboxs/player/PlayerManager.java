@@ -233,10 +233,26 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void setEngine(int targetEngine) {
-        int oldEngine = getEngine();
         PlayerSetting.putEngine(targetEngine);
-        if (oldEngine == targetEngine || isEmpty()) return;
-        startCurrent();
+        // 无条件重建 engine 实例：
+        // ① 保证 PlayerManager.getEngine() 在保存设置后立即返回对应用户选择的引擎常量
+        //    (否则旧 engine.getType() 会在下次打开引擎选择弹窗时把显示状态拉回 EXO)
+        // ② 解决 isEmpty() 场景下旧代码 early return 导致引擎对象从未更新的问题
+        //    （用户在解析完成前切换引擎，若无后续 URL 加载，旧引擎会常驻）
+        long currentPosition = isEmpty() ? C.TIME_UNSET : getPosition();
+        boolean hadMedia = !isEmpty();
+        PlayerEngine oldEngine = this.engine;
+        if (player != null) player.removeListener(listener);
+        // 根据新 setting 直接创建目标类型引擎（不受 DRM/SMB 强制 EXO 影响，因为此时 spec 可能还没设置）
+        this.engine = PlayerEngineFactory.create(decode, listener);
+        this.player = engine.getPlayer();
+        callback.onPlayerRebuild(player);
+        if (oldEngine != null) {
+            try { oldEngine.stop(); } catch (Throwable ignored) {}
+            try { oldEngine.release(); } catch (Throwable ignored) {}
+        }
+        // 仅当已有可播放 URL 时才重新载入，避免空 URL 触发内部异常
+        if (hadMedia) startCurrent(currentPosition);
     }
 
     public String getPositionTime(long delta) {

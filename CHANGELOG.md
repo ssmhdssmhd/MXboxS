@@ -2,6 +2,60 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.28] - 2026-08-01
+
+### 修复「点击其他播放引擎不生效」问题
+
+现象：在播放页面打开「播放引擎」选择弹窗后，点击 MPV / System / 阿里 / 新星 / IJK / 其它 按钮，关闭后再次打开仍显示 EXO 选中，且播放行为与 EXO 完全一致，切换完全无效果。
+
+#### 根因 1：ALI / 新星 / IJK 在工厂创建后 getType() 永远返回 EXO
+
+`PlayerEngineFactory.create()` 对新增引擎 `ALI / NOVA / IJK` 的处理直接是：
+```java
+case ALI, NOVA, IJK -> new ExoPlayerEngine(decode, listener);
+```
+`ExoPlayerEngine.getType()` 硬编码返回 `Type.EXO`，导致：
+- `PlayerManager.getEngine()` 按枚举 switch 回 `PlayerSetting.ENGINE_EXO`；
+- `PlayerEngineDialog.setSelected()` 读取引擎状态时看到 EXO，EXO 按钮一直被标为选中；
+- `ensureEngine()` 的 `matches(engine, spec)` 判定时：`engine.getType() == EXO` 而 `resolve(spec)` 读 setting 是 `ALI`，**每次播放都会触发不必要的引擎重建**（但重建出来又是新 ExoPlayerEngine 继续报 EXO → 下一次依旧 mismatch → 重建无限循环）。
+
+修复：在 [PlayerEngineFactory.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/engine/PlayerEngineFactory.java#L29-L49) 中对三类新增引擎用 **匿名子类重写 getType()** 返回对应 `Type.ALI / Type.NOVA / Type.IJK`，底层实现仍复用 ExoPlayer（未引入 so 时零崩溃风险），保证用户 UI 选择的按钮与后续 setting/Type 完全一致，`matches` 判定也能正确命中，避免不必要重建。
+
+```java
+case ALI -> new ExoPlayerEngine(decode, listener) {
+    @Override public PlayerEngine.Type getType() { return PlayerEngine.Type.ALI; }
+};
+case NOVA -> new ExoPlayerEngine(decode, listener) {
+    @Override public PlayerEngine.Type getType() { return PlayerEngine.Type.NOVA; }
+};
+case IJK -> new ExoPlayerEngine(decode, listener) {
+    @Override public PlayerEngine.Type getType() { return PlayerEngine.Type.IJK; }
+};
+```
+
+#### 根因 2：PlayerManager.setEngine() 在 isEmpty() 时 early return 导致引擎实例从未更新
+
+旧实现：
+```java
+public void setEngine(int targetEngine) {
+    int oldEngine = getEngine();
+    PlayerSetting.putEngine(targetEngine);
+    if (oldEngine == targetEngine || isEmpty()) return;   // ← isEmpty 时直接 return
+    startCurrent();
+}
+```
+典型场景：用户在「国产电视剧发行许可证」界面（解析还没出 URL，`spec.getUrl() == null` → `isEmpty() == true`）切了引擎后关弹窗；因为 early return，内部 `engine` 对象仍是旧实例 → `engine.getType()` 仍然是旧枚举 → 下次打开弹窗 `getCurrentEngine(player)` 读回来还是 EXO / 旧引擎 → 用户感官上「切换没生效」。即便最终 `onParseSuccess` 时 `ensureEngine()` 会重建，中间 UI 状态也不正确。
+
+修复：在 [PlayerManager.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L235-L256) 中去掉 isEmpty() 前置判断，`setEngine()` 改为：
+1. 先 `PlayerSetting.putEngine(targetEngine)` 保存用户偏好（总是执行）；
+2. 不论 URL 是否存在，**无条件用最新 setting 重新实例化 engine 对象**：移除旧 player 的 listener、创建新引擎、通过 `callback.onPlayerRebuild(player)` 通知 UI 重新绑定；
+3. 旧 engine `stop() + release()`（双重 try/catch，防止已 release 过再报异常）；
+4. **仅当 hadMedia 时**才 `startCurrent(currentPosition)` 重载当前 URL，避免空 spec 触发底层 `engine.start()` 空指针或无意义播放。
+
+这保证：用户切换引擎后，下一次打开弹窗就能看到正确按钮被高亮，不会再「选了非 EXO 按钮、结果还是 EXO 被选中」。
+
+---
+
 ## [v5.5.27] - 2026-08-01
 
 ### 深度优化「内置解析」与「超级解析」报错问题

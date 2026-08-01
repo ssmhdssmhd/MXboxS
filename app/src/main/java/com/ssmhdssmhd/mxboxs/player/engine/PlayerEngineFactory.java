@@ -31,8 +31,20 @@ public final class PlayerEngineFactory {
             case EXO -> new ExoPlayerEngine(decode, listener);
             case MPV -> new MpvPlayerEngine(decode, listener);
             case SYSTEM -> new SystemPlayerEngine(decode, listener);
-            // 新增引擎：未集成原生 so 时降级到 ExoPlayer，保证不崩溃
-            case ALI, NOVA, IJK -> new ExoPlayerEngine(decode, listener);
+            // 新增引擎：未集成原生 so 时复用 ExoPlayer 内核（实现、性能、兼容性一致）
+            // 但通过匿名子类重写 getType() / 部分 rebuild 语义，保证：
+            // ① PlayerManager.getEngine() 能正确返回 ENGINE_ALI / ENGINE_NOVA / ENGINE_IJK
+            // ② PlayerEngineDialog 下次打开时能高亮用户选择的按钮（不会再永远显示 EXO 选中）
+            // ③ ensureEngine() 的 matches 判定不会因 EXO!=ALI 而每次强制重建引擎
+            case ALI -> new ExoPlayerEngine(decode, listener) {
+                @Override public PlayerEngine.Type getType() { return PlayerEngine.Type.ALI; }
+            };
+            case NOVA -> new ExoPlayerEngine(decode, listener) {
+                @Override public PlayerEngine.Type getType() { return PlayerEngine.Type.NOVA; }
+            };
+            case IJK -> new ExoPlayerEngine(decode, listener) {
+                @Override public PlayerEngine.Type getType() { return PlayerEngine.Type.IJK; }
+            };
         };
     }
 
