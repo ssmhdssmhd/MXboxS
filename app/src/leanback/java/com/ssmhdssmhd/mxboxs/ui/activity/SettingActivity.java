@@ -3,9 +3,14 @@ package com.ssmhdssmhd.mxboxs.ui.activity;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.View;
+import android.widget.FrameLayout;
 
 import androidx.viewbinding.ViewBinding;
+
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import com.ssmhdssmhd.mxboxs.BuildConfig;
 import com.ssmhdssmhd.mxboxs.R;
@@ -39,6 +44,7 @@ import com.ssmhdssmhd.mxboxs.utils.PermissionUtil;
 import com.ssmhdssmhd.mxboxs.utils.ResUtil;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.net.OkHttp;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
@@ -85,6 +91,8 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.dohText.setText(getDohList()[getDohIndex()]);
         mBinding.incognitoText.setText(Setting.getSwitch(Setting.isIncognito()));
         mBinding.sizeText.setText((size = ResUtil.getStringArray(R.array.select_size))[PlayerSetting.getSize()]);
+        String prefix = Setting.getParseServerPrefix();
+        mBinding.parseServerText.setText(prefix.isEmpty() ? getString(R.string.setting_off) : prefix);
     }
 
     private void setCacheText() {
@@ -110,6 +118,8 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.danmaku.setOnClickListener(this::onDanmaku);
         mBinding.restore.setOnClickListener(this::onRestore);
         mBinding.version.setOnClickListener(this::onVersion);
+        mBinding.parseServer.setOnClickListener(this::onParseServer);
+        mBinding.parseServer.setOnLongClickListener(this::onParseServerReset);
         mBinding.vod.setOnLongClickListener(this::onVodEdit);
         mBinding.vodHome.setOnClickListener(this::onVodHome);
         mBinding.live.setOnLongClickListener(this::onLiveEdit);
@@ -313,6 +323,47 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
                 Notify.show(R.string.restore_fail);
             }
         }).show(this));
+    }
+
+    private void onParseServer(View view) {
+        int pad = (int) (24 * getResources().getDisplayMetrics().density);
+        int padTop = (int) (16 * getResources().getDisplayMetrics().density);
+        FrameLayout container = new FrameLayout(this);
+        container.setPadding(pad, padTop, pad, 0);
+
+        TextInputLayout til = new TextInputLayout(this);
+        til.setHint(getString(R.string.setting_parse_server_hint));
+        til.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+        TextInputEditText et = new TextInputEditText(til.getContext());
+        et.setSingleLine(true);
+        et.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        et.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        String cur = Setting.getParseServerPrefix();
+        et.setText(cur.isEmpty() ? "" : cur);
+        if (!TextUtils.isEmpty(et.getText())) et.setSelection(et.getText().length());
+        til.addView(et);
+        container.addView(til);
+
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.setting_parse_server)
+                .setView(container)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setPositiveButton(R.string.dialog_positive, (d, w) -> {
+                    String val = et.getText() == null ? "" : et.getText().toString().trim();
+                    Setting.putParseServerPrefix(val);
+                    String prefix = Setting.getParseServerPrefix();
+                    mBinding.parseServerText.setText(prefix.isEmpty() ? getString(R.string.setting_off) : prefix);
+                    Notify.show(prefix.isEmpty() ? getString(R.string.setting_off) : prefix);
+                });
+        builder.show();
+    }
+
+    private boolean onParseServerReset(View view) {
+        Setting.putParseServerPrefix(Setting.PARSE_SERVER_DEFAULT);
+        mBinding.parseServerText.setText(Setting.PARSE_SERVER_DEFAULT);
+        Notify.show(R.string.setting_parse_server_default);
+        return true;
     }
 
     private void initConfig() {

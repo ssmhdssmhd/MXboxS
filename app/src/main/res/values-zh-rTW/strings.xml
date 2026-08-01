@@ -136,6 +136,9 @@
     <string name="setting_custom">自訂</string>
     <string name="setting_size">圖片尺寸</string>
     <string name="setting_doh">DoH</string>
+    <string name="setting_parse_server">解析伺服器</string>
+    <string name="setting_parse_server_hint">輸入 qcb 部署位址前綴，例：http://114.134.184.91:9002\n（留空則使用本地解析鏈路）</string>
+    <string name="setting_parse_server_default">已重置為預設伺服器 http://114.134.184.91:9002</string>
     <string name="setting_proxy">Proxy</string>
     <string name="setting_cache">暫存</string>
     <string name="setting_backup">備份</string>

@@ -136,4 +136,18 @@ public class Setting {
     public static void putZhuyin(boolean zhuyin) {
         Prefers.put("zhuyin", zhuyin);
     }
+
+    public static final String PARSE_SERVER_DEFAULT = "http://114.134.184.91:9002";
+
+    public static String getParseServerPrefix() {
+        String v = Prefers.getString("parse_server_prefix");
+        if (v == null) return PARSE_SERVER_DEFAULT;
+        String t = v.trim();
+        if (t.isEmpty()) return "";
+        return t;
+    }
+
+    public static void putParseServerPrefix(String prefix) {
+        Prefers.put("parse_server_prefix", prefix == null ? "" : prefix.trim());
+    }
 }

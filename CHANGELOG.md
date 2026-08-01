@@ -2,6 +2,39 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.29] - 2026-08-02
+
+### 内置解析 & 超级解析全面接入 qcb 云端解析服务（解耦 + 可热更 + 可配置）
+
+#### 一、内置解析：直连 qcb/jiexi.php，云端规则热更
+
+- 新增 `ParseJob.qcbHttpCall()` 统一封装 qcb 云端解析接口：URL 编码、默认 UA/Referer Header 合并、JSON 解析与严格校验（code==200 + url 非空 + 非原 URL 回环检测），全程在 [ParseJob.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L435-L496)
+- `builtinParse()` 优先级调整：先 QCB `/jiexi.php?type=json&url=...` 作为最高优先级，**先跑，拿不到再 fallback 到原有的 AI 智能嗅探链路（`UrlUtil.sniffVideoCandidates + probeVideoUrl`），不再走 "先云端、后本地、两条腿走路。
+- 默认解析返回值 **回环保护**：若 qcb 接口未配置官解时会把输入 URL 原样吐回，新增**直链后缀白名单 + 输入 URL 比较逻辑，误判成"解析成功"然后播放原网页。
+
+#### 二、超级解析：qcb/xt/api.php 作为首发并发一路先开跑
+
+- `superParse()` 里新增 `/xt/api.php?type=json&url=...` 作为第 0 路提交给 `ExecutorService`，跟原有 JSON 解析、WebView 解析、AI 嗅探**四路并发**，先到先得。
+- 任意一路命中 `onParseSuccess` 立即 `CountDownLatch.countDown()`，其余全部 cancel，最大限度缩短黑屏等待。
+
+#### 三、解析服务器前缀可配置（手机 & TV 双端设置页已补全 UI）
+
+- [Setting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L140-L152) 新增：
+  - `PARSE_SERVER_DEFAULT = "http://114.134.184.91:9002"`
+  - `getParseServerPrefix()`：SharedPreferences `parse_server_prefix`，空串走本地链路，非空用用户值。
+  - `putParseServerPrefix(prefix)`：持久化保存。
+- 手机端 [SettingFragment.java](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/fragment/SettingFragment.java#L358-L397) + [fragment_setting.xml](file:///workspace/app/src/mobile/res/layout/fragment_setting.xml#L356-L383)：设置 DoH 下方新增「解析服务器」一行，
+  - **单击**：弹出 Material 输入框，带 URL keyboard，带 URI 输入类型，当前值预填、光标居末；确认后实时写入 SP 并刷新显示；空串显示「关」表示走本地链路。
+  - **长按**：一键重置回默认 `http://114.134.184.91:9002`，Toast 反馈重置提示文案。
+- TV 端 [SettingActivity.java](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingActivity.java#L328-L367) + [activity_setting.xml](file:///workspace/app/src/leanback/res/layout/activity_setting.xml#L324-L356)：同逻辑同 UI，focusable/selector_item 样式，遥控器可点。
+- 中文字符串 [values-zh-rCN/strings.xml](file:///workspace/app/src/main/res/values-zh-rCN/strings.xml#L132-L134)：`setting_parse_server` / `setting_parse_server_hint` / `setting_parse_server_default` 三条全部就位。
+
+#### 四、qcb 接口 URL 归一化
+
+- `normalizeQcbPrefix()`：strip 尾部 `/`，防用户配置时多写 `/` 导致拼成 `...9002//jiexi.php?...` 这种畸形 URL；prefix 空串时 `qcbHttpCall` 直接 return false，无缝降级到本地 AI sniff。
+
+---
+
 ## [v5.5.28] - 2026-08-01
 
 ### 修复「点击其他播放引擎不生效」问题

@@ -10,6 +10,7 @@ import com.ssmhdssmhd.mxboxs.bean.Parse;
 import com.ssmhdssmhd.mxboxs.bean.Result;
 import com.ssmhdssmhd.mxboxs.impl.ParseCallback;
 import com.ssmhdssmhd.mxboxs.server.Server;
+import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.ssmhdssmhd.mxboxs.ui.custom.CustomWebView;
 import com.ssmhdssmhd.mxboxs.utils.Task;
 import com.ssmhdssmhd.mxboxs.utils.UrlUtil;
@@ -167,7 +168,9 @@ public class ParseJob implements ParseCallback {
         int count = json.size() + (webs.isEmpty() ? 0 : 1);
         // AI 智能解析作为独立并发的一路，不再等全部失败再兜底，命中率更高、响应更快
         int aiCount = 1;
-        int total = count + aiCount;
+        // 原创 qcb 仓库超级嗅探 xt/api.php 作为最高优先级的一路（无 sleep，先出先胜）
+        int qcbCount = hasQcbParseServer() ? 1 : 0;
+        int total = count + aiCount + qcbCount;
         if (total == 0) {
             // 没有可用解析器，直接尝试 AI 智能解析 fallback
             if (aiSmartParseFallback(webUrl)) return;
@@ -188,10 +191,21 @@ public class ParseJob implements ParseCallback {
             futures.add(future);
         }
         if (!webs.isEmpty()) startWeb(latch, webs, webUrl);
-        // 并发启动 AI fallback 一路（不用等 json/web 解析失败）
+        // QCB 原创超级嗅探一路，无 sleep，优先级最高
+        if (qcbCount > 0) {
+            Future<?> qcbFuture = infinite.submit(() -> {
+                try {
+                    qcbXtApiParse(webUrl);
+                } catch (Throwable ignored) {
+                } finally {
+                    try { latch.countDown(); } catch (Exception ignored) {}
+                }
+            });
+            futures.add(qcbFuture);
+        }
+        // 并发启动 AI fallback 一路（给 json/web 解析留 3 秒的先发窗口，避免白抢资源）
         Future<?> aiFuture = infinite.submit(() -> {
             try {
-                // 给 json/web 解析留 3 秒的先发窗口，避免白抢资源
                 try { Thread.sleep(3000L); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
                 if (!done.get()) aiSmartParseFallback(webUrl);
             } catch (Throwable ignored) {
@@ -384,14 +398,102 @@ public class ParseJob implements ParseCallback {
 
     /**
      * 内置 m3u8/m3u8/mp4 直链解析：
-     * 1) 若 webUrl 本身是视频直链，直接放行；
-     * 2) 否则抓取 HTML/JS 正文，调用 UrlUtil.sniffVideo 启发式正则嗅探视频地址；
-     * 3) 再失败时走 onParseError 让上层提示/重试。
+     * 1) 优先走 qcb 原创仓库 jiexi.php（HTTP 实时调用，服务端可独立更新）；
+     * 2) 再 AI 智能解析 fallback；
+     * 3) 全部失败再走 onParseError。
      */
     private void builtinParse(String webUrl) {
         if (done.get()) return;
+        if (hasQcbParseServer() && qcbJiexiParse(webUrl)) return;
         if (aiSmartParseFallback(webUrl)) return;
         onParseError();
+    }
+
+    // ========== qcb 原创仓库 jiexi.php + xt/api.php 远程 HTTP 解析 ==========
+
+    private static boolean hasQcbParseServer() {
+        String p = Setting.getParseServerPrefix();
+        return p != null && !p.isEmpty();
+    }
+
+    private static String normalizeQcbPrefix(String p) {
+        if (p == null) return "";
+        String s = p.trim();
+        if (s.isEmpty()) return "";
+        while (s.endsWith("/")) s = s.substring(0, s.length() - 1);
+        return s;
+    }
+
+    /**
+     * 远程调一次 qcb 接口：
+     * - path: "/jiexi.php" 或 "/xt/api.php"
+     * - 查询参数自动加 type=json（只对 jiexi.php 生效，xt/api.php 忽略）+ url=编码后的 webUrl
+     * - 统一 JSON: {code, url, msg, ZT, time, KFZ}
+     * - 判定条件：code==200, url 非空，且 (url != 原 webUrl 或 url 本身是 m3u8/mp4 直链)
+     *   因为 qcb 官解接口没配置时会把原 URL 原样写回 url，这种情况当失败处理，走 fallback。
+     */
+    private boolean qcbHttpCall(String path, String fromTag, String webUrl) {
+        if (done.get()) return true;
+        try {
+            String prefix = normalizeQcbPrefix(Setting.getParseServerPrefix());
+            if (prefix.isEmpty()) return false;
+            String fullUrl = prefix + path + "?type=json&url=" + android.net.Uri.encode(webUrl, "-_.~");
+            Map<String, String> baseHeaders = parse != null ? parse.getHeader() : new HashMap<>();
+            Map<String, String> headers = UrlUtil.mergeDefaultHeaders(baseHeaders, prefix + "/");
+            try (Response res = OkHttp.client(15000L).newCall(new Request.Builder().url(fullUrl).get().headers(Headers.of(headers)).build()).execute()) {
+                if (!res.isSuccessful() || res.body() == null) return false;
+                String raw = res.body().string();
+                if (TextUtils.isEmpty(raw)) return false;
+                JsonObject obj;
+                try {
+                    obj = Json.parse(raw).getAsJsonObject();
+                } catch (Throwable t) {
+                    return false;
+                }
+                if (obj == null) return false;
+                int code = -1;
+                try { code = obj.get("code").getAsInt(); } catch (Throwable ignored) {}
+                String url = Json.safeString(obj, "url");
+                if (code != 200 || TextUtils.isEmpty(url)) return false;
+                String trimmed = url.trim();
+                if (trimmed.isEmpty()) return false;
+                if (!trimmed.startsWith("http")) return false;
+                boolean isSameAsInput = trimmed.equals(webUrl);
+                // 对输入 URL 做路径归一化的比较，避免末尾 / 影响判断
+                try {
+                    String n1 = webUrl == null ? "" : webUrl.trim();
+                    String n2 = trimmed;
+                    if (n1.endsWith("/")) n1 = n1.substring(0, n1.length() - 1);
+                    if (n2.endsWith("/")) n2 = n2.substring(0, n2.length() - 1);
+                    if (n1.equals(n2)) isSameAsInput = true;
+                } catch (Throwable ignored) {}
+                String lc = trimmed.toLowerCase();
+                boolean isDirectVideo = lc.endsWith(".m3u8") || lc.contains(".m3u8?")
+                        || lc.endsWith(".mp4") || lc.contains(".mp4?")
+                        || lc.endsWith(".flv") || lc.contains(".flv?")
+                        || lc.endsWith(".m4v") || lc.contains(".m4v?")
+                        || lc.endsWith(".ts") || lc.contains(".ts?")
+                        || lc.endsWith(".mkv") || lc.contains(".mkv?")
+                        || lc.endsWith(".webm") || lc.contains(".webm?");
+                if (isSameAsInput && !isDirectVideo) return false;
+                Map<String, String> outHeaders = getHeader(obj);
+                if (outHeaders == null || outHeaders.isEmpty()) outHeaders = headers;
+                onParseSuccess(outHeaders, trimmed, fromTag);
+                return true;
+            }
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** 内置解析走 qcb/jiexi.php（TVBox/影视APP 专用公开接口壳） */
+    private boolean qcbJiexiParse(String webUrl) {
+        return qcbHttpCall("/jiexi.php", "QCB-jiexi", webUrl);
+    }
+
+    /** 超级解析走 qcb 原创仓库的超级嗅探核心 xt/api.php */
+    private boolean qcbXtApiParse(String webUrl) {
+        return qcbHttpCall("/xt/api.php", "QCB-XT-super", webUrl);
     }
 
     private void startWeb(CountDownLatch latch, List<Parse> items, String webUrl) {
