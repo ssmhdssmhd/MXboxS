@@ -2,6 +2,35 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.30] - 2026-08-02
+
+### 解析链路按用户要求重定义：内置解析=qcb jiexi.php，超级解析=AI 自动识别
+
+#### 一、内置解析：`http://114.134.184.91:9002/jiexi.php?url=`
+
+- Setting 默认解析服务器前缀保持 `http://114.134.184.91:9002`，用户无自定义值时内置解析自动走 qcb/jiexi.php，无需改任何配置。
+- [ParseJob.java builtinParse()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L439-L444)：
+  - 最高优先级 → `qcbJiexiParse(webUrl)` → HTTP 调 `/jiexi.php?type=json&url=<编码后的 webUrl>`；
+  - qcb 返回成功（code==200 + url 非空 + 非原 URL 回环）→ 回调 onParseSuccess；
+  - qcb 失败或返回原网页 URL → 走 `aiSmartParseFallback(webUrl)` 本地嗅探兜底；
+  - 两路都失败才回调 onParseError。
+
+#### 二、超级解析：改为纯 AI 自动识别然后解析
+
+- [ParseJob.java superParse()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L165-L177) 完全重写：
+  - **移除了**原有的第三方 JSON 解析站并发、WebView 嗅探并发、qcb/xt/api.php 超级嗅探一路；
+  - **改为**直接调用 `aiSmartParseFallback(webUrl)`：
+    1. webUrl 本身是视频直链（.m3u8/.mp4/.flv/.m4v/.ts/.mkv/.webm）→ 可达性 probe 通过即直接播放；
+    2. 否则 HTTP GET 抓页面正文，正则扫常见视频 URL（Top 5 候选含相对路径拼接），逐个做 HEAD/Range:0-0 probe 可达性，命中即播放；
+    3. 全部候选不命中 → 兜底：拿原 URL 做一次 Content-Type/Content-Length probe（宽容策略）；
+  - 任一步命中 → onParseSuccess；全部失败 → onParseError。
+
+#### 三、其它
+
+- `app/build.gradle` versionCode 578 → **579** / versionName 5.5.29 → **5.5.30**。
+
+---
+
 ## [v5.5.29] - 2026-08-02
 
 ### 内置解析 & 超级解析全面接入 qcb 云端解析服务（解耦 + 可热更 + 可配置）

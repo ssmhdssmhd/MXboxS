@@ -162,77 +162,18 @@ public class ParseJob implements ParseCallback {
         checkResult(Result.fromObject(BaseLoader.get().jsonExtMix(flag, parse.getUrl(), parse.getName(), jxs, webUrl)));
     }
 
+    /**
+     * 超级解析（AI 自动识别然后解析）：
+     * 不再走第三方 JSON 解析站、WebView 嗅探、或 qcb/xt 超级嗅探接口，
+     * 直接调用 AI 启发式自动识别链路 aiSmartParseFallback：
+     *   1) webUrl 本身是视频直链 → 可达性 probe 后直接播放；
+     *   2) 否则 HTTP 抓正文，正则扫常见视频 URL（m3u8/mp4/flv/m4v/ts...）候选，逐个做可达性 probe；
+     *   3) 全部不命中时兜底：拿原 URL 做一次 Content-Type probe。
+     * 任一路命中 → onParseSuccess 回调；全部失败才 onParseError。
+     */
     private void superParse(String webUrl, String flag) throws Exception {
-        List<Parse> json = VodConfig.get().getParses(1, flag);
-        List<Parse> webs = VodConfig.get().getParses(0, flag);
-        int count = json.size() + (webs.isEmpty() ? 0 : 1);
-        // AI 智能解析作为独立并发的一路，不再等全部失败再兜底，命中率更高、响应更快
-        int aiCount = 1;
-        // 原创 qcb 仓库超级嗅探 xt/api.php 作为最高优先级的一路（无 sleep，先出先胜）
-        int qcbCount = hasQcbParseServer() ? 1 : 0;
-        int total = count + aiCount + qcbCount;
-        if (total == 0) {
-            // 没有可用解析器，直接尝试 AI 智能解析 fallback
-            if (aiSmartParseFallback(webUrl)) return;
-            onParseError();
-            return;
-        }
-        CountDownLatch latch = new CountDownLatch(total);
-        for (Parse item : json) {
-            Future<?> future = infinite.submit(() -> {
-                try {
-                    jsonParse(item, webUrl, false);
-                } catch (Exception e) {
-                    // 单个解析失败不影响其它，只记录（避免污染日志）
-                } finally {
-                    try { latch.countDown(); } catch (Exception ignored) {}
-                }
-            });
-            futures.add(future);
-        }
-        if (!webs.isEmpty()) startWeb(latch, webs, webUrl);
-        // QCB 原创超级嗅探一路，无 sleep，优先级最高
-        if (qcbCount > 0) {
-            Future<?> qcbFuture = infinite.submit(() -> {
-                try {
-                    qcbXtApiParse(webUrl);
-                } catch (Throwable ignored) {
-                } finally {
-                    try { latch.countDown(); } catch (Exception ignored) {}
-                }
-            });
-            futures.add(qcbFuture);
-        }
-        // 并发启动 AI fallback 一路（给 json/web 解析留 3 秒的先发窗口，避免白抢资源）
-        Future<?> aiFuture = infinite.submit(() -> {
-            try {
-                try { Thread.sleep(3000L); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-                if (!done.get()) aiSmartParseFallback(webUrl);
-            } catch (Throwable ignored) {
-            } finally {
-                try { latch.countDown(); } catch (Exception ignored) {}
-            }
-        });
-        futures.add(aiFuture);
-        try {
-            boolean ok = latch.await(15, TimeUnit.SECONDS);
-            // 未完成的 future 不影响 latch，但保证我们不会直接 NPE
-            for (Future<?> f : futures) {
-                try { if (!f.isDone()) f.cancel(true); } catch (Exception ignored) {}
-            }
-            if (!ok && !done.get()) {
-                // 超时但还没成功，再给 AI 一次保底机会
-                if (!aiSmartParseFallback(webUrl)) onParseError();
-            } else if (!done.get()) {
-                // 正常完成但解析失败，再 AI 兜底
-                if (!aiSmartParseFallback(webUrl)) onParseError();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            if (!done.get()) {
-                if (!aiSmartParseFallback(webUrl)) onParseError();
-            }
-        }
+        if (aiSmartParseFallback(webUrl)) return;
+        onParseError();
     }
 
     /**

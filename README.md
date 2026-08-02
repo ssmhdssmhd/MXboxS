@@ -6,6 +6,18 @@
 
 ---
 
+## 最新更新
+
+### v5.5.30 · 2026-08-02 · 解析链路按要求重定义
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **内置解析** | **固定调用** `http://114.134.184.91:9002/jiexi.php?url=<编码地址>`。Setting 默认解析服务器前缀已设为 `http://114.134.184.91:9002`，用户无自定义时自动走该域名。qcb 返回失败时再走 AI 嗅探兜底。 | [Setting.java#L140-L148](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L140-L148)、[ParseJob.java#L439-L444](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L439-L444) |
+| 2 | **超级解析** | **完全改为 AI 自动识别然后解析**。移除原有的第三方 JSON 解析站、WebView 嗅探、qcb xt/api.php 并发链路，直接走纯启发式 AI sniff：① 直链快速 probe → ② 抓正文正则扫候选 URL + probe → ③ 最终宽容 probe 兜底。 | [ParseJob.java#L165-L177](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L165-L177) |
+| 3 | 版本号 | versionCode 578 → **579** / versionName 5.5.29 → **5.5.30** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ## 分支说明
 
 | 分支 | 用途 | 说明 |
@@ -23,7 +35,7 @@
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.29 (578) |
+| 版本 | v5.5.30 (579) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
@@ -33,10 +45,10 @@
 GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 或 `mobile` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.29.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.29.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.29.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.29.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.30.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.30.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.30.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.30.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 
@@ -111,9 +123,10 @@ GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体
 - 多站点分类浏览，Filter 筛选
 - 多站点并行搜索
 - 播放失败自动换源
-- **超级解析（Super Parse）AI 智能 fallback**：当 JSON / WebView 解析站全部失败或超时时，自动触发 AI 启发式嗅探：
-  1. 若 webUrl 本身就是 m3u8/mp4/flv/m4v/ts 直链 → 直接播放；
-  2. 否则抓取页面正文，正则扫常见视频 URL（含相对路径拼接）→ 命中后直接播放；
+- **超级解析（AI 自动识别然后解析）**：纯启发式本地嗅探，不依赖任何第三方解析站/云端接口/WebView：
+  1. 若 webUrl 本身就是 m3u8/mp4/flv/m4v/ts/mkv/webm 直链 → 可达性 probe 通过即直接播放；
+  2. 否则抓取页面正文，正则扫常见视频 URL（含相对路径拼接）→ 命中后逐个 probe 可达性 → 播放；
+  3. 全部失败时兜底：拿原 URL 做一次 Content-Type/Content-Length 宽容 probe。
 - 观看记录、收藏、无痕模式
 - 手势控制（亮度/音量/进度）
 
