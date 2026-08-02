@@ -67,6 +67,14 @@ public class Setting {
         Prefers.put("wall_type", Math.clamp(type, MIN_WALL_TYPE, MAX_WALL_TYPE));
     }
 
+    public static boolean getWallSound() {
+        return Prefers.getBoolean("wall_sound");
+    }
+
+    public static void putWallSound(boolean sound) {
+        Prefers.put("wall_sound", sound);
+    }
+
     public static int getThemeColor() {
         return Prefers.getInt("theme_color", -1);
     }

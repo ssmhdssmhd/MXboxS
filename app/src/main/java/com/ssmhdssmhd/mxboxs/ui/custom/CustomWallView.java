@@ -64,11 +64,19 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onConfigEvent(ConfigEvent event) {
         if (event.type() == ConfigEvent.Type.WALL) refresh();
+        if (event.type() == ConfigEvent.Type.COMMON) applyWallSound();
+    }
+
+    private void applyWallSound() {
+        if (player == null) return;
+        if (Setting.getWallSound()) player.unmute();
+        else player.mute();
     }
 
     private void refresh() {
         stop();
         load();
+        applyWallSound();
         theme();
     }
 
@@ -149,7 +157,8 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
         player = new ExoPlayer.Builder(getContext()).build();
         player.setRepeatMode(Player.REPEAT_MODE_ALL);
         player.setPlayWhenReady(true);
-        player.mute();
+        if (Setting.getWallSound()) player.unmute();
+        else player.mute();
     }
 
     private void ensureVideoView() {

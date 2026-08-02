@@ -90,6 +90,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     private void setOtherText() {
         mBinding.dohText.setText(getDohList()[getDohIndex()]);
         mBinding.incognitoText.setText(Setting.getSwitch(Setting.isIncognito()));
+        mBinding.wallSoundText.setText(Setting.getSwitch(Setting.getWallSound()));
         mBinding.sizeText.setText((size = ResUtil.getStringArray(R.array.select_size))[PlayerSetting.getSize()]);
         String prefix = Setting.getParseServerPrefix();
         mBinding.parseServerText.setText(prefix.isEmpty() ? getString(R.string.setting_off) : prefix);
@@ -131,6 +132,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.wallDefault.setOnClickListener(this::setWallDefault);
         mBinding.wallRefresh.setOnClickListener(this::setWallRefresh);
         mBinding.wallRefresh.setOnLongClickListener(this::onWallHistory);
+        mBinding.wallSound.setOnClickListener(this::setWallSound);
     }
 
     @Override
@@ -266,6 +268,12 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     private void setIncognito(View view) {
         Setting.putIncognito(!Setting.isIncognito());
         mBinding.incognitoText.setText(Setting.getSwitch(Setting.isIncognito()));
+    }
+
+    private void setWallSound(View view) {
+        Setting.putWallSound(!Setting.getWallSound());
+        mBinding.wallSoundText.setText(Setting.getSwitch(Setting.getWallSound()));
+        ConfigEvent.common();
     }
 
     private void setSize(View view) {

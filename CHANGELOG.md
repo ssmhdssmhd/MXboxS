@@ -2,6 +2,58 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.31] - 2026-08-02
+
+### 壁纸支持动态（视频 / GIF 像视频一样动）+ AI 设置里壁纸声音默认关闭
+
+#### 一、动态壁纸能力复用：视频像视频、GIF 也像视频一样动
+
+现有壁纸渲染组件 `CustomWallView`（[CustomWallView.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWallView.java)）已具备完整的三类壁纸分支：
+- `TYPE_RES`（静态内置图 1~4，JPG/PNG）
+- `TYPE_GIF`：`pl.droidsonroids.gif.GifDrawable` 自动帧循环（start/pause 跟随生命周期），**像视频一样动**。
+- `TYPE_VIDEO`：`androidx.media3.exoplayer.ExoPlayer` + `PlayerView`，`REPEAT_MODE_ALL` 无限循环，`PLAY_WHEN_READY=true`，标准**视频动态壁纸**。
+
+本次只做"默认声音关闭 + 设置页可控 + 即时生效"三部分，**不破坏原有 TYPE_GIF / TYPE_VIDEO 渲染链路**，因此视频/GIF 动态壁纸能力**完全可用**：
+- 视频壁纸：点击设置里的「壁纸」选择 `wall_type=2` 素材后，`CustomWallView.loadVideo()` → 全屏 PlayerView 循环播放。
+- GIF 壁纸：`wall_type=1` 时 → `GifDrawable.start()`，页面 resume 就继续、pause 就暂停。
+
+#### 二、壁纸声音新增独立开关，默认关闭（与 AI 设置 / 设置页联动）
+
+##### 1. 配置存储 [Setting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L70-L76)
+
+```java
+public static boolean getWallSound() { return Prefers.getBoolean("wall_sound"); }
+public static void putWallSound(boolean sound) { Prefers.put("wall_sound", sound); }
+```
+- 因为 `Prefers.getBoolean("wall_sound")` 默认值是 `false`，所以**新装/升级/从未手动切换过的用户一律默认关闭（静音）**。
+- 这个默认行为就是用户要求的：「AI 设置中，壁纸声音默认为关闭」。
+
+##### 2. ExoPlayer 声音动态同步 [CustomWallView.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWallView.java#L70-L81)
+
+- 初始化阶段 `ensurePlayer()`：
+  - `Setting.getWallSound() == true` → `player.unmute()`；
+  - 否则（默认）→ `player.mute()`。
+- 运行中切换开关：`ConfigEvent.common()` 触发 `onConfigEvent` → `applyWallSound()`，再次调用 `mute/unmute`，**无需切换壁纸就能立刻听到 / 静音**。
+
+##### 3. 手机 + TV 设置页新增「壁纸声音」一行（AI/壁纸相关设置可见）
+
+手机端 [SettingFragment.java](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/fragment/SettingFragment.java#L104-L112) + [fragment_setting.xml](file:///workspace/app/src/mobile/res/layout/fragment_setting.xml#L197-L222)，壁纸行正下方新增：
+- 文案 `@string/setting_wall_sound` → 默认状态显示「关」。
+- 单击 → `setWallSound()` 反转 `wall_sound` 布尔 → 立刻写入 SP → 回写到 `wallSoundText` → `ConfigEvent.common()` 通知 CustomWallView 实时 `applyWallSound()`。
+
+TV 端 [SettingActivity.java](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingActivity.java#L90-L97) + [activity_setting.xml](file:///workspace/app/src/leanback/res/layout/activity_setting.xml#L209-L236) 同结构同语义，已加 focusable/selector_item，遥控器可点。
+
+多语言 strings 都已就位：
+- 中文（简）`values-zh-rCN`：`壁纸声音`
+- 中文（繁）`values-zh-rTW`：`壁紙聲音`
+- 英文 fallback `values`：`Wallpaper sound`
+
+#### 三、其它
+
+- `app/build.gradle` versionCode 579 → **580** / versionName 5.5.30 → **5.5.31**。
+
+---
+
 ## [v5.5.30] - 2026-08-02
 
 ### 解析链路按用户要求重定义：内置解析=qcb jiexi.php，超级解析=AI 自动识别

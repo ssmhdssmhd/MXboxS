@@ -128,6 +128,7 @@
     <string name="setting_vod">点播</string>
     <string name="setting_live">直播</string>
     <string name="setting_wall">壁纸</string>
+    <string name="setting_wall_sound">壁纸声音</string>
     <string name="setting_ai">AI设置</string>
     <string name="setting_parse_server">解析服务器</string>
     <string name="setting_parse_server_hint">输入 qcb 部署地址前缀，例：http://114.134.184.91:9002\n（留空则使用本地解析链路）</string>

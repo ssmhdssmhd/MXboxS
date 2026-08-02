@@ -8,6 +8,15 @@
 
 ## 最新更新
 
+### v5.5.31 · 2026-08-02 · 动态壁纸（视频/GIF） + 壁纸声音默认关闭
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **壁纸渲染** | 复用现有 `CustomWallView` 三分支，**视频壁纸 (TYPE_VIDEO=ExoPlayer 无限循环) / GIF 壁纸 (TYPE_GIF=GifDrawable 帧循环) 均像视频一样动**。静态 (TYPE_RES) 不变化。 | [CustomWallView.java#L41-L45](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWallView.java#L41-L45)、[loadVideo()/loadGif()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWallView.java#L118-L132) |
+| 2 | **壁纸声音** | 新增 `Setting.getWallSound() / putWallSound()`，`Prefers.getBoolean` 默认值 `false` → **AI / 设置中壁纸声音默认为关闭**。首次播放动态视频壁纸自动 `mute()`。切换开关 → `ConfigEvent.common()` → `applyWallSound()` 实时 `mute/unmute`。 | [Setting.java#L70-L76](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L70-L76)、[CustomWallView.java#L70-L81](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWallView.java#L70-L81) |
+| 3 | **设置页 UI** | 手机 fragment_setting.xml + TV activity_setting.xml，在「壁纸」行下方均新增**「壁纸声音」开关一行**（Off / On 显示当前状态，点击切换）。英文 + 简繁中文 strings 文案齐全。 | [SettingFragment.java#L299-L303](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/fragment/SettingFragment.java#L299-L303)、[SettingActivity.java#L273-L277](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingActivity.java#L273-L277)、[values/strings.xml#L132-L133](file:///workspace/app/src/main/res/values/strings.xml#L132-L133) |
+| 4 | 版本号 | versionCode 579 → **580** / versionName 5.5.30 → **5.5.31** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
 ### v5.5.30 · 2026-08-02 · 解析链路按要求重定义
 
 | # | 模块 | 行为 | 代码位置 |
@@ -35,7 +44,7 @@
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.30 (579) |
+| 版本 | v5.5.31 (580) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
@@ -45,10 +54,10 @@
 GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 或 `mobile` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.30.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.30.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.30.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.30.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.31.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.31.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.31.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.31.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 
