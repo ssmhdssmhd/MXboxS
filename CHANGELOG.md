@@ -2,6 +2,46 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.32] - 2026-08-02
+
+### 修复「内置解析失败，播放地址解析失败」（爱奇艺/官解线路 qcb 回环后直接报错）
+
+#### 根因：v5.5.30/31 时 builtinParse 只有两路，qcb + AI sniff，官解线路直接 onParseError
+
+用户用「建安资源 → iqiyi 线路 → 小品一家人 45/46 集」这种典型官解线路时，发生：
+1. `qcb jiexi.php` 返回：
+   ```json
+   {"code":200,"ZT":"解析成功","msg":"https://www.iqiyi.com/v_19rrcu9opc.html","url":"https://www.iqiyi.com/v_19rrcu9opc.html",...}
+   ```
+   因为 **url/msg 都等于原 webUrl（爱奇艺详情页）**，被 v5.5.30 起引入的"回环 + 非直链"判定正确拦截 → `qcbJiexiParse` 返回 false，不会误判。
+2. 进入 `aiSmartParseFallback`：爱奇艺/腾讯/优酷/B 站这类 SPA 前端渲染，HTTP GET 只能拿到 CSR 骨架 HTML，正文里没有明文 m3u8/mp4 直链 → `sniffVideoCandidates` 返回空 → 最后宽容 probe 也是 text/html → 全部 false。
+3. v5.5.31 `builtinParse` 就直接 `onParseError()` → UI 顶部弹出「播放地址解析失败」。
+
+#### 修复一：builtinParse 新增第 3 路兜底 `fallbackConcurrentParse` 并发多解析站 + WebView sniff
+
+把内置解析从"两路"升级为**三级链路 + 最后兜底完整传统并发**，彻底避免官解线路因为 qcb 没配官解而直接失败：
+
+| 顺序 | 链路 | 作用场景 | 代码位置 |
+|------|------|----------|----------|
+| ① | `qcbJiexiParse` | 用户自定义 / 默认 qcb 云端 jiexi.php 有官解配置时最快出结果 | [ParseJob.java#L358-L360](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L358-L360) |
+| ② | `aiSmartParseFallback` | 半直链 / 简单静态页 / 自建解析站 → 零配置就能放 | [同上](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L358-L360) |
+| ③ 新增 | **`fallbackConcurrentParse`** | 爱奇艺/腾讯/优酷/B 站官解线路（必须解析站/WebView 才能解），并发跑：<br>1) 所有 `type=1` 的 JSON 解析站 `jsonParse`；<br>2) 默认解析站 WebView sniff（含 type=0/1/2/3 分发）；<br>3) `jsonExtend` 扩展多解析并发；<br>4) 每路完成 `countDown`，15s 超时统一释放；<br>任一路 onParseSuccess 立即 CAS `done=true`，剩下全部 Future cancel。 | [fallbackConcurrentParse()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L373-L417) + [新增 startWeb(latch,Parse,webUrl)](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L419-L449) |
+| ④ | 才 onParseError | 真正全部失败才报 | [builtinParse()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L357-L363) |
+
+#### 修复二：qcbHttpCall 增强兼容 url/msg 两字段 + 嵌套 JSON
+
+有些 qcb 部署版本会把真正的 `{code,url}` 再塞成字符串塞进 `msg` / `url` 字段里；v5.5.32 加：
+- [extractQcbUrl()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L543-L563)：对 `url` 和 `msg` 两个字段同时尝试：
+  1. 直接 http 开头 → 返回；
+  2. `{` / `[` 开头 → 再解一层 JSON → 从内层取 `url` / `msg` 只要 http 开头就返回。
+- [preferCandidateUrl()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L566-L582)：在两个候选里挑更像"真解析结果"的：**优先选 ≠ 原 webUrl + 带视频后缀** 的那个，两者都回环才随便传（下游 `isSameAsInput && !isDirectVideo` 再最后拦一次）。
+
+#### 三、其它
+
+- `app/build.gradle` versionCode 580 → **581** / versionName 5.5.31 → **5.5.32**
+
+---
+
 ## [v5.5.31] - 2026-08-02
 
 ### 壁纸支持动态（视频 / GIF 像视频一样动）+ AI 设置里壁纸声音默认关闭

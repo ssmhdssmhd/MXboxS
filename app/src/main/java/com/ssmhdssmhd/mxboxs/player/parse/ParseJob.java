@@ -338,16 +338,123 @@ public class ParseJob implements ParseCallback {
     }
 
     /**
-     * 内置 m3u8/m3u8/mp4 直链解析：
-     * 1) 优先走 qcb 原创仓库 jiexi.php（HTTP 实时调用，服务端可独立更新）；
-     * 2) 再 AI 智能解析 fallback；
-     * 3) 全部失败再走 onParseError。
+     * 内置 m3u8/m3u8/mp4 直链解析（四级链路，最后兜底绝不用 onParseError 直接放弃）：
+     *
+     *  1) 最高优先级：qcb 云端 jiexi.php → 实时调用 qcb 已部署 http://114.134.184.91:9002/jiexi.php?url=
+     *     若 qcb 返回 {code:200, url: 非原网页回环的 m3u8/mp4 直链} → 立刻 onParseSuccess。
+     *
+     *  2) AI 本地启发式嗅探 aiSmartParseFallback：
+     *     webUrl 是直链 → probe；
+     *     否则 HTTP GET 抓正文，正则扫常见视频 URL Top 候选逐个 probe；
+     *     最后兜底 probe 原 URL。
+     *     适合用户自建解析站 / 已经是半直链 / 简单静态站点。
+     *
+     *  3) 最后兜底：fallbackConcurrentParse 跑完整的传统"多解析站并发（jsonParse + jsonExtend + jsonMix + WebView sniff 多源）"
+     *     专门处理爱奇艺/腾讯/优酷/B 站这类前端渲染 + 必须依赖解析站的官解线路。
+     *
+     *  1/2/3 只要一路命中 → onParseSuccess；全部失败 → 才 onParseError。
      */
     private void builtinParse(String webUrl) {
         if (done.get()) return;
         if (hasQcbParseServer() && qcbJiexiParse(webUrl)) return;
         if (aiSmartParseFallback(webUrl)) return;
-        onParseError();
+        fallbackConcurrentParse(webUrl);
+        if (!done.get()) onParseError();
+    }
+
+    /**
+     * 传统多解析站并发兜底（给 builtinParse / superParse 的最后防线用）：
+     * 1) 所有 type=1 的 JSON 解析站并发 jsonParse；
+     * 2) 默认解析站 WebView sniff（startWeb）一路；
+     * 3) jsonExtend 扩展多解析并发一路；
+     * 4) 每路完成就 countDown，统一 15 秒超时；
+     *    有任何一路 done 被 CAS 为 true 就提前释放，剩下全部 cancel。
+     */
+    private void fallbackConcurrentParse(String webUrl) {
+        if (done.get()) return;
+        List<Parse> list = VodConfig.get().getParses();
+        List<Parse> jsons = new ArrayList<>();
+        Parse defaultP = parse != null ? parse : VodConfig.get().getParse();
+        if (list != null && !list.isEmpty()) for (Parse p : list) if (p != null && p.getType() == 1) jsons.add(p);
+        int total = Math.max(1, jsons.size()) + 1 + 1;
+        if (total < 3) total = 3;
+        CountDownLatch latch = new CountDownLatch(total);
+        ExecutorService svc = Executors.newFixedThreadPool(Math.min(6, Math.max(2, total)));
+        List<Future<?>> fs = new ArrayList<>();
+        try {
+            if (jsons.isEmpty()) {
+                countDownAll(latch, 1);
+            } else {
+                for (Parse jp : jsons) {
+                    if (done.get()) { countDownAll(latch, 1); break; }
+                    fs.add(svc.submit(() -> {
+                        if (done.get()) { countDownAll(latch, 1); return; }
+                        try { jsonParse(jp, webUrl, false); } catch (Throwable ignored) {
+                        } finally { countDownAll(latch, 1); }
+                    }));
+                }
+            }
+            if (!done.get() && defaultP != null && !defaultP.isEmpty()) {
+                fs.add(svc.submit(() -> {
+                    if (done.get()) { countDownAll(latch, 1); return; }
+                    try {
+                        if (defaultP.getType() == 0) startWeb(latch, defaultP, webUrl);
+                        else if (defaultP.getType() == 1) { jsonParse(defaultP, webUrl, false); countDownAll(latch, 1); }
+                        else if (defaultP.getType() == 2) { jsonExtend(webUrl); countDownAll(latch, 1); }
+                        else if (defaultP.getType() == 3) { jsonMix(webUrl, ""); countDownAll(latch, 1); }
+                        else countDownAll(latch, 1);
+                    } catch (Throwable ignored) { countDownAll(latch, 1); }
+                }));
+            } else countDownAll(latch, 1);
+            if (!done.get()) {
+                fs.add(svc.submit(() -> {
+                    if (done.get()) { countDownAll(latch, 1); return; }
+                    try { jsonExtend(webUrl); } catch (Throwable ignored) {
+                    } finally { countDownAll(latch, 1); }
+                }));
+            } else countDownAll(latch, 1);
+            try { latch.await(15000L, TimeUnit.MILLISECONDS); } catch (Throwable ignored) {}
+        } finally {
+            for (Future<?> f : fs) try { f.cancel(true); } catch (Throwable ignored) {}
+            try { svc.shutdownNow(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private void startWeb(CountDownLatch latch, Parse item, String webUrl) {
+        if (done.get()) { countDownAll(latch, 1); return; }
+        CustomWebView[] holder = new CustomWebView[1];
+        boolean webOk;
+        try {
+            webOk = WebViewUtil.support();
+        } catch (Throwable t) { webOk = false; }
+        if (!webOk) { countDownAll(latch, 1); return; }
+        App.post(() -> {
+            try {
+                CustomWebView cv = CustomWebView.create(App.get()).start("", item.getName(), item.getHeader(), item.getUrl() + webUrl, item.getClick(), new ParseCallback() {
+                    @Override
+                    public void onParseSuccess(Map<String, String> h, String u, String f) {
+                        try { countDownAll(latch, 1); } catch (Throwable ignored) {}
+                        ParseJob.this.onParseSuccess(h, u, f);
+                    }
+
+                    @Override
+                    public void onParseError() {
+                        try { countDownAll(latch, 1); } catch (Throwable ignored) {}
+                    }
+                }, !item.getUrl().contains("player/?url="));
+                holder[0] = cv;
+                synchronized (webViews) { webViews.add(cv); }
+            } catch (Throwable ignored) {
+                try { countDownAll(latch, 1); } catch (Throwable ignored2) {}
+            }
+        });
+        // WebView 属于异步回调；给 50ms 让 App.post 触发的 runnable 先把 cv 加进去，避免 Future cancel 时漏清
+        try { Thread.sleep(50); } catch (Throwable ignored) {}
+    }
+
+    private static void countDownAll(CountDownLatch latch, int n) {
+        if (latch == null) return;
+        while (n-- > 0) try { latch.countDown(); } catch (Throwable ignored) {}
     }
 
     // ========== qcb 原创仓库 jiexi.php + xt/api.php 远程 HTTP 解析 ==========
@@ -394,9 +501,12 @@ public class ParseJob implements ParseCallback {
                 if (obj == null) return false;
                 int code = -1;
                 try { code = obj.get("code").getAsInt(); } catch (Throwable ignored) {}
-                String url = Json.safeString(obj, "url");
-                if (code != 200 || TextUtils.isEmpty(url)) return false;
-                String trimmed = url.trim();
+                // qcb jiexi.php 有时会把真实 url 嵌套在 url / msg 字段里（二次 JSON 包装），尝试两个字段都解一层
+                String url = extractQcbUrl(obj, "url", webUrl);
+                String msg = extractQcbUrl(obj, "msg", webUrl);
+                String chosen = preferCandidateUrl(url, msg, webUrl);
+                if (code != 200 || TextUtils.isEmpty(chosen)) return false;
+                String trimmed = chosen.trim();
                 if (trimmed.isEmpty()) return false;
                 if (!trimmed.startsWith("http")) return false;
                 boolean isSameAsInput = trimmed.equals(webUrl);
@@ -425,6 +535,69 @@ public class ParseJob implements ParseCallback {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    /**
+     * 对 qcb 返回对象里的指定字段（通常 "url" / "msg"）抽取视频 URL：
+     * - 若字段值是合法 http 开头 → 直接返回；
+     * - 否则尝试把字段值当 JSON 再解析一层（有时 qcb 会把 {code,url,msg} 再塞成字符串），
+     *   再从里层取 url / msg，取到第一个合法 http 即返回；
+     * - 所有方式都不行 → 返回空串。
+     */
+    private static String extractQcbUrl(JsonObject outer, String field, String webUrl) {
+        if (outer == null || TextUtils.isEmpty(field)) return "";
+        String raw = Json.safeString(outer, field);
+        if (!TextUtils.isEmpty(raw)) {
+            String t = raw.trim();
+            if (t.startsWith("http")) return t;
+            if (t.startsWith("{") || t.startsWith("[")) {
+                try {
+                    JsonElement el = Json.parse(t);
+                    if (el != null && el.isJsonObject()) {
+                        JsonObject inner = el.getAsJsonObject();
+                        String u = Json.safeString(inner, "url");
+                        if (!TextUtils.isEmpty(u) && u.trim().startsWith("http")) return u.trim();
+                        String m = Json.safeString(inner, "msg");
+                        if (!TextUtils.isEmpty(m) && m.trim().startsWith("http")) return m.trim();
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return "";
+    }
+
+    /** 在 url / msg 两个候选里挑更像"真解析结果"的那个：避开等于原 URL 的，优先带视频后缀的 */
+    private static String preferCandidateUrl(String a, String b, String webUrl) {
+        String norm = normalizeCompareUrl(webUrl);
+        String aa = normalizeCompareUrl(a);
+        String bb = normalizeCompareUrl(b);
+        boolean aOk = !aa.isEmpty() && !aa.equals(norm);
+        boolean bOk = !bb.isEmpty() && !bb.equals(norm);
+        boolean aVideo = aOk && containsVideoSuffix(a);
+        boolean bVideo = bOk && containsVideoSuffix(b);
+        if (aVideo && !bVideo) return a;
+        if (bVideo && !aVideo) return b;
+        if (aOk && !bOk) return a;
+        if (bOk && !aOk) return b;
+        if (!TextUtils.isEmpty(aa) && !aa.equals(norm)) return a;
+        if (!TextUtils.isEmpty(bb) && !bb.equals(norm)) return b;
+        if (!TextUtils.isEmpty(a)) return a;
+        return b;
+    }
+
+    private static boolean containsVideoSuffix(String url) {
+        if (TextUtils.isEmpty(url)) return false;
+        String lc = url.toLowerCase();
+        return lc.contains(".m3u8") || lc.contains(".mp4") || lc.contains(".flv")
+                || lc.contains(".m4v") || lc.contains(".ts") || lc.contains(".mkv")
+                || lc.contains(".webm") || lc.contains(".mov");
+    }
+
+    private static String normalizeCompareUrl(String url) {
+        if (TextUtils.isEmpty(url)) return "";
+        String t = url.trim();
+        while (t.endsWith("/")) t = t.substring(0, t.length() - 1);
+        return t;
     }
 
     /** 内置解析走 qcb/jiexi.php（TVBox/影视APP 专用公开接口壳） */

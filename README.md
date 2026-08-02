@@ -8,6 +8,14 @@
 
 ## 最新更新
 
+### v5.5.32 · 2026-08-02 · 修复「内置解析失败」官解线路 qcb 回环后不报错
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **内置解析（三级链路）** | 从 qcb + AI sniff 升级为 **qcb → AI sniff → 传统多解析站/WebView 并发兜底**，官解线路（爱奇艺/腾讯/优酷/B 站）qcb 无官解回环时不再直接 onParseError：`fallbackConcurrentParse` 并发跑 ① 全部 type=1 JSON 解析站 `jsonParse`；② 默认解析站 WebView sniff（按 type 分发）；③ `jsonExtend` 扩展并发；15s 超时，命中即 CAS done=true 取消其余 Future。 | [builtinParse()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L357-L363)、[fallbackConcurrentParse()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L373-L417) |
+| 2 | qcbHttpCall 兼容性 | url/msg 两字段都解一层嵌套 JSON（有时 qcb 把 `{code,url}` 再塞成字符串），并通过 preferCandidateUrl **优先挑 ≠ 原 URL + 带视频后缀** 的候选，回环结果再被 isSameAsInput 拦截。 | [ParseJob.java#L500-L503](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L500-L503)、[extractQcbUrl/preferCandidateUrl](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L543-L597) |
+| 3 | 版本号 | versionCode 580 → **581** / versionName 5.5.31 → **5.5.32** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
 ### v5.5.31 · 2026-08-02 · 动态壁纸（视频/GIF） + 壁纸声音默认关闭
 
 | # | 模块 | 行为 | 代码位置 |
@@ -44,7 +52,7 @@
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.31 (580) |
+| 版本 | v5.5.32 (581) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
@@ -54,10 +62,10 @@
 GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 或 `mobile` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.31.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.31.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.31.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.31.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.32.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.32.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.32.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.32.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 
