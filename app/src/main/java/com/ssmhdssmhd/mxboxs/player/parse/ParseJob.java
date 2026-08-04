@@ -197,10 +197,12 @@ public class ParseJob implements ParseCallback {
                     || lc.endsWith(".m4v") || lc.contains(".m4v?")
                     || lc.endsWith(".ts") || lc.contains(".ts?");
             if (isDirectVideo) {
+                // 修复：即使是直链后缀，也必须通过真实 HTTP 验证才能算成功，避免 0 KB/s 假成功
                 if (probeVideoUrl(webUrl, headers)) {
                     onParseSuccess(headers, webUrl, "AI-Direct");
                     return true;
                 }
+                // 探测失败，继续走嗅探流程
             }
             // 2) 用简单 HTTP GET 抓页面正文，正则扫常见视频 URL，拿 Top 5 候选逐个校验
             String body = safeGetBody(webUrl, headers);
@@ -234,50 +236,69 @@ public class ParseJob implements ParseCallback {
     /**
      * 轻量探测一个视频 URL 是否可达：
      * 优先 HEAD（省流量），若 HEAD 被 403/405 则回退到 GET Range:0-0；
-     * 要求 2xx 状态码 + Content-Type 非纯 HTML/text，或 Content-Length 明显大于典型 HTML 页。
+     * 对于明确失败的状态码（404, 5xx 等）或返回 HTML 内容的，判定为失败；
+     * 对于网络超时/403 等不确定状态，若 URL 本身是视频后缀，则保守地信任（避免误杀有效源）。
      */
     private boolean probeVideoUrl(String url, Map<String, String> headers) {
         if (TextUtils.isEmpty(url) || done.get()) return false;
-        // 快路径：如果后缀已经明确是视频，跳过探测直接信任（某些站点 HEAD 会被封）
+        
+        // 检查 URL 后缀是否像视频
         String lc = url.toLowerCase();
-        boolean trustExt = lc.endsWith(".m3u8") || lc.contains(".m3u8?")
+        boolean videoExt = lc.endsWith(".m3u8") || lc.contains(".m3u8?")
                 || lc.endsWith(".mp4") || lc.contains(".mp4?")
                 || lc.endsWith(".flv") || lc.contains(".flv?")
                 || lc.endsWith(".m4v") || lc.contains(".m4v?")
                 || lc.endsWith(".ts") || lc.contains(".ts?")
                 || lc.endsWith(".mkv") || lc.contains(".mkv?")
                 || lc.endsWith(".webm") || lc.contains(".webm?");
-        if (trustExt) return true;
+
         try {
             Response headRes = null;
             try {
                 Request.Builder headBuilder = new Request.Builder().url(url).method("HEAD", null);
                 if (headers != null && !headers.isEmpty()) headBuilder.headers(Headers.of(headers));
-                headRes = OkHttp.client(10000L).newCall(headBuilder.build()).execute();
-                if (headRes.isSuccessful() && isVideoLikeResponse(headRes)) return true;
+                headRes = OkHttp.client(8000L).newCall(headBuilder.build()).execute();
+                int code = headRes.code();
+                // 明确的客户端或服务器错误
+                if (code == 404 || code == 410 || (code >= 500 && code < 600)) {
+                    return false; 
+                }
+                // HEAD 成功 (2xx)，验证内容类型
+                if (code >= 200 && code < 300) {
+                    if (isVideoLikeResponse(headRes)) return true;
+                    // 内容类型不像是视频，但状态码是 200 且 URL 有视频后缀，可能是 CDN 或重定向
+                    if (videoExt) return true; 
+                    return false;
+                }
+                // 其他状态码 (3xx, 401, 403, 405 等)，如果 URL 有视频后缀，保守信任
+                if (videoExt) return true;
             } catch (Throwable ignored) {
+                // HEAD 请求失败（超时、网络错误等）
+                if (videoExt) return true; // 视频后缀 URL 网络失败，保守信任
             } finally {
                 closeQuietly(headRes);
             }
-            // HEAD 不行，回退 GET Range 0-0
+            
+            // HEAD 明确失败或返回非预期状态码，且无视频后缀，回退到 GET Range
             Map<String, String> rangeHeaders = new HashMap<>(headers != null ? headers : new HashMap<>());
             rangeHeaders.put(HttpHeaders.RANGE, "bytes=0-0");
             Request.Builder getBuilder = new Request.Builder().url(url).get();
             if (!rangeHeaders.isEmpty()) getBuilder.headers(Headers.of(rangeHeaders));
-            try (Response getRes = OkHttp.client(10000L).newCall(getBuilder.build()).execute()) {
+            try (Response getRes = OkHttp.client(8000L).newCall(getBuilder.build()).execute()) {
                 int code = getRes.code();
-                // 200 / 206 都算可用；416 Range Not Satisfiable 但存在资源也 OK
+                if (code == 404 || code == 410 || (code >= 500 && code < 600)) {
+                    return false;
+                }
                 boolean codeOk = (code >= 200 && code < 300) || code == 416;
                 if (!codeOk) return false;
-                // 若 416，但没有 Accept-Ranges / Content-Range，也可能是假的
-                if (code == 416) {
-                    String cr = getRes.header("Content-Range");
-                    String ar = getRes.header("Accept-Ranges");
-                    if (TextUtils.isEmpty(cr) && TextUtils.isEmpty(ar)) return false;
-                }
-                return isVideoLikeResponse(getRes) || code == 416;
+                if (isVideoLikeResponse(getRes)) return true;
+                // GET 成功但内容类型可疑，若是视频后缀则信任
+                if (videoExt) return true;
+                return false;
             }
         } catch (Throwable ignored) {
+            // GET 也失败了，保守处理
+            if (videoExt) return true;
             return false;
         }
     }
