@@ -2,11 +2,17 @@ name: Build MXboxS Release
 
 on:
   push:
-    branches: [main, mobile]
+    branches: [main, mobile, upstream-sync]
     tags:
       - 'v*'
     paths-ignore:
       - 'LICENSE'
+      - '.upstream-sync-baseline'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'LICENSE'
+      - '.upstream-sync-baseline'
   workflow_dispatch:
 
 jobs:
@@ -171,6 +177,7 @@ jobs:
           ls -la output/
 
       - name: Upload APKs
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: MXboxS-Release-APKs

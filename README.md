@@ -3,10 +3,20 @@
 基于 [FongMi/TV](https://github.com/FongMi/TV) 的二次开发项目，覆盖 **Android TV（leanback）** 与 **手机端（mobile）** 的影视应用。
 
 [![Build MXboxS Release](https://github.com/ssmhdssmhd/MXboxS/actions/workflows/build.yml/badge.svg)](https://github.com/ssmhdssmhd/MXboxS/actions/workflows/build.yml)
+[![Sync Upstream](https://github.com/ssmhdssmhd/MXboxS/actions/workflows/sync.yml/badge.svg)](https://github.com/ssmhdssmhd/MXboxS/actions/workflows/sync.yml)
 
 ---
 
 ## 最新更新
+
+### v5.5.33 · 2026-08-04 · 新增上游 FongMi/TV 实时同步工作流
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **同步工作流** | 新增 `sync.yml`，每 6 小时自动从 [FongMi/TV](https://github.com/FongMi/TV) `fongmi` 分支拉取最新变更，`git merge -X ours` 合并到 `upstream-sync` 分支（冲突保留 MXboxS 定制），清理上游 `com/fongmi/` app/ Java 文件（避免编译失败），创建/更新 PR 供人工 review。 | [sync.yml](file:///workspace/.github/workflows/sync.yml) |
+| 2 | **构建工作流** | `build.yml` 新增 `upstream-sync` 分支 push 触发 + PR 触发，同步 PR 自动构建验证；PR 构建跳过 APK 上传。 | [build.yml#L3-L16](file:///workspace/.github/workflows/build.yml#L3-L16) |
+| 3 | **基线追踪** | `.upstream-sync-baseline` 文件记录上次同步的上游 SHA，避免重复同步。 | [.upstream-sync-baseline](file:///workspace/.upstream-sync-baseline) |
+| 4 | **文档** | README 新增「实时同步上游 FongMi/TV」章节与「模块化开发原则」。 | [README.md#L49-L148](file:///workspace/README.md#L49-L148) |
 
 ### v5.5.32 · 2026-08-02 · 修复「内置解析失败」官解线路 qcb 回环后不报错
 
@@ -39,10 +49,113 @@
 
 | 分支 | 用途 | 说明 |
 |------|------|------|
-| `main` | 二次开发主分支 | 活跃开发，所有改动在此提交 |
-| `TV` | 原始源码（不动） | FongMi/TV 纯净源码，作为开发环境参考 |
-| `mobile` | 手机端专用 | 仅保留 mobile 代码，已移除 leanback 电视端代码 |
-| `KF` | KF 分支 | 完整代码副本 |
+| `main` | 二次开发主分支 | 活跃开发，所有 MXboxS 定制改动在此提交 |
+| `upstream-sync` | 上游同步分支 | 由 `sync.yml` 工作流自动维护，含上游 FongMi/TV 最新变更，通过 PR 合入 `main` |
+
+> 历史的 `TV` / `mobile` / `KF` 分支已弃用，所有变体（leanback + mobile）统一在 `main` 分支通过 productFlavors 构建。
+
+---
+
+## 实时同步上游 FongMi/TV
+
+本项目基于 [FongMi/TV](https://github.com/FongMi/TV) 二次开发，通过 GitHub Actions 工作流 [.github/workflows/sync.yml](.github/workflows/sync.yml) **每 6 小时自动同步上游变更**。
+
+### 同步机制
+
+| 项目 | 值 |
+|------|-----|
+| 上游仓库 | [FongMi/TV](https://github.com/FongMi/TV) |
+| 上游分支 | `fongmi` |
+| 同步频率 | 每 6 小时（UTC 00:00 / 06:00 / 12:00 / 18:00）+ 手动触发 |
+| 同步策略 | `git merge -X ours`（冲突时**保留 MXboxS 定制**为准） |
+| 同步目标 | `upstream-sync` 分支 → PR → 人工 review → 合入 `main` |
+| 基线追踪 | `.upstream-sync-baseline` 文件记录上次同步的上游 SHA |
+
+### 同步范围
+
+| 模块 | 路径 | 同步方式 | 说明 |
+|------|------|----------|------|
+| **共享模块** | `catvod/` `chaquo/` `forcetech/` `docs/` `gradle/` | ✅ 自动合并 | 路径与上游一致，上游变更自动合入（冲突保留 MXboxS 版本） |
+| **根构建文件** | `build.gradle` `settings.gradle` `gradle.properties` | ✅ 自动合并 | 同上 |
+| **app/ 业务代码** | `app/src/*/java/com/fongmi/...` | ⚠️ 仅报告 | 包名不同（`com.fongmi.android.tv` vs `com.ssmhdssmhd.mxboxs`），上游 Java 文件**不引入**（避免编译失败），PR 中生成变更清单供人工 port |
+| **app/ 资源** | `app/src/main/res/` | ✅ 自动合并 | 新增资源自动引入，同名冲突保留 MXboxS 版本 |
+
+### 同步流程
+
+```
+每 6 小时触发
+    │
+    ▼
+fetch upstream/fongmi
+    │
+    ▼
+对比 .upstream-sync-baseline ──── 无变化 ──→ 跳过
+    │
+    有变化
+    ▼
+checkout upstream-sync 分支
+    │
+    ▼
+merge origin/main（同步 MXboxS 最新改动）
+    │
+    ▼
+merge upstream/fongmi -X ours（冲突保留 MXboxS）
+    │
+    ▼
+清理上游 com/fongmi/ app/ Java 文件（避免编译失败）
+    │
+    ▼
+更新 .upstream-sync-baseline
+    │
+    ▼
+push upstream-sync + 创建/更新 PR
+    │
+    ▼
+人工 review → 合入 main → 触发构建
+```
+
+### 手动触发同步
+
+在 GitHub Actions 页面选择 `Sync Upstream` 工作流，点击 `Run workflow`：
+
+- **默认**：基于已有 `upstream-sync` 分支继续合并
+- **force_recreate=true**：丢弃 `upstream-sync` 历史，从 `main` 重新创建（用于修复同步异常）
+
+### PR 说明
+
+同步 PR 标题格式：`chore(sync): 上游 FongMi/TV 同步 @<上游SHA>`
+
+PR 正文包含：
+- 上游最近 30 条提交
+- 共享模块变更统计（自动合并部分）
+- app/ 业务代码变更清单（需人工 port）
+- 全部变更统计
+
+> **合并 PR 前**：请确认 CI 构建通过。合并后 `main` 即包含上游最新共享模块变更。
+
+---
+
+## 模块化开发原则
+
+为降低上游同步冲突，后续 MXboxS 定制开发请遵循以下原则：
+
+1. **新增功能优先放独立文件/类**，避免修改上游同名文件
+   - ✅ 新建 `MxboxsXxxParser.java` 而非修改上游的 `Parser.java`
+   - ❌ 直接在上游文件中加 MXboxS 专属逻辑
+
+2. **定制逻辑通过继承/组合扩展**，而非直接修改上游代码
+   - ✅ `class MxboxsPlayer extends UpstreamPlayer`
+   - ❌ 在 `UpstreamPlayer.java` 中加 `if (mxboxs) ...`
+
+3. **资源文件使用 `mxboxs_` 前缀**，避免与上游资源冲突
+   - ✅ `mxboxs_ic_feature.xml`、`mxboxs_string_feature`
+   - ❌ 修改上游 `ic_feature.xml`、`string_feature`
+
+4. **build.gradle 改动隔离**到 MXboxS 专属配置块
+   - ✅ 新增 `// MXboxS custom` 注释块
+   - ❌ 分散修改上游已有配置行
+
+5. **包名引用统一使用 `com.ssmhdssmhd.mxboxs`**，不混用上游包名
 
 ---
 
@@ -52,20 +165,20 @@
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.32 (581) |
+| 版本 | v5.5.33 (582) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
 
 ### 云端编译
 
-GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 或 `mobile` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。
+GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。同步 PR 也会触发构建验证（不上传 APK）。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.32.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.32.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.32.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.32.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.33.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.33.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.33.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.33.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 

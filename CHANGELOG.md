@@ -2,6 +2,66 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.33] - 2026-08-04
+
+### 新增上游 FongMi/TV 实时同步工作流
+
+#### 背景
+
+此前 MXboxS 基于 FongMi/TV 二次开发，所有上游更新均需手动拉取合并，容易滞后。本次新增自动化同步工作流，每 6 小时检查上游 [FongMi/TV](https://github.com/FongMi/TV) `fongmi` 分支，有新提交时自动合并到 `upstream-sync` 分支并创建 PR 供人工 review。
+
+#### 一、同步工作流 `sync.yml`
+
+新建 [.github/workflows/sync.yml](file:///workspace/.github/workflows/sync.yml)，核心流程：
+
+| 步骤 | 行为 | 说明 |
+|------|------|------|
+| 触发 | `cron: 0 */6 * * *` + `workflow_dispatch` | 每 6 小时自动 + 手动触发（支持 `force_recreate` 选项） |
+| 基线检查 | 读取 `.upstream-sync-baseline` 对比上游 HEAD | 无变化则跳过，有变化才执行同步 |
+| 分支准备 | 复用已有 `upstream-sync` 分支或从 `main` 新建 | 复用时先 merge `origin/main` 同步 MXboxS 最新改动 |
+| 上游合并 | `git merge upstream/fongmi -X ours` | 冲突时**保留 MXboxS 定制**；首次使用 `--allow-unrelated-histories` |
+| 清理 | `git rm -r app/src/*/java/com/fongmi/` | 移除上游 `com.fongmi.android.tv` 包名下的 Java 文件，避免编译失败 |
+| 基线更新 | 写入新 SHA 到 `.upstream-sync-baseline` | amend 到合并提交中 |
+| 推送 + PR | `git push --force-with-lease` + `gh pr create/edit` | 创建或更新同步 PR，含上游提交日志与变更统计 |
+
+#### 二、同步范围
+
+| 模块 | 同步方式 | 说明 |
+|------|----------|------|
+| `catvod/` `chaquo/` `forcetech/` `docs/` `gradle/` | ✅ 自动合并 | 路径与上游一致，`-X ours` 保留 MXboxS 定制版本 |
+| 根 `build.gradle` `settings.gradle` `gradle.properties` | ✅ 自动合并 | 同上 |
+| `app/src/*/java/com/fongmi/...` | ⚠️ 仅报告 | 包名不同，上游 Java 文件不引入，PR 中生成变更清单供人工 port |
+| `app/src/main/res/` | ✅ 自动合并 | 新增资源自动引入，同名冲突保留 MXboxS 版本 |
+
+#### 三、构建工作流 `build.yml` 调整
+
+- 新增 `upstream-sync` 分支 push 触发
+- 新增 `pull_request` 触发（PR 到 main 时自动构建验证）
+- `paths-ignore` 新增 `.upstream-sync-baseline`（基线文件变更不触发构建）
+- PR 构建跳过 APK 上传（`if: github.event_name != 'pull_request'`）
+
+#### 四、PR 报告内容
+
+同步 PR 正文包含：
+- 上游最近 30 条提交
+- 共享模块变更统计（自动合并部分）
+- app/ 业务代码变更清单（需人工 port）
+- 全部变更统计
+- 同步机制说明 + 模块化开发原则
+
+#### 五、文档
+
+- README 新增「实时同步上游 FongMi/TV」章节，含同步机制表、同步范围表、流程图、手动触发说明、PR 说明
+- README 新增「模块化开发原则」章节，5 条原则指导后续定制开发降低冲突
+- README 分支说明更新：`main` + `upstream-sync`，历史 `TV`/`mobile`/`KF` 分支标记弃用
+
+#### 六、其它
+
+- `app/build.gradle` versionCode 581 → **582** / versionName 5.5.32 → **5.5.33**
+- 新增 `.upstream-sync-baseline` 文件（记录当前上游 SHA `d234010b`）
+
+---
+
 ## [v5.5.32] - 2026-08-02
 
 ### 修复「内置解析失败，播放地址解析失败」（爱奇艺/官解线路 qcb 回环后直接报错）
