@@ -5,6 +5,7 @@ import android.view.View;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewbinding.ViewBinding;
 
+import com.ssmhdssmhd.mxboxs.R;
 import com.ssmhdssmhd.mxboxs.databinding.DialogUpdateBinding;
 import com.ssmhdssmhd.mxboxs.impl.UpdateListener;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -55,7 +56,8 @@ public class UpdateDialog extends BaseAlertDialog {
     @Override
     protected void initView() {
         binding.version.setText(title);
-        binding.desc.setText(desc);
+        binding.desc.setText(desc != null ? desc : "");
+        binding.desc.setVisibility(desc != null ? View.VISIBLE : View.GONE);
     }
 
     @Override
@@ -64,8 +66,43 @@ public class UpdateDialog extends BaseAlertDialog {
         binding.cancel.setOnClickListener(this::onCancel);
     }
 
+    public void setStatus(String text) {
+        if (binding != null) binding.status.setText(text);
+    }
+
+    public void updateTitle(String text) {
+        this.title = text;
+        if (binding != null) binding.version.setText(text);
+    }
+
+    public void updateDesc(String text) {
+        this.desc = text;
+        if (binding != null) {
+            binding.desc.setText(text != null ? text : "");
+            binding.desc.setVisibility(text != null ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    public void showProgress() {
+        if (binding != null) {
+            binding.progressBar.setVisibility(View.VISIBLE);
+            binding.progressText.setVisibility(View.VISIBLE);
+            binding.progressBar.setProgress(0);
+            binding.progressText.setText("0%");
+        }
+        binding.confirm.setEnabled(false);
+        binding.confirm.setText(R.string.update_downloading);
+    }
+
     public void setProgress(int progress) {
-        binding.confirm.setText(String.format(Locale.getDefault(), "%1$d%%", progress));
+        if (binding != null) {
+            binding.progressBar.setProgress(progress);
+            binding.progressText.setText(String.format(Locale.getDefault(), "%1$d%%", progress));
+        }
+    }
+
+    public void setConfirmEnabled(boolean enabled) {
+        binding.confirm.setEnabled(enabled);
     }
 
     private void onConfirm(View view) {

@@ -2,6 +2,33 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.36] - 2026-08-05
+
+### 优化更新体验：连接状态可视化 + 自动下载 + 进度条
+
+#### 背景
+
+v5.5.35 引入了应用内更新机制，但用户点击"检查更新"后缺少反馈：连接状态不可见、下载进度不直观。v5.5.36 重新设计了更新对话框，完整展示从连接到下载安装的全流程状态。
+
+#### 修改内容
+
+**文件**：
+- `app/src/main/java/.../Updater.java` — 重写更新流程，支持连接状态实时反馈和自动下载
+- `app/src/mobile/java/.../UpdateDialog.java` — 新增连接状态、进度条、动态更新方法
+- `app/src/leanback/java/.../UpdateDialog.java` — 同步新增连接状态、进度条、动态更新方法
+- `app/src/mobile/res/layout/dialog_update.xml` — 新增 status、progressBar、progressText
+- `app/src/leanback/res/layout/dialog_update.xml` — 同步新增 status、progressBar、progressText
+- `app/src/main/res/values*/strings.xml` — 新增连接/下载/安装相关字符串
+
+**核心变更**：
+- ✅ 点击更新后立即弹出对话框，显示"正在连接仓库…"
+- ✅ 连接成功后显示"连接成功 · 最新版本：x.x.x" + 更新日志
+- ✅ 连接失败显示错误信息
+- ✅ 检测到新版本后自动开始下载，无需手动点击
+- ✅ 下载过程显示进度条 + 百分比
+- ✅ 下载完成后自动调起系统安装界面
+- ✅ 启动时自动检查仅在有新版本时弹窗，不打扰用户
+
 ## [v5.5.35] - 2026-08-04
 
 ### 全新应用内更新机制：支持国内镜像自动下载安装

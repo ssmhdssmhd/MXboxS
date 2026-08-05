@@ -227,6 +227,12 @@
     <string name="update_version">發現新版本 <xliff:g name="name">%s</xliff:g></string>
     <string name="update_check">正在檢查更新…</string>
     <string name="update_confirm">更新</string>
+    <string name="update_connecting">正在連接倉庫…</string>
+    <string name="update_connected">連接成功 · 最新版本：<xliff:g name="name">%s</xliff:g></string>
+    <string name="update_no_new">已是最新版本</string>
+    <string name="update_download_failed">下載失敗：<xliff:g name="name">%s</xliff:g></string>
+    <string name="update_downloading">正在下載…</string>
+    <string name="update_installing">正在安裝…</string>
     <string name="setting_mirror">更新源</string>
     <string name="mirror_direct">GitHub 直連</string>
     <string name="mirror_ghproxy">ghproxy.com（國內）</string>

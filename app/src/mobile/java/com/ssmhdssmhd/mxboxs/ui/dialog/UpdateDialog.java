@@ -1,5 +1,7 @@
 package com.ssmhdssmhd.mxboxs.ui.dialog;
 
+import android.view.View;
+
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewbinding.ViewBinding;
@@ -54,7 +56,8 @@ public class UpdateDialog extends BaseAlertDialog {
 
     @Override
     protected void initView() {
-        binding.desc.setText(desc);
+        binding.desc.setText(desc != null ? desc : "");
+        binding.desc.setVisibility(desc != null ? View.VISIBLE : View.GONE);
     }
 
     @Override
@@ -65,8 +68,47 @@ public class UpdateDialog extends BaseAlertDialog {
         if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> listener.onConfirm(view));
     }
 
-    public void setProgress(int progress) {
+    public void setStatus(String text) {
+        if (binding != null) binding.status.setText(text);
+    }
+
+    public void updateTitle(String text) {
+        this.title = text;
         AlertDialog dialog = (AlertDialog) getDialog();
-        if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(String.format(Locale.getDefault(), "%1$d%%", progress));
+        if (dialog != null) dialog.setTitle(text);
+    }
+
+    public void updateDesc(String text) {
+        this.desc = text;
+        if (binding != null) {
+            binding.desc.setText(text != null ? text : "");
+            binding.desc.setVisibility(text != null ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    public void showProgress() {
+        if (binding != null) {
+            binding.progressBar.setVisibility(View.VISIBLE);
+            binding.progressText.setVisibility(View.VISIBLE);
+            binding.progressBar.setProgress(0);
+            binding.progressText.setText("0%");
+        }
+        AlertDialog dialog = (AlertDialog) getDialog();
+        if (dialog != null) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.update_downloading);
+        }
+    }
+
+    public void setProgress(int progress) {
+        if (binding != null) {
+            binding.progressBar.setProgress(progress);
+            binding.progressText.setText(String.format(Locale.getDefault(), "%1$d%%", progress));
+        }
+    }
+
+    public void setConfirmEnabled(boolean enabled) {
+        AlertDialog dialog = (AlertDialog) getDialog();
+        if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(enabled);
     }
 }

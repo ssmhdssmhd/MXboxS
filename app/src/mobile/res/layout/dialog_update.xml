@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -8,20 +9,49 @@
     android:paddingTop="16dp"
     android:paddingEnd="24dp">
 
-    <androidx.core.widget.NestedScrollView
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:letterSpacing="0.02"
+        android:textColor="?attr/colorPrimary"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        tools:text="正在连接仓库…" />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/desc"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fillViewport="true">
+        android:layout_marginTop="12dp"
+        android:letterSpacing="0.02"
+        android:lineSpacingExtra="8dp"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="14sp"
+        android:visibility="gone"
+        tools:text="1. 新增 ffmpeg 音頻軟解\n2. 詳情頁新增分詞快搜\n3. 修復搜尋閃退問題\n4. 設定支援渲染切換"
+        tools:visibility="visible" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/desc"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:letterSpacing="0.02"
-            android:lineSpacingExtra="8dp"
-            android:textColor="?attr/colorOnSurface"
-            android:textSize="14sp"
-            tools:text="1. 新增 ffmpeg 音頻軟解\n2. 詳情頁新增分詞快搜\n3. 修復搜尋閃退問題\n4. 設定支援渲染切換" />
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/progressBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:visibility="gone"
+        app:indicatorColor="?attr/colorPrimary"
+        app:trackColor="?attr/colorSurfaceVariant"
+        tools:visibility="visible" />
 
-    </androidx.core.widget.NestedScrollView>
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/progressText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginTop="4dp"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="12sp"
+        android:visibility="gone"
+        tools:text="0%"
+        tools:visibility="visible" />
+
 </androidx.appcompat.widget.LinearLayoutCompat>

@@ -25,6 +25,8 @@ public class Updater implements Download.Callback, UpdateListener {
     private Download download;
     private UpdateDialog dialog;
     private JSONObject release;
+    private String apkUrl;
+    private boolean forced;
 
     private Updater() {
     }
@@ -38,13 +40,19 @@ public class Updater implements Download.Callback, UpdateListener {
     }
 
     public Updater force() {
+        forced = true;
         Notify.show(R.string.update_check);
         Setting.putUpdate(true);
         return this;
     }
 
     public void start(FragmentActivity activity) {
-        if (!Setting.getUpdate()) return;
+        if (!Setting.getUpdate() && !forced) return;
+        if (forced) {
+            // 手动检查：立即弹出对话框，显示"正在连接仓库"
+            App.post(() -> showDialog(activity));
+        }
+        // 后台线程连接仓库获取版本信息
         Task.execute(() -> doInBackground(activity));
     }
 
@@ -65,22 +73,104 @@ public class Updater implements Download.Callback, UpdateListener {
                 .show();
     }
 
+    private void showDialog(FragmentActivity activity) {
+        dismiss();
+        dialog = UpdateDialog.create()
+                .title(ResUtil.getString(R.string.update_check))
+                .desc(null)
+                .listener(this)
+                .show(activity);
+        dialog.setStatus(ResUtil.getString(R.string.update_connecting));
+    }
+
     private void doInBackground(FragmentActivity activity) {
         try {
             release = Github.getLatestRelease();
-            if (release == null) return;
+            if (release == null) {
+                // 连接失败
+                App.post(() -> {
+                    if (dialog != null) {
+                        dialog.setStatus(ResUtil.getString(R.string.update_download_failed, "network error"));
+                        dialog.setConfirmEnabled(false);
+                    } else if (forced) {
+                        showDialog(activity);
+                        if (dialog != null) {
+                            dialog.setStatus(ResUtil.getString(R.string.update_download_failed, "network error"));
+                            dialog.setConfirmEnabled(false);
+                        }
+                    }
+                });
+                return;
+            }
 
             String tagName = release.optString("tag_name", "");
             String version = tagName.startsWith("v") ? tagName.substring(1) : tagName;
             String desc = release.optString("body", "");
             int code = parseVersionCode(version);
 
-            if (code <= BuildConfig.VERSION_CODE) return;
+            if (code <= BuildConfig.VERSION_CODE) {
+                // 已是最新版本
+                App.post(() -> {
+                    if (dialog != null) {
+                        dialog.setStatus(ResUtil.getString(R.string.update_no_new));
+                        dialog.setConfirmEnabled(false);
+                    } else if (forced) {
+                        showDialog(activity);
+                        if (dialog != null) {
+                            dialog.setStatus(ResUtil.getString(R.string.update_no_new));
+                            dialog.setConfirmEnabled(false);
+                        }
+                    }
+                });
+                return;
+            }
 
-            App.post(() -> show(activity, version, desc));
+            // 找到 APK 下载链接
+            apkUrl = Github.findApkUrl(release);
+
+            // 连接成功，有新版本
+            App.post(() -> {
+                if (dialog == null) {
+                    // 非强制模式（自动检查）首次弹出对话框
+                    showDialog(activity);
+                }
+                if (dialog != null) {
+                    dialog.setStatus(ResUtil.getString(R.string.update_connected, version));
+                    dialog.updateTitle(ResUtil.getString(R.string.update_version, version));
+                    dialog.updateDesc(desc.isEmpty() ? ResUtil.getString(R.string.update_downloading) : desc);
+                    // 自动开始下载
+                    startDownload();
+                }
+            });
         } catch (Exception e) {
             e.printStackTrace();
+            App.post(() -> {
+                if (dialog != null) {
+                    dialog.setStatus(ResUtil.getString(R.string.update_download_failed, e.getMessage()));
+                    dialog.setConfirmEnabled(false);
+                } else if (forced) {
+                    showDialog(activity);
+                    if (dialog != null) {
+                        dialog.setStatus(ResUtil.getString(R.string.update_download_failed, e.getMessage()));
+                        dialog.setConfirmEnabled(false);
+                    }
+                }
+            });
         }
+    }
+
+    private void startDownload() {
+        if (apkUrl == null) {
+            if (dialog != null) {
+                dialog.setStatus(ResUtil.getString(R.string.update_download_failed, "APK not found"));
+            }
+            return;
+        }
+        if (dialog != null) {
+            dialog.showProgress();
+        }
+        download = Download.create(apkUrl, getFile());
+        download.start(this);
     }
 
     private int parseVersionCode(String version) {
@@ -93,26 +183,10 @@ public class Updater implements Download.Callback, UpdateListener {
         }
     }
 
-    private void show(FragmentActivity activity, String version, String desc) {
-        dismiss();
-        dialog = UpdateDialog.create()
-                .title(ResUtil.getString(R.string.update_version, version))
-                .desc(desc)
-                .listener(this)
-                .show(activity);
-    }
-
     @Override
     public void onConfirm(View view) {
         view.setEnabled(false);
-        String apkUrl = Github.findApkUrl(release);
-        if (apkUrl == null) {
-            Notify.show(R.string.update_check);
-            dismiss();
-            return;
-        }
-        download = Download.create(apkUrl, getFile());
-        download.start(this);
+        startDownload();
     }
 
     @Override
@@ -136,12 +210,17 @@ public class Updater implements Download.Callback, UpdateListener {
 
     @Override
     public void error(String msg) {
+        if (dialog != null) {
+            dialog.setStatus(ResUtil.getString(R.string.update_download_failed, msg));
+        }
         Notify.show(msg);
-        dismiss();
     }
 
     @Override
     public void success(File file) {
+        if (dialog != null) {
+            dialog.setStatus(ResUtil.getString(R.string.update_installing));
+        }
         FileUtil.openFile(file);
         dismiss();
     }
