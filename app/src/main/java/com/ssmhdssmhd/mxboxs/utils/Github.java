@@ -36,7 +36,7 @@ public class Github {
         } catch (Exception e) {
             if (!mirror.isEmpty()) {
                 try {
-                    String json = OkHttp.string(mirror + url);
+                    String json = OkHttp.string(mirror + "/" + url);
                     return new JSONObject(json);
                 } catch (Exception ignored) {
                 }
@@ -62,7 +62,7 @@ public class Github {
                 if (name.endsWith(".apk") && name.contains(mode) && name.contains(abi)) {
                     String downloadUrl = asset.optString("browser_download_url");
                     if (!mirror.isEmpty()) {
-                        return mirror + downloadUrl;
+                        return mirror + "/" + downloadUrl;
                     }
                     return downloadUrl;
                 }
@@ -74,7 +74,7 @@ public class Github {
                 if (name.endsWith(".apk") && name.contains(mode)) {
                     String downloadUrl = asset.optString("browser_download_url");
                     if (!mirror.isEmpty()) {
-                        return mirror + downloadUrl;
+                        return mirror + "/" + downloadUrl;
                     }
                     return downloadUrl;
                 }

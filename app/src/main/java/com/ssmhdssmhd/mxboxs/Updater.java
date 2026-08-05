@@ -106,9 +106,8 @@ public class Updater implements Download.Callback, UpdateListener {
             String tagName = release.optString("tag_name", "");
             String version = tagName.startsWith("v") ? tagName.substring(1) : tagName;
             String desc = release.optString("body", "");
-            int code = parseVersionCode(version);
 
-            if (code <= BuildConfig.VERSION_CODE) {
+            if (compareVersionNames(version, BuildConfig.VERSION_NAME) <= 0) {
                 // 已是最新版本
                 App.post(() -> {
                     if (dialog != null) {
@@ -173,6 +172,35 @@ public class Updater implements Download.Callback, UpdateListener {
         download.start(this);
     }
 
+    /**
+     * 按点分段比较两个版本号（数字比较，非字典序）。
+     *
+     * @return 正数表示 server > local（有更新），0 表示相等，负数表示 server < local
+     */
+    private int compareVersionNames(String server, String local) {
+        if (server == null) server = "";
+        if (local == null) local = "";
+        String[] sParts = server.split("\\.");
+        String[] lParts = local.split("\\.");
+        int max = Math.max(sParts.length, lParts.length);
+        for (int i = 0; i < max; i++) {
+            int s = parseIntOrZero(i < sParts.length ? sParts[i] : "0");
+            int l = parseIntOrZero(i < lParts.length ? lParts[i] : "0");
+            if (s != l) return s - l;
+        }
+        return 0;
+    }
+
+    private int parseIntOrZero(String s) {
+        try {
+            String cleaned = s.replaceAll("[^0-9]", "");
+            return cleaned.isEmpty() ? 0 : Integer.parseInt(cleaned);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    @Deprecated
     private int parseVersionCode(String version) {
         try {
             String cleaned = version.replaceAll("[^0-9]", "");

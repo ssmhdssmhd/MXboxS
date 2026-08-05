@@ -2,6 +2,49 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.39] - 2026-08-05
+
+### 修复应用内更新两大关键 Bug
+
+#### Bug 1：版本比较逻辑错误（本地版本高仍误报有更新）
+
+**现象**：用户 App 已安装 v5.5.38，但 GitHub Release 最新是 v5.5.36，仍弹出"发现新版本 5.5.36"。
+
+**根因**：`Updater.parseVersionCode()` 将远端 versionName（`5.5.36`）去掉所有点得到 `5536`，然后与本地 `BuildConfig.VERSION_CODE`（587）比较。`5536 > 587` 导致误判有更新——两个值完全不是一个维度的数字，不能直接比较。
+
+**修复**：新增 `compareVersionNames(server, local)` 方法，按点分段逐段做**整数比较**（非字典序），仅当远端 versionName **严格大于**本地 versionName 时才提示更新。
+
+| 场景 | 修复前 | 修复后 |
+|------|-------|-------|
+| 远端 5.5.36 vs 本地 5.5.38 | ❌ 5536 > 587 → 误报更新 | ✅ 5.5.36 < 5.5.38 → 已是最新 |
+| 远端 5.5.39 vs 本地 5.5.38 | ✅ 5539 > 587 → 提示更新 | ✅ 5.5.39 > 5.5.38 → 提示更新 |
+| 远端 5.5.10 vs 本地 5.5.9 | ✅ 5510 > 587 → 提示更新 | ✅ 5.5.10 > 5.5.9 → 提示更新（字典序会错误判小） |
+
+#### Bug 2：ghproxy 镜像 URL 拼接缺失分隔符（`ghproxy.comhttps`）
+
+**现象**：使用 ghproxy / mirror.ghproxy 镜像时下载失败，报错 `Unable to resolve host "ghproxy.comhttps": No address associated with hostname`。
+
+**根因**：`Github.java` 中镜像 URL 与目标 URL 直接 `+` 拼接，缺少 `/` 分隔符：
+```
+"https://ghproxy.com" + "https://github.com/..."
+→ "https://ghproxy.comhttps://github.com/..."  ❌
+```
+
+**修复**：在 mirror 与目标 URL 之间补 `/`：
+```
+"https://ghproxy.com" + "/" + "https://github.com/..."
+→ "https://ghproxy.com/https://github.com/..."  ✅
+```
+
+影响范围：
+- `Github.getLatestRelease()` API 请求（镜像分支）
+- `Github.findApkUrl()` APK 下载链接拼接（两个分支）
+- `KamiUtil.fetchKamiText()` 之前已正确添加 `/`，无需修改
+
+#### 版本号
+
+versionCode 587 → **588** / versionName 5.5.38 → **5.5.39**
+
 ## [v5.5.38] - 2026-08-05
 
 ### 新增会员卡密激活功能

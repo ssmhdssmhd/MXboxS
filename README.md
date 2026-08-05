@@ -9,6 +9,14 @@
 
 ## 最新更新
 
+### v5.5.39 · 2026-08-05 · 修复应用内更新两大关键 Bug
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **版本比较** | `Updater.parseVersionCode()` 用 `5.5.36→5536` 与 `VERSION_CODE=587` 比较导致误报更新；改为 `compareVersionNames()` 按点分段**整数比较** versionName，仅远端 > 本地才提示更新 | [Updater.java#L110](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L110)、[compareVersionNames()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L175-L192) |
+| 2 | **ghproxy 镜像** | `Github.java` 中 `mirror + url` 缺 `/`，拼接成 `ghproxy.comhttps://...` 导致域名解析失败；补 `/` 分隔符 | [Github.java#L39](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L39)、[Github.java#L65](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L65)、[Github.java#L77](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L77) |
+| 3 | 版本号 | versionCode 587 → **588** / versionName 5.5.38 → **5.5.39** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
 ### v5.5.38 · 2026-08-05 · 新增会员卡密激活功能
 
 | # | 模块 | 行为 | 代码位置 |
@@ -182,7 +190,7 @@ PR 正文包含：
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.38 (587) |
+| 版本 | v5.5.39 (588) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
@@ -192,10 +200,10 @@ PR 正文包含：
 GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。同步 PR 也会触发构建验证（不上传 APK）。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.38.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.38.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.38.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.38.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.39.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.39.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.39.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.39.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 
