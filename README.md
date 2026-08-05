@@ -9,6 +9,16 @@
 
 ## 最新更新
 
+### v5.5.38 · 2026-08-05 · 新增会员卡密激活功能
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **卡密文件** | 仓库根目录新增 [`kami.txt`](file:///workspace/kami.txt)，存储 64 位有效卡密（首张 `bcda1fe5e260218399c2222d299d2a39555bd38461c81975247b8587c3ba62ac`），`#` 开头为注释。 | [kami.txt](file:///workspace/kami.txt) |
+| 2 | **卡密验证工具** | 新增 `KamiUtil`：从 GitHub `kami.txt` 拉取卡密列表校验，支持 ghproxy → raw → jsDelivr 多源回退 + 12 小时本地缓存。 | [KamiUtil.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/KamiUtil.java) |
+| 3 | **激活界面** | 新增 `KamiActivity`：卡密输入 / 验证 / 购买入口 / 已激活面板（掩码显示）/ 注销。未激活按返回或点退出 = 退出 App。 | [KamiActivity.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/KamiActivity.java) |
+| 4 | **启动校验** | mobile + leanback 两端 `HomeActivity.initView` 首行增加激活校验：未激活 → 跳转 `KamiActivity` → 自身 finish。 | [mobile HomeActivity](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/HomeActivity.java#L79-L92)、[leanback HomeActivity](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/HomeActivity.java#L118-L137) |
+| 5 | 版本号 | versionCode 586 → **587** / versionName 5.5.37 → **5.5.38** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
 ### v5.5.34 · 2026-08-04 · 修复部分视频源解析成功但播放 0 KB/s 的问题
 
 | # | 模块 | 行为 | 代码位置 |
@@ -172,7 +182,7 @@ PR 正文包含：
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.34 (583) |
+| 版本 | v5.5.38 (587) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
@@ -182,10 +192,10 @@ PR 正文包含：
 GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。同步 PR 也会触发构建验证（不上传 APK）。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.34.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.34.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.34.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.34.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.38.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.38.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.38.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.38.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 

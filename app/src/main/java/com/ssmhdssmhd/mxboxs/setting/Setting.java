@@ -170,4 +170,24 @@ public class Setting {
     public static void putParseServerPrefix(String prefix) {
         Prefers.put("parse_server_prefix", prefix == null ? "" : prefix.trim());
     }
+
+    // ---------------- 会员卡密激活 ----------------
+
+    /** 是否已通过卡密激活（本地标记） */
+    public static boolean isKamiActivated() {
+        return Prefers.getBoolean("kami_activated", false);
+    }
+
+    public static void putKamiActivated(boolean activated) {
+        Prefers.put("kami_activated", activated);
+    }
+
+    /** 已激活保存的卡密 */
+    public static String getKami() {
+        return Prefers.getString("kami", "");
+    }
+
+    public static void putKami(String kami) {
+        Prefers.put("kami", kami == null ? "" : kami.trim());
+    }
 }

@@ -243,6 +243,26 @@
     <string name="mirror_ghproxy">ghproxy.com (CN)</string>
     <string name="mirror_mirror_ghproxy">mirror.ghproxy.com (CN)</string>
 
+    <!-- Kami (Membership activation) -->
+    <string name="kami_title">Membership Activation</string>
+    <string name="kami_subtitle">Activate with a card key to unlock full features.\nNo activation = app exits.</string>
+    <string name="kami_hint">Enter card key (64 chars)</string>
+    <string name="kami_activate">Activate</string>
+    <string name="kami_purchase">Purchase card key</string>
+    <string name="kami_exit">Exit app</string>
+    <string name="kami_verifying">Verifying card key…</string>
+    <string name="kami_err_empty">Card key cannot be empty</string>
+    <string name="kami_err_invalid">Invalid card key, please check and retry</string>
+    <string name="kami_activate_success">Activation successful</string>
+    <string name="kami_already_activated">Already activated</string>
+    <string name="kami_enter">Enter app</string>
+    <string name="kami_logout">Deactivate this device</string>
+    <string name="kami_logout_done">Deactivated</string>
+    <string name="kami_purchase_loading">Loading purchase info…</string>
+    <string name="kami_purchase_fail">Failed to load card key, please check your network and retry.</string>
+    <string name="kami_purchase_msg">Purchase successful.\nYour card key (please copy and keep it safe):\n\n<xliff:g name="name">%s</xliff:g>\n\nPaste it into the input box and tap Activate.</string>
+    <string name="kami_copy_and_activate">Copy &amp; activate</string>
+
     <!-- Crash -->
     <string name="crash_info">An unexpected error occurred.\nSorry for the inconvenience.</string>
     <string name="crash_restart">Restart app</string>

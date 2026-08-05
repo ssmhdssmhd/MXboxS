@@ -43,6 +43,7 @@ import com.ssmhdssmhd.mxboxs.ui.fragment.SettingPlayerFragment;
 import com.ssmhdssmhd.mxboxs.ui.fragment.SettingPreloadFragment;
 import com.ssmhdssmhd.mxboxs.ui.fragment.VodFragment;
 import com.ssmhdssmhd.mxboxs.utils.FileChooser;
+import com.ssmhdssmhd.mxboxs.utils.KamiUtil;
 import com.ssmhdssmhd.mxboxs.utils.Notify;
 import com.ssmhdssmhd.mxboxs.utils.PermissionUtil;
 import com.ssmhdssmhd.mxboxs.utils.UrlUtil;
@@ -77,6 +78,11 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
 
     @Override
     protected void initView(Bundle savedInstanceState) {
+        if (!KamiUtil.isActivated()) {
+            KamiActivity.start(this);
+            finish();
+            return;
+        }
         orientation = getResources().getConfiguration().orientation;
         mBinding.navigation.setOnItemSelectedListener(this);
         PermissionUtil.requestNotify(this);

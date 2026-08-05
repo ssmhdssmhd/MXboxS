@@ -238,6 +238,26 @@
     <string name="mirror_ghproxy">ghproxy.com（國內）</string>
     <string name="mirror_mirror_ghproxy">mirror.ghproxy.com（國內）</string>
 
+    <!-- 會員卡密激活 -->
+    <string name="kami_title">會員激活</string>
+    <string name="kami_subtitle">輸入卡密激活後即可使用全部功能\n未激活將無法使用本應用</string>
+    <string name="kami_hint">請輸入 64 位卡密</string>
+    <string name="kami_activate">激活</string>
+    <string name="kami_purchase">購買卡密</string>
+    <string name="kami_exit">退出應用</string>
+    <string name="kami_verifying">正在驗證卡密…</string>
+    <string name="kami_err_empty">卡密不能為空</string>
+    <string name="kami_err_invalid">卡密無效，請檢查後重試</string>
+    <string name="kami_activate_success">激活成功</string>
+    <string name="kami_already_activated">已激活</string>
+    <string name="kami_enter">進入應用</string>
+    <string name="kami_logout">註銷本機激活</string>
+    <string name="kami_logout_done">已註銷</string>
+    <string name="kami_purchase_loading">正在取得購買資訊…</string>
+    <string name="kami_purchase_fail">取得卡密失敗，請檢查網路後重試</string>
+    <string name="kami_purchase_msg">購買成功\n您的卡密（請複製妥善保管）：\n\n<xliff:g name="name">%s</xliff:g>\n\n貼到輸入框並點擊「激活」即可使用</string>
+    <string name="kami_copy_and_activate">複製並激活</string>
+
     <!-- Crash -->
     <string name="crash_info">發生意外錯誤\n抱歉給您帶來不便</string>
     <string name="crash_restart">重新啟動</string>

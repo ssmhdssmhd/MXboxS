@@ -140,5 +140,11 @@
             android:name=".service.DLNACastService"
             android:exported="false" />
 
+        <activity
+            android:name="com.ssmhdssmhd.mxboxs.ui.activity.KamiActivity"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
+            android:exported="false"
+            android:launchMode="singleTask" />
+
     </application>
 </manifest>

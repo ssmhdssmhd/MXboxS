@@ -2,6 +2,47 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.38] - 2026-08-05
+
+### 新增会员卡密激活功能
+
+#### 背景
+
+为控制 MXboxS 的使用权限，新增会员卡密激活机制。未激活用户无法进入应用主界面，必须输入有效卡密或通过「购买卡密」获取卡密后激活才能使用。
+
+#### 修改内容
+
+**新增文件**：
+- `kami.txt` — 仓库根目录卡密列表（首张卡密：`bcda1fe5e260218399c2222d299d2a39555bd38461c81975247b8587c3ba62ac`，64 位）
+- `app/src/main/java/.../utils/KamiUtil.java` — 卡密验证工具类，从 GitHub `kami.txt` 拉取并校验，支持 ghproxy / mirror.ghproxy / jsDelivr 多源回退 + 12 小时本地缓存
+- `app/src/main/java/.../ui/activity/KamiActivity.java` — 会员激活界面（卡密输入 / 验证 / 购买入口 / 已激活面板 / 注销）
+- `app/src/main/res/layout/activity_kami.xml` — 激活界面布局（手机 + TV 通用，按钮均 focusable 适配遥控器）
+- `app/src/main/res/values/colors.xml` — 新增 `red` 错误色
+
+**修改文件**：
+- `app/src/main/java/.../setting/Setting.java` — 新增 `isKamiActivated / putKamiActivated / getKami / putKami`
+- `app/src/mobile/AndroidManifest.xml` + `app/src/leanback/AndroidManifest.xml` — 注册 `KamiActivity`
+- `app/src/mobile/java/.../ui/activity/HomeActivity.java` + `app/src/leanback/java/.../ui/activity/HomeActivity.java` — `initView` 首行增加激活校验：未激活 → 跳转 `KamiActivity` → 自身 `finish()`
+- `app/src/main/res/values/strings.xml` + `values-zh-rCN` + `values-zh-rTW` — 新增 18 条卡密相关文案
+- `app/build.gradle` — 版本号 586/5.5.37 → **587/5.5.38**
+
+**核心流程**：
+
+| 场景 | 行为 |
+|------|------|
+| 首次启动 / 未激活 | `HomeActivity` 检测未激活 → 启动 `KamiActivity` → `HomeActivity` 自身 finish |
+| 输入卡密点「激活」 | 后台拉取 `kami.txt`（镜像 → raw → jsDelivr）→ 比对 → 通过则标记激活并进入首页 |
+| 点「购买卡密」 | 拉取 `kami.txt` 取首张卡密 → 弹窗展示 → 可一键填入输入框 |
+| 已激活再次进入 | 展示已激活面板（卡密掩码 `bcda****62ac`）→ 可「进入应用」或「注销本机」 |
+| 未激活按返回 / 点退出 | `finishAffinity()` 退出 App |
+| 网络不可用 | 优先用本地缓存校验；缓存也无则验证失败 |
+
+**卡密文件说明**：
+- 路径：仓库根目录 [`kami.txt`](file:///workspace/kami.txt)
+- 格式：每行一个 64 位卡密，`#` 开头为注释
+- 验证源（按优先级）：`ghproxy.com/https://raw.githubusercontent.com/.../kami.txt` → `raw.githubusercontent.com` → `cdn.jsdelivr.net/gh/...@main/kami.txt`
+- 本地缓存有效期 12 小时，便于离线校验
+
 ## [v5.5.37] - 2026-08-05
 
 ### 修复安装冲突 + 强制系统安装器

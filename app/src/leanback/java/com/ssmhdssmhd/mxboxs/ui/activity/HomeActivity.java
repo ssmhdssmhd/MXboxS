@@ -62,6 +62,7 @@ import com.ssmhdssmhd.mxboxs.ui.presenter.VodPresenter;
 import com.ssmhdssmhd.mxboxs.utils.Clock;
 import com.ssmhdssmhd.mxboxs.utils.FileChooser;
 import com.ssmhdssmhd.mxboxs.utils.ImgUtil;
+import com.ssmhdssmhd.mxboxs.utils.KamiUtil;
 import com.ssmhdssmhd.mxboxs.utils.KeyUtil;
 import com.ssmhdssmhd.mxboxs.utils.Notify;
 import com.ssmhdssmhd.mxboxs.utils.PermissionUtil;
@@ -116,6 +117,11 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
 
     @Override
     protected void initView(Bundle savedInstanceState) {
+        if (!KamiUtil.isActivated()) {
+            KamiActivity.start(this);
+            finish();
+            return;
+        }
         mResult = Result.empty();
         mClock = Clock.create(mBinding.clock);
         mBinding.progressLayout.showProgress();
