@@ -235,7 +235,7 @@ public class KamiActivity extends AppCompatActivity {
 
     private int resolveColorPrimary() {
         TypedValue typedValue = new TypedValue();
-        getTheme().resolveAttribute(com.google.android.material.R.attr.colorPrimary, typedValue, true);
+        getTheme().resolveAttribute(android.R.attr.colorPrimary, typedValue, true);
         return typedValue.data;
     }
 
