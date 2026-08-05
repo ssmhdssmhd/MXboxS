@@ -66,19 +66,12 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Generate Keystore
+      - name: Verify Keystore (fixed)
         run: |
           set -e
-          keytool -genkey -v \
-            -keystore app/release.keystore \
-            -alias mxboxs \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass mxboxs123456 \
-            -keypass mxboxs123456 \
-            -dname "CN=MXboxS, OU=MXboxS, O=MXboxS, L=Shenzhen, ST=Guangdong, C=CN"
           ls -la app/release.keystore
+          keytool -list -v -keystore app/release.keystore \
+            -storepass mxboxs123456 -alias mxboxs 2>&1 | grep -E "SHA1|SHA256|Valid from"
 
       - name: Create local.properties
         run: |

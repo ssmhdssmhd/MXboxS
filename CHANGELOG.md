@@ -2,6 +2,31 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.37] - 2026-08-05
+
+### 修复安装冲突 + 强制系统安装器
+
+#### 问题根因
+
+v5.5.36 及之前版本存在两个安装问题：
+
+1. **签名不一致导致"软件包与现有软件包存在冲突"**：每次 GitHub Actions 构建都用 `keytool -genkey` 动态生成新 keystore，哪怕参数完全一致，生成的签名证书也是随机的。旧 APK 用 A 证书签名，新 APK 用 B 证书签名 → Android 拒绝安装。
+2. **被第三方 App（如 Edge Beta）拦截**：`FileUtil.openFile` 用通用 `ACTION_VIEW + */*` MIME 类型打开 APK，系统弹出选择器时被 Edge 拦截，无法调起系统包安装器，显示"来自 Edge Beta"且可能校验失败。
+
+#### 修复内容
+
+**文件**：
+- `app/release.keystore` — 新增仓库级固定签名证书（有效期 100 年，SHA1: 32:1A:F2:4B:A9:28:28:89:6D:84:BF:F9:87:CE:94:38:6B:72:3C:50）
+- `.github/workflows/build.yml` — 替换"动态生成 keystore"为"验证仓库固定 keystore"
+- `app/src/main/java/.../FileUtil.java` — 新增 `installApk()` 专用方法，使用 `ACTION_INSTALL_PACKAGE + application/vnd.android.package-archive` 强制调系统包安装器
+- `app/src/main/java/.../Updater.java` — 改用 `FileUtil.installApk()` 而非通用 `openFile()`
+
+**核心变更**：
+- ✅ 所有后续版本使用**同一签名证书**，彻底消除安装冲突
+- ✅ 自动更新下载完成后**强制调用系统包安装器**，不再被 Edge/浏览器等第三方 App 拦截
+- ✅ `installApk()` 自带 fallback 机制：`ACTION_INSTALL_PACKAGE` 失败时自动降级到 `ACTION_VIEW + 专用 APK MIME`
+- ⚠️ 用户需先**卸载旧版本 MXboxS**（v5.5.36 及更早），再安装 v5.5.37，因为旧版本签名与新固定证书不一致
+
 ## [v5.5.36] - 2026-08-05
 
 ### 优化更新体验：连接状态可视化 + 自动下载 + 进度条

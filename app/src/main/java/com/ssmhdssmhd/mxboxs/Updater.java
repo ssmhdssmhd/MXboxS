@@ -221,7 +221,7 @@ public class Updater implements Download.Callback, UpdateListener {
         if (dialog != null) {
             dialog.setStatus(ResUtil.getString(R.string.update_installing));
         }
-        FileUtil.openFile(file);
+        FileUtil.installApk(file);
         dismiss();
     }
 }

@@ -37,11 +37,37 @@ public class FileUtil {
     }
 
     public static void openFile(File file) {
+        String name = file.getName();
+        if (name != null && name.endsWith(".apk")) {
+            installApk(file);
+            return;
+        }
         Intent intent = new Intent(Intent.ACTION_VIEW);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         intent.setDataAndType(getShareUri(file), FileUtil.getMimeType(file.getName()));
         App.get().startActivity(intent);
+    }
+
+    public static void installApk(File apk) {
+        Uri apkUri = getShareUri(apk);
+        Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+        intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            App.get().startActivity(intent);
+        } catch (Throwable t) {
+            Intent fallback = new Intent(Intent.ACTION_VIEW);
+            fallback.setDataAndType(apkUri, "application/vnd.android.package-archive");
+            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try {
+                App.get().startActivity(fallback);
+            } catch (Throwable tt) {
+                Notify.show(tt.getMessage());
+            }
+        }
     }
 
     public static void gzipCompress(File target) {
