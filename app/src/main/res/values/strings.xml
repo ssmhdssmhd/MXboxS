@@ -232,6 +232,10 @@
     <string name="update_version">New version <xliff:g name="name">%s</xliff:g></string>
     <string name="update_check">Checking for updates…</string>
     <string name="update_confirm">Update</string>
+    <string name="setting_mirror">Update Source</string>
+    <string name="mirror_direct">Direct GitHub</string>
+    <string name="mirror_ghproxy">ghproxy.com (CN)</string>
+    <string name="mirror_mirror_ghproxy">mirror.ghproxy.com (CN)</string>
 
     <!-- Crash -->
     <string name="crash_info">An unexpected error occurred.\nSorry for the inconvenience.</string>

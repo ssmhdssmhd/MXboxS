@@ -13,8 +13,8 @@ import com.ssmhdssmhd.mxboxs.utils.Github;
 import com.ssmhdssmhd.mxboxs.utils.Notify;
 import com.ssmhdssmhd.mxboxs.utils.ResUtil;
 import com.ssmhdssmhd.mxboxs.utils.Task;
-import com.github.catvod.net.OkHttp;
 import com.github.catvod.utils.Path;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.json.JSONObject;
 
@@ -22,11 +22,11 @@ import java.io.File;
 
 public class Updater implements Download.Callback, UpdateListener {
 
-    private final Download download;
+    private Download download;
     private UpdateDialog dialog;
+    private JSONObject release;
 
     private Updater() {
-        this.download = Download.create(getApk(), getFile());
     }
 
     public static Updater create() {
@@ -35,14 +35,6 @@ public class Updater implements Download.Callback, UpdateListener {
 
     private File getFile() {
         return Path.cache("update.apk");
-    }
-
-    private String getJson() {
-        return Github.getJson(BuildConfig.FLAVOR_mode);
-    }
-
-    private String getApk() {
-        return Github.getApk(BuildConfig.FLAVOR_mode + "-" + BuildConfig.FLAVOR_abi);
     }
 
     public Updater force() {
@@ -56,34 +48,77 @@ public class Updater implements Download.Callback, UpdateListener {
         Task.execute(() -> doInBackground(activity));
     }
 
+    public void showMirrorDialog(FragmentActivity activity) {
+        String[] items = new String[]{
+                ResUtil.getString(R.string.mirror_ghproxy),
+                ResUtil.getString(R.string.mirror_mirror_ghproxy),
+                ResUtil.getString(R.string.mirror_direct)
+        };
+        int checked = Setting.getMirrorMode();
+        new MaterialAlertDialogBuilder(activity)
+                .setTitle(R.string.setting_mirror)
+                .setSingleChoiceItems(items, checked, (dialog, which) -> {
+                    Setting.putMirrorMode(which);
+                    Notify.show(items[which]);
+                    dialog.dismiss();
+                })
+                .show();
+    }
+
     private void doInBackground(FragmentActivity activity) {
         try {
-            JSONObject object = new JSONObject(OkHttp.string(getJson()));
-            String name = object.optString("name");
-            String desc = object.optString("desc");
-            int code = object.optInt("code");
+            release = Github.getLatestRelease();
+            if (release == null) return;
+
+            String tagName = release.optString("tag_name", "");
+            String version = tagName.startsWith("v") ? tagName.substring(1) : tagName;
+            String desc = release.optString("body", "");
+            int code = parseVersionCode(version);
+
             if (code <= BuildConfig.VERSION_CODE) return;
-            App.post(() -> show(activity, name, desc));
+
+            App.post(() -> show(activity, version, desc));
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
+    private int parseVersionCode(String version) {
+        try {
+            String cleaned = version.replaceAll("[^0-9]", "");
+            if (cleaned.isEmpty()) return 0;
+            return Integer.parseInt(cleaned);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
     private void show(FragmentActivity activity, String version, String desc) {
         dismiss();
-        dialog = UpdateDialog.create().title(ResUtil.getString(R.string.update_version, version)).desc(desc).listener(this).show(activity);
+        dialog = UpdateDialog.create()
+                .title(ResUtil.getString(R.string.update_version, version))
+                .desc(desc)
+                .listener(this)
+                .show(activity);
     }
 
     @Override
     public void onConfirm(View view) {
         view.setEnabled(false);
+        String apkUrl = Github.findApkUrl(release);
+        if (apkUrl == null) {
+            Notify.show(R.string.update_check);
+            dismiss();
+            return;
+        }
+        download = Download.create(apkUrl, getFile());
         download.start(this);
     }
 
     @Override
     public void onCancel(View view) {
         Setting.putUpdate(false);
-        download.cancel();
+        if (download != null) download.cancel();
         dismiss();
     }
 

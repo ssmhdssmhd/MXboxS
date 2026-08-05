@@ -147,6 +147,18 @@ public class Setting {
 
     public static final String PARSE_SERVER_DEFAULT = "http://114.134.184.91:9002";
 
+    public static final int MIRROR_DIRECT = 0;
+    public static final int MIRROR_GHPROXY = 1;
+    public static final int MIRROR_MIRROR_GHPROXY = 2;
+
+    public static int getMirrorMode() {
+        return Prefers.getInt("mirror_mode", MIRROR_GHPROXY);
+    }
+
+    public static void putMirrorMode(int mode) {
+        Prefers.put("mirror_mode", mode);
+    }
+
     public static String getParseServerPrefix() {
         String v = Prefers.getString("parse_server_prefix");
         if (v == null) return PARSE_SERVER_DEFAULT;

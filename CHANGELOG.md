@@ -2,6 +2,32 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.35] - 2026-08-04
+
+### 全新应用内更新机制：支持国内镜像自动下载安装
+
+#### 背景
+
+此前 MXboxS 的更新依赖上游 FongMi 的 Release 仓库，无法自动从 MXboxS 自身仓库获取更新，也不支持国内用户的网络环境。v5.5.35 引入了完全自研的应用内更新系统，直接对接 MXboxS GitHub Releases，默认启用国内镜像，用户可在设置中切换更新源。
+
+#### 修改内容
+
+**文件**：
+- `app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java` — 重写为 GitHub Releases API
+- `app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java` — 重写更新流程 + 镜像选择对话框
+- `app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java` — 新增镜像模式设置
+- `app/src/mobile/java/.../SettingFragment.java` — 长按版本项切换镜像
+- `app/src/leanback/java/.../SettingActivity.java` — 长按版本项切换镜像
+- `app/build.gradle` — 版本号升至 584/5.5.35
+
+**核心变更**：
+- ✅ 直接对接 `api.github.com/repos/ssmhdssmhd/MXboxS/releases/latest`
+- ✅ 默认使用 `ghproxy.com` 国内镜像，无需用户额外配置
+- ✅ 自动匹配当前架构的 APK（mobile/leanback × arm64_v8a/armeabi_v7a）
+- ✅ 下载完成后自动调用系统安装界面
+- ✅ 支持三种更新源：ghproxy.com / mirror.ghproxy.com / GitHub 直连
+- ✅ 长按"设置→版本"项可切换更新源
+
 ## [v5.5.34] - 2026-08-04
 
 ### 修复部分视频源解析成功但播放 0 KB/s 的问题

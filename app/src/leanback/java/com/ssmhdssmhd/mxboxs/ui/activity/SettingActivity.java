@@ -119,6 +119,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.danmaku.setOnClickListener(this::onDanmaku);
         mBinding.restore.setOnClickListener(this::onRestore);
         mBinding.version.setOnClickListener(this::onVersion);
+        mBinding.version.setOnLongClickListener(this::onVersionMirror);
         mBinding.parseServer.setOnClickListener(this::onParseServer);
         mBinding.parseServer.setOnLongClickListener(this::onParseServerReset);
         mBinding.vod.setOnLongClickListener(this::onVodEdit);
@@ -247,6 +248,11 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
 
     private void onVersion(View view) {
         Updater.create().force().start(this);
+    }
+
+    private boolean onVersionMirror(View view) {
+        Updater.create().showMirrorDialog(this);
+        return true;
     }
 
     private void setWallDefault(View view) {

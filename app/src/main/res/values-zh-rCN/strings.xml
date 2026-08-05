@@ -228,6 +228,10 @@
     <string name="update_version">发现新版本 <xliff:g name="name">%s</xliff:g></string>
     <string name="update_check">正在检测更新…</string>
     <string name="update_confirm">更新</string>
+    <string name="setting_mirror">更新源</string>
+    <string name="mirror_direct">GitHub 直连</string>
+    <string name="mirror_ghproxy">ghproxy.com（国内）</string>
+    <string name="mirror_mirror_ghproxy">mirror.ghproxy.com（国内）</string>
 
     <!-- Crash -->
     <string name="crash_info">发生意外错误\n抱歉给您带来不便</string>
