@@ -21,6 +21,65 @@ public class UrlUtil {
 
     private static final String DEFAULT_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36";
 
+    /**
+     * 有些第三方解析站会把真实视频页面 URL 包成「假本地代理 URL」返回，形如：
+     *   http://127.0.0.1:10079/p/0/127.0.0.1%3A10172/aHR0cHM6Ly9wbGF5ZXI...Lw/index.m3u8
+     *   结构: /p/<thread>/<innerHost:port>/<base64>/<suffix>
+     *   base64 解码后通常是真实页面 URL（如 https://player.ypls.com/play/R5Ke...）。
+     * 由于我们并没有在 10079 / 10172 端口启动任何代理服务器，播放器去连会直接
+     * Connection Refused（Network Connection Failed）。
+     *
+     * 该方法识别这种 URL 并尝试还原出 base64 里真正的 http(s) URL。
+     * 还原失败时返回空串，调用方继续走原 URL（交给上层 fallback）。
+     */
+    public static String unwrapFakeLocalProxy(String url) {
+        if (TextUtils.isEmpty(url)) return "";
+        try {
+            Uri u = Uri.parse(url.trim());
+            String scheme = (u.getScheme() == null ? "" : u.getScheme()).toLowerCase();
+            if (!scheme.equals("http") && !scheme.equals("https")) return "";
+            String host = u.getHost();
+            if (host == null) return "";
+            // 典型是 127.0.0.1 / localhost
+            if (!"127.0.0.1".equals(host) && !"localhost".equalsIgnoreCase(host)) return "";
+            // 端口在 9978~9999 范围的才是我们自己的 Nano 服务器，其他端口一律视为第三方伪造
+            int port = u.getPort();
+            if (port > 0 && port >= 9978 && port <= 9999) return "";
+            String path = u.getPath();
+            if (TextUtils.isEmpty(path)) return "";
+            // 匹配 /p/<n>/.../... 结构 (segment 至少 4 段：/p + thread + innerHostPort + base64 + (optional) suffix)
+            List<String> segs = u.getPathSegments();
+            if (segs == null || segs.size() < 4) return "";
+            if (!"p".equalsIgnoreCase(segs.get(0))) return "";
+            // 找到第一段看起来像 base64 的 segment（长度 >= 16 且 base64 字符集）
+            java.util.regex.Pattern base64Re = java.util.regex.Pattern.compile("^[A-Za-z0-9+/]{16,}={0,3}$");
+            String b64Seg = null;
+            for (int i = 2; i < segs.size(); i++) {
+                String s = segs.get(i);
+                if (base64Re.matcher(s).matches()) { b64Seg = s; break; }
+            }
+            if (TextUtils.isEmpty(b64Seg)) return "";
+            try {
+                byte[] bytes = android.util.Base64.decode(b64Seg, android.util.Base64.DEFAULT);
+                if (bytes == null || bytes.length == 0) return "";
+                String decoded = new String(bytes, "UTF-8").trim();
+                if (TextUtils.isEmpty(decoded)) return "";
+                String dlc = decoded.toLowerCase();
+                if (dlc.startsWith("http://") || dlc.startsWith("https://")) return decoded;
+                // 有些 base64 里还 URL 编码了一层
+                String maybe = java.net.URLDecoder.decode(decoded, "UTF-8");
+                if (!maybe.equals(decoded) && (maybe.toLowerCase().startsWith("http://") || maybe.toLowerCase().startsWith("https://"))) {
+                    return maybe;
+                }
+                return "";
+            } catch (Throwable ignored) {
+                return "";
+            }
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
     public static Uri uri(String url) {
         url = url.trim().replace("\\", "");
         return url.startsWith("/") ? Uri.fromFile(new File(url)) : Uri.parse(url);

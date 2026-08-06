@@ -514,6 +514,22 @@ public class PlayerManager implements ParseCallback {
 
     @Override
     public void onParseSuccess(Map<String, String> headers, String url, String from) {
+        // 第三道防线：第三方解析站有时会返回伪造本地代理 URL（http://127.0.0.1:非9978端口/p/.../base64/index.m3u8），
+        // 这些端口根本没有服务器，播放器去连会直接 Network Connection Failed。
+        // 如果检测到这种 URL：用还原出的真实 URL 再次触发 parse（走 WebView + AI 嗅探流程挖出真实 m3u8）。
+        String unwrapped = com.ssmhdssmhd.mxboxs.utils.UrlUtil.unwrapFakeLocalProxy(url);
+        if (!TextUtils.isEmpty(unwrapped)) {
+            String realUrl = unwrapped;
+            Map<String, String> realHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(headers, realUrl);
+            if (from != null && !from.endsWith("+reparse")) {
+                Result result = new Result();
+                result.setUrl(realUrl);
+                result.setHeader(realHeaders);
+                result.setParse(0);
+                if (spec != null) parse(spec.getKey(), result, true, spec.getMetadata(), pendingStartPositionMs);
+                return;
+            }
+        }
         if (!TextUtils.isEmpty(from)) Notify.show(ResUtil.getString(R.string.parse_from, from));
         if (headers != null) headers.remove(HttpHeaders.RANGE);
         if (spec != null) spec.setHeaders(headers);

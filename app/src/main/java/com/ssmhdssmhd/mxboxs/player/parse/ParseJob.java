@@ -716,11 +716,92 @@ public class ParseJob implements ParseCallback {
 
     @Override
     public void onParseSuccess(Map<String, String> headers, String url, String from) {
+        // 拦截第三方解析站伪造的「假本地代理 URL」（如 http://127.0.0.1:10079/p/0/.../base64/index.m3u8），
+        // 我们没有在 9978~9999 以外的端口启任何代理，直接塞给播放器会 Network Connection Failed。
+        // 从 base64 段还原出真实 URL（如 https://player.ypls.com/play/...）：
+        //   - 如果还原出的 URL 本身是直链或嗅探能命中 m3u8 → 直接 onParseSuccess；
+        //   - 否则把它当视频页面 URL，交给「传统多解析站并发 + WebView 嗅探」兜底解析（player.ypls.com 这种需要前端渲染的页面必须走 WebView）
+        String unwrapped = UrlUtil.unwrapFakeLocalProxy(url);
+        if (!TextUtils.isEmpty(unwrapped)) {
+            String realUrl = unwrapped;
+            Map<String, String> realHeaders = UrlUtil.mergeDefaultHeaders(headers, realUrl);
+            // 1) 先试 AI 嗅探（直链 probe + 页面正文正则嗅探）
+            if (aiSmartParseFallbackFrom(realHeaders, realUrl, from + "+unwrapped")) return;
+            // 2) 嗅探没命中：这个 URL 大概率是需要前端渲染的 player 页面（比如 player.ypls.com 生成内部 iframe player），
+            //    不占 done，直接重跑 fallbackConcurrentParse，那里会并发 jsonParse + jsonExtend + WebView sniff，总有一路能挖出真 m3u8
+            if (infinite == null) infinite = java.util.concurrent.Executors.newCachedThreadPool();
+            fallbackConcurrentParse(realUrl);
+            // fallbackConcurrentParse 内部完成后会调 onParseSuccess/onParseError，它们会 CAS done
+            return;
+        }
         if (!done.compareAndSet(false, true)) return;
         App.post(() -> {
             if (callback != null) callback.onParseSuccess(headers, url, from);
             stop();
         });
+    }
+
+    /**
+     * aiSmartParseFallback 的「从某对 headers+url 直接开始」重载版本：
+     * 命中则立刻 onParseSuccess 并返回 true；失败返回 false（不改 done 状态），
+     * 调用方可以选择继续走 WebView / 多解析站兜底。
+     */
+    private boolean aiSmartParseFallbackFrom(Map<String, String> headers, String webUrl, String fromTag) {
+        if (done.get()) return true;
+        try {
+            Map<String, String> baseHeaders = headers != null ? new java.util.HashMap<>(headers) : new java.util.HashMap<>();
+            Map<String, String> merged = UrlUtil.mergeDefaultHeaders(baseHeaders, webUrl);
+            String lc = webUrl == null ? "" : webUrl.toLowerCase();
+            boolean isDirectVideo = lc.endsWith(".m3u8") || lc.contains(".m3u8?")
+                    || lc.endsWith(".mp4") || lc.contains(".mp4?")
+                    || lc.endsWith(".flv") || lc.contains(".flv?")
+                    || lc.endsWith(".m4v") || lc.contains(".m4v?")
+                    || lc.endsWith(".ts") || lc.contains(".ts?");
+            if (isDirectVideo) {
+                if (probeVideoUrl(webUrl, merged)) {
+                    if (done.compareAndSet(false, true)) {
+                        App.post(() -> {
+                            if (callback != null) callback.onParseSuccess(merged, webUrl, fromTag + "+direct");
+                            stop();
+                        });
+                    }
+                    return true;
+                }
+            }
+            String body = safeGetBody(webUrl, merged);
+            if (body != null && body.length() > 0) {
+                java.util.List<String> candidates = UrlUtil.sniffVideoCandidates(body, webUrl, 8,
+                        "m3u8", "mp4", "flv", "m4v", "index.m3u8", "playlist.m3u8", "ts");
+                if (candidates != null && !candidates.isEmpty()) {
+                    for (String cand : candidates) {
+                        if (done.get()) return true;
+                        if (TextUtils.isEmpty(cand)) continue;
+                        Map<String, String> candHeaders = UrlUtil.mergeDefaultHeaders(baseHeaders, cand);
+                        if (probeVideoUrl(cand, candHeaders)) {
+                            if (done.compareAndSet(false, true)) {
+                                App.post(() -> {
+                                    if (callback != null) callback.onParseSuccess(candHeaders, cand, fromTag + "+sniff");
+                                    stop();
+                                });
+                            }
+                            return true;
+                        }
+                    }
+                }
+            }
+            if (!isDirectVideo && probeVideoUrl(webUrl, merged)) {
+                if (done.compareAndSet(false, true)) {
+                    App.post(() -> {
+                        if (callback != null) callback.onParseSuccess(merged, webUrl, fromTag + "+probe");
+                        stop();
+                    });
+                }
+                return true;
+            }
+            return false;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     @Override

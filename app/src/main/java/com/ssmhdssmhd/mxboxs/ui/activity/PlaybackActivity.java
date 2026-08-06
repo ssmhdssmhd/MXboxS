@@ -230,6 +230,21 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     protected void startPlayer(String key, Result result, boolean useParse, long timeout, long startPositionMs, MediaMetadata metadata) {
+        // 第四道防线：SiteApi 直接返回的 result 如果 url 是伪造本地代理 URL，
+        // 直接用还原出的真实 URL 替换，并强制走解析流程（因为 base64 里是 player 页面，不是直链）
+        String realUrl = result.getUrl().v();
+        if (!android.text.TextUtils.isEmpty(realUrl)) {
+            String unwrapped = com.ssmhdssmhd.mxboxs.utils.UrlUtil.unwrapFakeLocalProxy(realUrl);
+            if (!android.text.TextUtils.isEmpty(unwrapped)) {
+                result.setUrl(unwrapped);
+                // 强制解析：还原出的 URL 通常是 player.ypls.com 这种视频页面，不是直链 m3u8
+                result.setParse(1);
+                if (result.getPlayUrl() == null || result.getPlayUrl().isEmpty()) useParse = true;
+                else useParse = true;
+                realUrl = unwrapped;
+            }
+        }
+        // 同理检查 playUrl 拼接出来的 getRealUrl()
         if (result.getDrm() != null && !FrameworkMediaDrm.isCryptoSchemeSupported(result.getDrm().getUUID())) {
             onError(ResUtil.getString(R.string.error_play_drm));
         } else if (result.hasMsg()) {

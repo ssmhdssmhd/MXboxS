@@ -9,6 +9,17 @@
 
 ## 最新更新
 
+### v5.5.42 · 2026-08-06 · 修复 m3u8 播放报错 "Network Connection Failed"（第三方解析站伪造 127.0.0.1 本地代理 URL）
+
+| # | 防线位置 | 行为 | 代码位置 |
+|---|---------|------|---------|
+| 1 | **UrlUtil** | 新增 `unwrapFakeLocalProxy(url)` 还原算法：识别 `http://127.0.0.1:非9978~9999/p/0/.../base64/index.m3u8` 结构，从 base64 段解码出真实页面 URL（如 https://player.ypls.com/play/...） | [UrlUtil.java#L24-L81](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L24-L81) |
+| 2 | **ParseJob** | 解析成功出口拦截：先嗅探还原 URL（直链 probe + 正文正则候选逐个 probe），未命中则 `fallbackConcurrentParse` 重跑「JSON解析站 + WebView sniff + jsonExtend」多路兜底挖真 m3u8 | [ParseJob.java#L717-L805](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L717-L805) |
+| 3 | **CustomWebView** | shouldInterceptRequest 过滤伪造本地代理 URL，不把它当直链触发 onParseSuccess | [CustomWebView.java#L117-L134](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWebView.java#L117-L134) |
+| 4 | **PlayerManager** | onParseSuccess 入口第三道防线：仍检测到伪造则用还原真实 URL 重走 `parse(useParse=true)`（+reparse 尾标防递归） | [PlayerManager.java#L515-L539](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L515-L539) |
+| 5 | **PlaybackActivity** | startPlayer 入口第四道防线：SiteApi 直接返回的伪造 URL 替换为真实 URL，并强制 `parse=1 / useParse=true` 走解析 | [PlaybackActivity.java#L232-L261](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L232-L261) |
+| 6 | 版本号 | versionCode 590 → **591** / versionName 5.5.41 → **5.5.42** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
 ### v5.5.41 · 2026-08-06 · 修复自动更新：push main 自动更新 Releases Latest，App 自动感知最新版
 
 | # | 模块 | 行为 | 代码位置 |
@@ -207,7 +218,7 @@ PR 正文包含：
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.41 (590) |
+| 版本 | v5.5.42 (591) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
@@ -217,10 +228,10 @@ PR 正文包含：
 GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。同步 PR 也会触发构建验证（不上传 APK）。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.41.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.41.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.41.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.41.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.42.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.42.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.42.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.42.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 

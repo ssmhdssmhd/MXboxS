@@ -2,6 +2,45 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.42] - 2026-08-06
+
+### 修复 m3u8 播放报错 "Network Connection Failed"（第三方解析站伪造 127.0.0.1 本地代理 URL）
+
+#### 问题复现与根因
+
+- 用户播放"毛雪汪 (2026) : 春日特辑"时，播放器报错 **"Network Connection Failed"**（Media3 `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED`）
+- 播放器拿到的 URL 是 `http://127.0.0.1:10079/p/0/127.0.0.1%3A10172/aHR0cHM6Ly9wbGF5ZXIueXBscy5jb20vcGxheS9SNUtlSTdFNC85bmR0WjE2blE0/index.m3u8`
+- 结构：`/p/<thread>/<innerHost:port>/<base64>/index.m3u8`，其中 `aHR0cHM6Ly9wbGF5ZXIueXBscy5jb20vcGxheS9SNUtlSTdFNC85bmR0WjE2blE0` base64 解码后是 `https://player.ypls.com/play/R5KeI7E4/9ndtZ16nQ4`（真正的视频播放页面）
+- **根因**：第三方解析站（如 qcb/jiexi.php / xlm3u8 解析）用"本地代理 + base64 内嵌真 URL"的模式返回，但 App 主 Server 只监听 **9978~9999** 端口，**10079 / 10172 端口根本没有任何代理服务**，播放器去连 127.0.0.1:10079 被直接 `Connection Refused` → **Network Connection Failed**。
+
+#### 修复（四道防线 + 还原后再解析）
+
+**1. UrlUtil 新增 `unwrapFakeLocalProxy(url)` 还原算法**（[UrlUtil.java#L24-L81](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L24-L81)）：
+
+识别特征：
+- `scheme == http/https` && `host == 127.0.0.1 / localhost`
+- 端口 `!= -1` && **不在 9978~9999 范围**（那才是我们自己的 Nano 服务器）
+- path 以 `/p/` 开头，segment 至少 4 段
+- 从第 3 个 segment 起寻找第一个满足 base64 字符集 `^[A-Za-z0-9+/]{16,}={0,3}$` 的段
+- Base64 解码 → UTF-8，若 `http(s)://` 开头即返回；对解码结果再做一次 `URLDecoder` 兜底
+
+**2. ParseJob.onParseSuccess 第一道防线**（[ParseJob.java#L717-L805](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L717-L805)）：
+- 识别到伪造 URL → 先解 base64 出真实页面 URL → 走 `aiSmartParseFallbackFrom`（直链 probe + 正文正则嗅探候选逐个 probe）
+- 嗅探未命中（player.ypls.com 这类必须前端渲染的页面）→ **不占 done**，直接 `fallbackConcurrentParse(realUrl)` 重跑完整的「JSON 解析站并发 + WebView sniff + jsonExtend」多路兜底，挖取真正的 m3u8 直链
+
+**3. CustomWebView.shouldInterceptRequest 第二道防线**（[CustomWebView.java#L117-L134](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWebView.java#L117-L134)）：
+- WebView 拦截到这种伪造 URL 时，**不把它当视频直链触发 onParseSuccess**，放它过去；等上层 ParseJob 统一做还原处理
+
+**4. PlayerManager.onParseSuccess 第三道防线**（[PlayerManager.java#L515-L539](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L515-L539)）：
+- 解析回调入口仍发现伪造 URL → 用还原出的真实 URL 再次 `parse(..., useParse=true, from=+reparse)` 重走解析（带 `+reparse` 尾标防止无限递归）
+
+**5. PlaybackActivity.startPlayer 第四道防线**（[PlaybackActivity.java#L232-L261](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L232-L261)）：
+- SiteApi 直接返回的 Result，如果 url 是伪造本地代理 URL → 替换为还原出的真实 URL，并强制 `parse=1 / useParse=true` 走解析流程（因为 base64 里一般是 player.ypls.com 这种页面，不是直链 m3u8）
+
+#### 版本号
+
+versionCode 590 → **591** / versionName 5.5.41 → **5.5.42**
+
 ## [v5.5.41] - 2026-08-06
 
 ### 修复自动更新：push main 自动更新 GitHub Releases Latest，App 自动感知最新版

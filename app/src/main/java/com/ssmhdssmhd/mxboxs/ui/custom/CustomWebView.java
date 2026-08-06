@@ -123,6 +123,11 @@ public class CustomWebView extends WebView implements DialogInterface.OnDismissL
                 if (TextUtils.isEmpty(host) || isAd(host)) return empty;
                 Map<String, String> headers = request.getRequestHeaders();
                 if (url.contains("/cdn-cgi/challenge-platform/")) post(() -> showDialog());
+                // 过滤第三方解析站伪造的 127.0.0.1 本地代理 URL（端口不在 9978~9999 的都是假的），
+                // 直接交给上层 ParseJob.onParseSuccess 的拦截逻辑还原真实 URL，不要把假地址当视频直链
+                if (com.ssmhdssmhd.mxboxs.utils.UrlUtil.unwrapFakeLocalProxy(url).length() > 0) {
+                    return super.shouldInterceptRequest(view, request);
+                }
                 if (detect && PLAYER.matcher(url).find() && addUrl(url)) onParseAdd(headers, url);
                 else if (isVideoFormat(url)) onParseSuccess(headers, url);
                 return super.shouldInterceptRequest(view, request);
