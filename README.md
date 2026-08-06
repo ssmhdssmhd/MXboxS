@@ -9,6 +9,14 @@
 
 ## 最新更新
 
+### v5.5.40 · 2026-08-05 · 修复云播 m3u8 直链无法播放的问题
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **OkHttpDataSource 重写** | 原 stub 把 `OkHttpClient` 丢弃，退化为 `DefaultHttpDataSource`，丢失 SSL 信任 / 自定义 DNS / 拦截器。重写为真正基于 OkHttp 的实现，继承 `BaseDataSource`，复用 `OkHttp.player()` 的 `trustAllCertificates` + `OkDns` + `AuthInterceptor` 等 | [OkHttpDataSource.java](file:///workspace/app/src/main/java/androidx/media3/datasource/okhttp/OkHttpDataSource.java) |
+| 2 | **双模式播放** | 方式 1（官方）：夸克网盘 `proxy?do=quark` 代理保持不变；方式 2（云播直链）：m3u8/mp4 直链由 ExoPlayer + OkHttpDataSource 直接播放，支持 AES-128 相对路径 enc.key、跨域 TS、自签名证书 | [MediaSourceFactory.java#L51](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java#L51) |
+| 3 | 版本号 | versionCode 588 → **589** / versionName 5.5.39 → **5.5.40** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
 ### v5.5.39 · 2026-08-05 · 修复应用内更新两大关键 Bug
 
 | # | 模块 | 行为 | 代码位置 |
@@ -190,7 +198,7 @@ PR 正文包含：
 |------|-----|
 | 应用名称 | MXboxS |
 | 包名 | `com.ssmhdssmhd.mxboxs` |
-| 版本 | v5.5.39 (588) |
+| 版本 | v5.5.40 (589) |
 | 最低 SDK | 24（Android 7.0） |
 | 架构 | `arm64-v8a`、`armeabi-v7a` |
 | 构建变体 | `leanback`（电视版）、`mobile`（手机版） |
@@ -200,10 +208,10 @@ PR 正文包含：
 GitHub Actions 自动编译 **TV (leanback)** + **手机 (mobile)** 两个变体，各含 `arm64-v8a` 与 `armeabi-v7a` 两种架构，提交到 `main` 分支即可触发；推送 `v*` tag 会额外创建 GitHub Release。同步 PR 也会触发构建验证（不上传 APK）。
 
 构建产物可在 [Actions](https://github.com/ssmhdssmhd/MXboxS/actions) 页面下载，统一打包为 `MXboxS-Release-APKs` Artifact，包含：
-- `MXboxS-mobile-arm64_v8a-5.5.39.apk`（手机版 arm64，推荐主流机型）
-- `MXboxS-mobile-armeabi_v7a-5.5.39.apk`（手机版 32 位，老旧机型）
-- `MXboxS-leanback-arm64_v8a-5.5.39.apk`（电视版 arm64，推荐盒子/电视）
-- `MXboxS-leanback-armeabi_v7a-5.5.39.apk`（电视版 32 位）
+- `MXboxS-mobile-arm64_v8a-5.5.40.apk`（手机版 arm64，推荐主流机型）
+- `MXboxS-mobile-armeabi_v7a-5.5.40.apk`（手机版 32 位，老旧机型）
+- `MXboxS-leanback-arm64_v8a-5.5.40.apk`（电视版 arm64，推荐盒子/电视）
+- `MXboxS-leanback-armeabi_v7a-5.5.40.apk`（电视版 32 位）
 
 ### v5.5.24 本地构建产物校验
 

@@ -2,6 +2,64 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.40] - 2026-08-05
+
+### 修复云播 m3u8 直链无法播放的问题（OkHttpDataSource stub 修复）
+
+#### 背景
+
+用户反馈类似 `https://hn.bfvvs.com/play/erkmL1Ba/index.m3u8` 这种云播直链在 App 中无法直接播放。经排查，根因是 `OkHttpDataSource` 是一个 stub 类，把传入的 `OkHttpClient` 丢弃了。
+
+#### 根因
+
+`/workspace/app/src/main/java/androidx/media3/datasource/okhttp/OkHttpDataSource.java` 原实现：
+
+```java
+public Factory(OkHttpClient client) {
+    this.delegate = new DefaultHttpDataSource.Factory();  // ← OkHttpClient 被丢弃!
+}
+```
+
+这导致 ExoPlayer 播放 m3u8 / mp4 直链时退化为 `DefaultHttpDataSource`（基于 `HttpURLConnection`），丢失了 OkHttp 的全部能力：
+- `trustAllCertificates()` 信任所有 SSL 证书 → 自签名 / 过期证书的 m3u8 源播放失败
+- `hostnameVerifier((h, s) -> true)` 信任所有 host → host 不匹配的源播放失败
+- 自定义 `OkDns`（DoH 等）→ DNS 污染场景下无法解析
+- `AuthInterceptor` / `RequestInterceptor` / `ResponseInterceptor` → 依赖拦截器注入 token / cookie 的源播放失败
+
+#### 修复
+
+重写 `OkHttpDataSource`，继承 `BaseDataSource` 并实现 `HttpDataSource` 接口，真正使用传入的 `OkHttpClient` 发起请求：
+
+| 能力 | 实现方式 |
+|------|---------|
+| Range 请求 | 根据 `DataSpec.position` / `DataSpec.length` 构造 `Range: bytes=start-end` header |
+| 请求头传递 | `defaultRequestProperties` + `requestProperties` 双层覆盖 |
+| SSL / DNS / 拦截器 | 直接复用 `OkHttpClient` 的全部配置 |
+| 响应码处理 | 200/206 正常，416 视为已读完，其他抛 `HttpDataSourceException` |
+| TransferListener | 继承 `BaseDataSource`，自动调用 `transferInitializing/Started/bytesTransferred/Ended` |
+| 取消 / 超时 | 由 `OkHttpClient` 配置统一管理 |
+
+**API 兼容**：`Factory(OkHttpClient)` 构造函数和 `setDefaultRequestProperties(Map)` 方法签名与原 stub 完全一致，[MediaSourceFactory.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java) 中 3 处调用点无需修改。
+
+#### 双模式播放说明
+
+本次修复后，App 支持两种播放方式：
+
+| 模式 | 触发条件 | 链路 |
+|------|---------|------|
+| **方式 1：官方（夸克网盘代理）** | spider 返回 `proxy?do=quark&type=dwnz&...` URL | catvod 内部代理 → 夸克网盘 API → 转码直链 |
+| **方式 2：云播直链** | m3u8 / mp4 等直链（`Sniffer.isVideoFormat` 识别，`parse=0`） | ExoPlayer → OkHttpDataSource（复用 OkHttp SSL/DNS/拦截器）→ 直接播放 |
+
+方式 2 现在能正确播放：
+- 标准 HLS 加密流（AES-128 + 相对路径 enc.key，HlsMediaSource 自动用 base URL resolve）
+- 跨域 TS 分片（如 `https://hnts.ymuuy.com:65/hls/...`）
+- 自签名 / 过期证书的 HTTPS 源
+- DNS 污染场景（通过 OkDns 规避）
+
+#### 版本号
+
+versionCode 588 → **589** / versionName 5.5.39 → **5.5.40**
+
 ## [v5.5.39] - 2026-08-05
 
 ### 修复应用内更新两大关键 Bug
