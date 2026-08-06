@@ -198,10 +198,17 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
             return bytesToRead;
         } catch (HttpDataSourceException e) {
             throw e;
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new HttpDataSourceException(
                     "OkHttp open failed: " + e.getMessage(),
                     e,
+                    dataSpec,
+                    HttpDataSourceException.TYPE_OPEN);
+        } catch (Exception e) {
+            // 非 IOException 的运行时异常（如 IllegalStateException）包装为 IOException 再抛出
+            throw new HttpDataSourceException(
+                    "OkHttp open failed: " + e.getMessage(),
+                    new IOException(e),
                     dataSpec,
                     HttpDataSourceException.TYPE_OPEN);
         }
@@ -227,9 +234,8 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
         }
     }
 
-    @Nullable
     @Override
-    public Uri close() {
+    public void close() {
         if (responseBody != null) {
             try { responseBody.close(); } catch (Exception ignored) {}
             responseBody = null;
@@ -243,6 +249,5 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
             opened = false;
             transferEnded();
         }
-        return null;
     }
 }
