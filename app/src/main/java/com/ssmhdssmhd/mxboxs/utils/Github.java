@@ -85,6 +85,35 @@ public class Github {
         return null;
     }
 
+    /**
+     * 从 Release 的 APK asset 文件名中提取版本号。
+     * 文件名格式：MXboxS-mobile-arm64_v8a-5.5.40.apk → 提取 "5.5.40"。
+     * 用于 tag_name 不是 vX.Y.Z 格式（如 MXboxS-latest 自动预发布 tag）时的版本来源。
+     */
+    public static String extractVersionFromAssets(JSONObject release) {
+        if (release == null) return "";
+        try {
+            JSONArray assets = release.optJSONArray("assets");
+            if (assets == null || assets.length() == 0) return "";
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile("MXboxS-[A-Za-z0-9_-]+-([0-9]+\\.[0-9]+\\.[0-9]+)\\.apk");
+            for (int i = 0; i < assets.length(); i++) {
+                String name = assets.getJSONObject(i).optString("name");
+                java.util.regex.Matcher m = p.matcher(name);
+                if (m.matches()) return m.group(1);
+            }
+            // 兜底：从 APK 文件名里找 X.Y.Z 数字点分格式
+            java.util.regex.Pattern p2 = java.util.regex.Pattern.compile("([0-9]+\\.[0-9]+\\.[0-9]+");
+            for (int i = 0; i < assets.length(); i++) {
+                String name = assets.getJSONObject(i).optString("name");
+                if (!name.endsWith(".apk")) continue;
+                java.util.regex.Matcher m = p2.matcher(name);
+                if (m.find()) return m.group(1);
+            }
+        } catch (Exception ignored) {
+        }
+        return "";
+    }
+
     public static String getApkName() {
         return "MXboxS-" + BuildConfig.FLAVOR_mode + "-" + BuildConfig.FLAVOR_abi + "-" + BuildConfig.VERSION_NAME + ".apk";
     }

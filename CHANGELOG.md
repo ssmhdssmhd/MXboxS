@@ -2,6 +2,41 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.41] - 2026-08-06
+
+### 修复自动更新：push main 自动更新 GitHub Releases Latest，App 自动感知最新版
+
+#### 问题
+
+- GitHub Releases 最新版停留在 v5.5.36，之后 v5.5.37~v5.5.40 只推了 commit 没打 tag，没有创建新 Release。
+- App 的更新检查（`Github.API_LATEST = /releases/latest`）从 GitHub Releases 的 Latest 标记 Release 拉取，永远拿到 v5.5.36，无法感知新版本。
+- 构建工作流 `build.yml` 只在 `v*` tag 时创建 Release（`if: startsWith(github.ref, 'refs/tags/v')`）。
+
+#### 修复
+
+**1. 构建工作流新增「Latest 自动预发布」步骤**（[build.yml#L181-L237](file:///workspace/.github/workflows/build.yml#L181-L237)）：
+
+每次 `push main` 或 `push upstream-sync` 分支构建成功后，自动：
+
+1. 删除旧的 `MXboxS-latest` release + tag
+2. 创建新的 `MXboxS-latest` tag 指向当前 commit
+3. 创建 release（`--latest` 标记为 Latest），上传 4 个 APK（mobile/leanback × arm64/armeabi-v7a），带 release notes 含版本号/commit/构建时间
+
+**2. Updater.java 版本提取兼容 MXboxS-latest tag**（[Updater.java#L106-L113](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L106-L113)）：
+
+原来只从 `tag_name`（如 `v5.5.36）提取版本号。`v5.5.36→5.5.36），遇到 `MXboxS-latest` 会失败。
+
+改为优先级：
+
+1. **优先从 APK asset 文件名提取**（`Github.extractVersionFromAssets`）：`MXboxS-mobile-arm64_v8a-5.5.41.apk → 5.5.41`
+2. 失败时回退 tag_name 提取（兼容 `v*` 稳定 release）
+
+**3. Github.java 新增 extractVersionFromAssets 方法**（[Github.java#L88-L115](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L88-L115)）：从 APK 文件名正则提取 `X.Y.Z` 点分版本号。
+
+#### 版本号
+
+versionCode 589 → **590** / versionName 5.5.40 → **5.5.41**
+
 ## [v5.5.40] - 2026-08-05
 
 ### 修复云播 m3u8 直链无法播放的问题（OkHttpDataSource stub 修复）

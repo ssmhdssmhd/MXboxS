@@ -178,9 +178,69 @@ jobs:
           retention-days: 30
           compression-level: 6
 
-      - name: Create Release
+      - name: Update Latest Pre-release (push main / upstream-sync)
+        # push 到 main/upstream-sync 分支后，自动更新 latest 预发布版，设为 latest=true
+        # 让 App /releases/latest API 自动拿到最新构建，不需要打 tag
+        # 每次都会：删除旧的 latest release 的 tag + release → 创建新的 MXboxS-latest tag → 创建发布版并设为 latest
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/upstream-sync')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          echo "=== 删除旧的 MXboxS-latest release（如果存在） ==="
+          if gh release view MXboxS-latest >/dev/null 2>&1; then
+            echo "发现旧 release MXboxS-latest，删除..."
+            gh release delete MXboxS-latest --yes || true
+          fi
+          # 删除旧的远程 tag（如果存在）
+          git push origin :refs/tags/MXboxS-latest 2>/dev/null || true
+          # 本地创建新 tag，指向当前 commit
+          git tag -f MXboxS-latest HEAD
+          git push -f origin MXboxS-latest
+          echo "=== 构建版本信息 ==="
+          VERSION_NAME=$(grep -oP 'versionName "\K[^"]+' app/build.gradle)
+          VERSION_CODE=$(grep -oP 'versionCode \K[0-9]+' app/build.gradle)
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          echo "VERSION_NAME=${VERSION_NAME}  VERSION_CODE=${VERSION_CODE}  COMMIT=${COMMIT_SHA}"
+          echo "=== 创建 release（latest=true，确保 API /releases/latest 返回它） ==="
+          NOTES=$(cat <<EOF
+          ## MXboxS 最新构建
+
+          - **版本号**：v${VERSION_NAME} (${VERSION_CODE})
+          - **Commit**：${COMMIT_SHA} (${GITHUB_SHA})
+          - **构建时间**：$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          - **触发者**：${GITHUB_ACTOR}
+          - **运行 ID**：${GITHUB_RUN_ID}
+
+          > App 内的「自动更新」通过 GitHub \`/releases/latest\` API 拉取本 Release 的 tag_name 和 assets 判断版本。
+          > 每次 push 到 main 分支会自动重建并覆盖本版本。
+
+          ### 更新内容 (最近 commit)
+
+          $(git log -1 --pretty=format:'%s' | head -5)
+
+          ### 下载列表
+
+          | 变体 | 架构 | 文件名 |
+          |------|------|--------|
+          | 手机版 (mobile) | arm64-v8a | MXboxS-mobile-arm64_v8a-${VERSION_NAME}.apk |
+          | 手机版 (mobile) | armeabi-v7a | MXboxS-mobile-armeabi_v7a-${VERSION_NAME}.apk |
+          | 电视版 (leanback) | arm64-v8a | MXboxS-leanback-arm64_v8a-${VERSION_NAME}.apk |
+          | 电视版 (leanback) | armeabi-v7a | MXboxS-leanback-armeabi_v7a-${VERSION_NAME}.apk |
+          EOF
+          )
+          gh release create MXboxS-latest \
+            --latest \
+            --title "MXboxS v${VERSION_NAME} (build ${COMMIT_SHA})" \
+            --notes "${NOTES}" \
+            output/*.apk
+          echo "✅ Release MXboxS-latest (v${VERSION_NAME}-${COMMIT_SHA}) 已创建并设为 latest"
+
+      - name: Create Tag Release
+        # 打 v* tag 触发正式 Release：保留这一能力，用于稳定版发布
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: output/*
           generate_release_notes: true
+          make_latest: false

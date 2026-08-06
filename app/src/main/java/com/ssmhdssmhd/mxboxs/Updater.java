@@ -104,8 +104,13 @@ public class Updater implements Download.Callback, UpdateListener {
             }
 
             String tagName = release.optString("tag_name", "");
-            String version = tagName.startsWith("v") ? tagName.substring(1) : tagName;
             String desc = release.optString("body", "");
+            // 优先从 APK asset 文件名提取版本号（兼容 MXboxS-latest 自动预发布 tag）
+            // 否则从 tag_name 提取（v5.5.36 这种稳定发布 tag）
+            String version = Github.extractVersionFromAssets(release);
+            if (version.isEmpty()) {
+                version = tagName.startsWith("v") ? tagName.substring(1) : tagName;
+            }
 
             if (compareVersionNames(version, BuildConfig.VERSION_NAME) <= 0) {
                 // 已是最新版本
