@@ -85,7 +85,13 @@ public class Updater implements Download.Callback, UpdateListener {
 
     private void doInBackground(FragmentActivity activity) {
         try {
-            release = Github.getLatestRelease();
+            // 优先策略：
+            // 1) 用 getHighestRelease() 遍历 /releases?per_page=10，从 APK 文件名里提取版本号取最高的那个。
+            //    这解决了 GitHub /releases/latest 只返回被官方设为 "Latest" 标记的 Release，
+            //    而我们 push main 自动构建的 MXboxS-latest 是 prerelease，/latest 永远不会返回它的问题。
+            // 2) 若失败则回退 getLatestRelease()（保留原语义）
+            release = Github.getHighestRelease();
+            if (release == null) release = Github.getLatestRelease();
             if (release == null) {
                 // 连接失败
                 App.post(() -> {
@@ -112,7 +118,7 @@ public class Updater implements Download.Callback, UpdateListener {
                 version = tagName.startsWith("v") ? tagName.substring(1) : tagName;
             }
 
-            if (compareVersionNames(version, BuildConfig.VERSION_NAME) <= 0) {
+            if (Github.compareVersion(version, BuildConfig.VERSION_NAME) <= 0) {
                 // 已是最新版本
                 App.post(() -> {
                     if (dialog != null) {
