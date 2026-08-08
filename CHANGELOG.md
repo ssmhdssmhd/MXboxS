@@ -2,6 +2,102 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.43] - 2026-08-08
+
+### 修复 v5.5.42 引入的「官方源播放失败」（getRealUrl 被 playUrl 前缀拼接污染）
+
+#### 现象
+- v5.5.42 修复了 m3u8 Network Connection Failed 后，「官方的」源反而播放失败，返回错误类似 `播放失败` / 转圈超时 / 底层域名解析失败 或 404。
+- m3u8/第三方解析源正常。
+
+#### 根因
+
+官方站点 `SiteApi.playerContent` 返回的 Result 结构通常是：
+```
+{
+  "playUrl": "https://cdn.official-source.com/play/",   ← 官方多线路拼接前缀
+  "url":     "episode/1080p/xxx.m3u8",                  ← 相对路径
+  "parse":   0                                          ← 官方直链（=官方播放器的解析入口直接出 m3u8）
+}
+```
+`Result.getRealUrl() = getPlayUrl() + getUrl().v()`，官方链路就是这样拼出最终直链的。
+
+v5.5.42 第四道防线（`PlaybackActivity.startPlayer`）在识别出伪造本地代理 URL 时，**只做了**：
+```java
+result.setUrl(unwrapped);        // unwrapped = 完整 https://player.ypls.com/play/R5Ke...
+result.setParse(1);
+```
+
+**没有清空 playUrl**，于是：
+```
+getRealUrl() = playUrl + url
+            = "https://cdn.official-source.com/play/" + "https://player.ypls.com/play/R5Ke..."
+            = "https://cdn.official-source.com/play/https://player.ypls.com/play/R5Ke..."
+```
+这是一条畸形 URL：主机段之后立刻接上了另一个完整协议+主机。ExoPlayer 把 `cdn.official-source.com` 当主机、路径为 `/play/https://player.ypls.com/...`，CDN 响应 **404 Not Found**（或路径非法被反向代理拦）→ 官方播放失败。
+
+同时第三道防线（`PlayerManager.onParseSuccess`）还存在两个次级问题：
+1. reparse 新建 `Result()` 时把 `parse` 设为 **0**，但又调用 `parse(useParse=true)`，状态不一致；
+2. 没从当前 spec 拷贝 **Drm / Subs / Danmaku / Format**，二次解析后如果是加密源或带字幕源会丢信息。
+
+#### 修复
+
+**1. PlaybackActivity：第四道防线 unwrap 时强制清空 playUrl**（[PlaybackActivity.java#L232-L250](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L232-L250)）
+
+```java
+if (!TextUtils.isEmpty(unwrapped)) {
+    result.setUrl(unwrapped);
+    result.setPlayUrl("");                 // ← 关键：不要再让官方 playUrl 前缀拼到前面
+    result.setParse(1);                    // parse=1 足以让 needParse()=true (parse==1 || jx==1)
+    useParse = true;
+    realUrl = unwrapped;
+}
+```
+之后 `getRealUrl() = "" + unwrapped = unwrapped`，就是干净的完整 URL。
+
+**2. PlayerManager：第三道防线 reparse 补齐 playUrl / parse / drm / subs / danmaku / format**（[PlayerManager.java#L515-L549](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L515-L549)）
+
+```java
+Result result = new Result();
+result.setUrl(unwrapped);
+result.setHeader(UrlUtil.mergeDefaultHeaders(headers, unwrapped));
+result.setPlayUrl("");
+result.setParse(1);                          // parse=1 足以让 needParse()=true
+if (spec != null) {
+    result.setDrm(spec.getDrm());
+    result.setSubs(spec.getSubs());
+    result.setDanmaku(spec.getDanmakus());
+    result.setFormat(spec.getFormat());
+}
+parse(spec.getKey(), result, true, spec.getMetadata(), pendingStartPositionMs);
+```
+
+#### 验证
+
+构造和官方源一致的场景：
+```
+Result.playUrl = "https://cdn.official-source.com/play/"
+Result.url     = "http://127.0.0.1:10079/p/0/127.0.0.1%3A10172/aHR0cHM6Ly9wbGF5ZXIueXBscy5jb20vcGxheS9SNUtlSTdFNC85bmR0WjE2blE0/index.m3u8"
+```
+
+v5.5.42 修复前：
+```
+getRealUrl() = "https://cdn.official-source.com/play/https://player.ypls.com/play/R5KeI7E4/9ndtZ16nQ4"
+→ 播放器 GET 404   ❌ 官方播放失败
+```
+
+v5.5.43 修复后：
+```
+unwrapFakeLocalProxy 命中 → setPlayUrl("")
+getRealUrl() = "https://player.ypls.com/play/R5KeI7E4/9ndtZ16nQ4"
+→ needParse()=parse=1 → 进入 ParseJob → aiSmartParseFallbackFrom + fallbackConcurrentParse
+→ 挖出真正 m3u8 直链 → ExoPlayer 正常渲染   ✅ 官方源正常播
+```
+
+版本号：versionCode 591 → **592** / versionName 5.5.42 → **5.5.43**（[app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23)）
+
+---
+
 ## [v5.5.42] - 2026-08-08
 
 ### 一、修复 m3u8 播放报错 "Network Connection Failed"（第三方解析站伪造 127.0.0.1 本地代理 URL）

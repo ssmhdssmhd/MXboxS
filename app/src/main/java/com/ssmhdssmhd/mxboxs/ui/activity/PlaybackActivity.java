@@ -231,20 +231,23 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     protected void startPlayer(String key, Result result, boolean useParse, long timeout, long startPositionMs, MediaMetadata metadata) {
         // 第四道防线：SiteApi 直接返回的 result 如果 url 是伪造本地代理 URL，
-        // 直接用还原出的真实 URL 替换，并强制走解析流程（因为 base64 里是 player 页面，不是直链）
+        // 直接用还原出的真实 URL 替换，并强制走解析流程（因为 base64 里是 player 页面，不是直链）。
+        // ⚠️ 修复 v5.5.42 官方直链播放失败：原实现只 setUrl(unwrapped) 没清 playUrl，
+        //    导致 getRealUrl() = playUrl + unwrapped → 垃圾前缀 + https://player.ypls.com/... → 404/域名解析失败。
         String realUrl = result.getUrl().v();
         if (!android.text.TextUtils.isEmpty(realUrl)) {
             String unwrapped = com.ssmhdssmhd.mxboxs.utils.UrlUtil.unwrapFakeLocalProxy(realUrl);
             if (!android.text.TextUtils.isEmpty(unwrapped)) {
+                // 还原出的 unwrapped 本身就是完整 http(s) URL，不要再拼 playUrl 前缀
                 result.setUrl(unwrapped);
+                result.setPlayUrl("");
                 // 强制解析：还原出的 URL 通常是 player.ypls.com 这种视频页面，不是直链 m3u8
+                // parse=1 足以让 needParse() 返回 true（needParse 内部是 parse==1 || jx==1）
                 result.setParse(1);
-                if (result.getPlayUrl() == null || result.getPlayUrl().isEmpty()) useParse = true;
-                else useParse = true;
+                useParse = true;
                 realUrl = unwrapped;
             }
         }
-        // 同理检查 playUrl 拼接出来的 getRealUrl()
         if (result.getDrm() != null && !FrameworkMediaDrm.isCryptoSchemeSupported(result.getDrm().getUUID())) {
             onError(ResUtil.getString(R.string.error_play_drm));
         } else if (result.hasMsg()) {

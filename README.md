@@ -9,6 +9,31 @@
 
 ## 最新更新
 
+### v5.5.43 · 2026-08-08 · 修复 v5.5.42 引入的"官方源播放失败"（getRealUrl 被 playUrl 前缀拼接污染）
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **PlaybackActivity（主修复）** | 第四道防线 unwrapFakeLocalProxy 命中时，**除 setUrl(unwrapped) 外再 `setPlayUrl("")`**，保证 `getRealUrl() == playUrl + url == unwrapped` 就是干净的完整 http(s)。v5.5.42 只 setUrl 没清 playUrl：官方源常有 playUrl 前缀（如 `https://cdn.example.com/player/`），拼出 `https://cdn.example.com/player/https://player.ypls.com/...` → 404 / 域名解析失败。用 `parse=1`（needParse 内部是 parse==1 ∥ jx==1）强制走解析。 | [PlaybackActivity.java#L232-L250](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L232-L250) |
+| 2 | **PlayerManager** | 第三道防线 reparse 新建 Result 时补齐 `setPlayUrl("")` / `setParse(1)`，并从原 spec 拷贝 **Drm / Subs / Danmaku / Format** 信息，避免二次解析后丢字幕/弹幕/DRM 方案；之前还把 parse 错设为 0 但又 parse(useParse=true)，状态不一致。 | [PlayerManager.java#L515-L549](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L515-L549) |
+| 3 | 版本号 | versionCode 591 → **592** / versionName 5.5.42 → **5.5.43** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+**复现链路（v5.5.42 官方源为什么失败）**：
+```
+SiteApi.playerContent 返回 Result:
+  url      = "http://127.0.0.1:10079/p/0/.../aHR0cHM6.../index.m3u8"   (官方解析链碰巧也拿到了伪造 URL)
+  playUrl  = "https://cdn.official-source.com/play/"                    (官方源常见的多线路拼接前缀)
+→ PlaybackActivity 第四道防线只 setUrl = "https://player.ypls.com/play/R5Ke..."
+→ Result.getRealUrl() = playUrl + url = "https://cdn.official-source.com/play/https://player.ypls.com/play/..."
+→ 播放器请求这种畸形 URL → 域名解析失败 / 404 Not Found  💥 官方播放报错
+```
+修复后：
+```
+unwrapFakeLocalProxy 命中时 setPlayUrl("") + setUrl(unwrapped) + setParse(1)
+→ getRealUrl() = "" + "https://player.ypls.com/play/R5Ke..." = "https://player.ypls.com/play/R5Ke..."
+→ 走 useParse=true 的 ParseJob 解析 → 还原 URL → aiSmartParseFallbackFrom / fallbackConcurrentParse 挖真 m3u8
+→ ExoPlayer 正常加载   ✅ 官方源也能正常播
+```
+
 ### v5.5.42 · 2026-08-08 · 修复"检测不到最新版本" + 版本检测双保险 + m3u8 伪造本地代理 URL 还原（4 道防线）
 
 | # | 模块 | 行为 | 代码位置 |

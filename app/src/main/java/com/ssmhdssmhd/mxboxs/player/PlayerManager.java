@@ -517,15 +517,25 @@ public class PlayerManager implements ParseCallback {
         // 第三道防线：第三方解析站有时会返回伪造本地代理 URL（http://127.0.0.1:非9978端口/p/.../base64/index.m3u8），
         // 这些端口根本没有服务器，播放器去连会直接 Network Connection Failed。
         // 如果检测到这种 URL：用还原出的真实 URL 再次触发 parse（走 WebView + AI 嗅探流程挖出真实 m3u8）。
+        // 修复 v5.5.42：重跑 parse 时要从当前 spec 拷贝 drm / subs / danmaku / format 信息，不然 reparse 后会丢失字幕/弹幕/DRM。
         String unwrapped = com.ssmhdssmhd.mxboxs.utils.UrlUtil.unwrapFakeLocalProxy(url);
         if (!TextUtils.isEmpty(unwrapped)) {
-            String realUrl = unwrapped;
-            Map<String, String> realHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(headers, realUrl);
             if (from != null && !from.endsWith("+reparse")) {
                 Result result = new Result();
-                result.setUrl(realUrl);
+                result.setUrl(unwrapped);
+                Map<String, String> realHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(headers, unwrapped);
                 result.setHeader(realHeaders);
-                result.setParse(0);
+                result.setPlayUrl("");
+                // 强制解析：还原出的 URL 是完整 http(s) 的 player 页面，不要让 PlaySpec 再拼前缀
+                // parse=1 足以让 needParse() 返回 true（needParse 内部是 parse==1 || jx==1），避免 jx 缺失 setter
+                result.setParse(1);
+                if (spec != null) {
+                    // 尽量保留原 result 的附加信息：drm/subs/danmaku/format 这些在 fromParse 构造 PlaySpec 时会用到
+                    result.setDrm(spec.getDrm());
+                    result.setSubs(spec.getSubs());
+                    result.setDanmaku(spec.getDanmakus());
+                    result.setFormat(spec.getFormat());
+                }
                 if (spec != null) parse(spec.getKey(), result, true, spec.getMetadata(), pendingStartPositionMs);
                 return;
             }
