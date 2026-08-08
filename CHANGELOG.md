@@ -2,6 +2,109 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.44] - 2026-08-08
+
+### 修复更新下载"进度条 0% 卡死 → 30s 超时 → 下载失败"（ghproxy.com 宕机 + 索引错位 + 单一 URL 无 fallback）
+
+#### 现象
+
+用户 v5.5.42 / v5.5.40 「设置 → 检查更新」检测到 5.5.43/5.5.44 后：
+1. 进度条一直**卡在 0% 不动**，约 30 秒后
+2. 弹窗报错：**`下载失败: failed to connect to ghproxy.com/93.46.8.90 (port 443) from /10.196.209.103 (port 59922) after 30000ms`**
+
+#### 根因
+
+三条 bug 同时命中：
+
+**1. ghproxy.com 今日全网宕机**（IP 93.46.8.90 端口 443 connect 超时 30s）。
+
+**2. v5.5.42 下载只会试 1 个 URL，没有 fallback 队列**：
+```java
+apkUrl = Github.findApkUrl(release);  // 只返回 ghproxy.com/... 一个 URL
+download = Download.create(apkUrl, getFile()).start(this);
+// error() 回调直接弹错，不会切下一个！
+```
+所以 ghproxy.com 一挂，用户就永远 `0% → 30s → failed`。
+
+**3. Setting.MIRROR_* 索引与 Updater.showMirrorDialog 选项索引错位**（长期隐藏 bug，今天被激发）：
+```
+Updater.showMirrorDialog() 单选项（用户界面）:
+  items[0] = "ghproxy.com (CN)"        which=0
+  items[1] = "mirror.ghproxy.com (CN)" which=1
+  items[2] = "Direct GitHub"           which=2
+→ Setting.putMirrorMode(which)
+
+v5.5.42 老 Github.getMirror() 判断:
+  if mode==1 → MIRROR_GHPROXY   (ghproxy.com)
+  if mode==2 → MIRROR_MIRROR_GHPROXY (mirror.ghproxy.com)
+  else mode==0 → MIRROR_DIRECT  (直连)
+```
+结果**完全串位**：用户 UI 点"ghproxy.com"(which=0) → mode=0 → getMirror() 返回**空 DIRECT 直连**；点"mirror.ghproxy"(which=1) → mode=1 → 返回**宕机的 ghproxy.com**！
+
+同时 v5.5.42 默认值 `MIRROR_GHPROXY = 1` 正好命中 **ghproxy.com** → 今天宕机 → **100% 用户默认都会遇到进度条 0%卡死！** 😭
+
+#### 修复
+
+**1. Setting.java：镜像索引对齐 + 默认改 mirror.ghproxy.com**（[Setting.java#L148-L162](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L148-L162)）
+
+```java
+public static final int MIRROR_GHPROXY         = 0;   // UI items[0]
+public static final int MIRROR_MIRROR_GHPROXY  = 1;   // UI items[1]
+public static final int MIRROR_DIRECT          = 2;   // UI items[2]
+
+public static int getMirrorMode() {
+    // 默认值从老的 ghproxy (mode 1) 改成 mirror.ghproxy.com (mode 1 新含义)
+    // 副作用：v5.5.42 用户 mirror_mode=1 升级后 → 新代码解析成 MIRROR_MIRROR_GHPROXY
+    //       → 自动从宕机 ghproxy.com 切到 mirror.ghproxy.com，无需用户操作！
+    return Prefers.getInt("mirror_mode", MIRROR_MIRROR_GHPROXY);
+}
+```
+
+**2. Github.java：4 个镜像 + 1 个直连 = 5 条候选队列**（[Github.java#L22-L58](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L22-L58) / [Github.java#L186-L203](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L186-L203)）
+
+- 新增 2 个公共镜像：`https://ghps.cambridgecs.co` / `https://gh.api.99988866.xyz`
+- `getMirrorCandidates()` 返回去重候选列表：`用户首选 → 其它 4 个候选 → 直连 GitHub`
+- 新 `findApkUrls(release)` 对同一 APK browser_download_url 套用 5 个前缀，**返回 5 条 URL**
+
+**3. Updater.java：下载失败自动循环 fallback（主修复）**（[Updater.java#L29-L31](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L29-L31) / [Updater.java#L184-L213](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L184-L213) / [Updater.java#L282-L296](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L282-L296)）
+
+```java
+private List<String> apkUrls;
+private int apkCursor;
+
+startDownload() {
+    String url = apkUrls.get(apkCursor);
+    dialog.setStatus("下载中（" + mirrorTag + "）…");   // 0% 不再没任何提示
+    dialog.setProgress(0);
+    download = Download.create(url, file);
+    download.start(this);
+}
+
+@Override error(String msg) {
+    if (apkCursor + 1 < apkUrls.size()) {       // 还有候选？
+        apkCursor++;
+        App.post(this::startDownload);          // ← 自动切下一个镜像！
+        return;
+    }
+    // 5 个都失败才真报错
+    dialog.setStatus("下载失败: " + msg);
+}
+```
+
+#### 应急方案（v5.5.42 / v5.5.40 不需要等 v5.5.44 发布，现在操作立即生效）
+
+用户现在打开 App → **设置 → 点「Update Source」（下载源/镜像设置）** → 单选框：
+
+```
+●【推荐】选第 2 项 "mirror.ghproxy.com (CN)"  → 确定 → 强制杀掉 App 进程（从最近任务清掉）→ 重新打开 → 再检查更新 → 立即开始下载，进度条正常走
+○【海外网络】选第 3 项 "Direct GitHub"
+✗【避免】第 1 项 "ghproxy.com (CN)" （今日 IP 93.46.8.90 宕机，30s 超时必失败）
+```
+
+版本号：versionCode 592 → **593** / versionName 5.5.43 → **5.5.44**（[app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23)）
+
+---
+
 ## [v5.5.43] - 2026-08-08
 
 ### 修复 v5.5.42 引入的「官方源播放失败」（getRealUrl 被 playUrl 前缀拼接污染）

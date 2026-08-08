@@ -147,12 +147,18 @@ public class Setting {
 
     public static final String PARSE_SERVER_DEFAULT = "http://114.134.184.91:9002";
 
-    public static final int MIRROR_DIRECT = 0;
-    public static final int MIRROR_GHPROXY = 1;
-    public static final int MIRROR_MIRROR_GHPROXY = 2;
+    // ===== 镜像模式枚举（与 Updater.showMirrorDialog 的 items 索引严格一一对应）=====
+    // 0: ghproxy.com (CN)
+    // 1: mirror.ghproxy.com (CN)
+    // 2: Direct GitHub
+    // 注意：此顺序故意与 v5.5.42 及以前不同。v5.5.42 默认 mirror_mode=1，
+    //       升级后会被解析为 mirror.ghproxy.com，正好帮用户从今日宕机的 ghproxy.com (93.46.8.90) 自动切走。
+    public static final int MIRROR_GHPROXY = 0;
+    public static final int MIRROR_MIRROR_GHPROXY = 1;
+    public static final int MIRROR_DIRECT = 2;
 
     public static int getMirrorMode() {
-        return Prefers.getInt("mirror_mode", MIRROR_GHPROXY);
+        return Prefers.getInt("mirror_mode", MIRROR_MIRROR_GHPROXY);
     }
 
     public static void putMirrorMode(int mode) {

@@ -19,13 +19,15 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.util.List;
 
 public class Updater implements Download.Callback, UpdateListener {
 
     private Download download;
     private UpdateDialog dialog;
     private JSONObject release;
-    private String apkUrl;
+    private List<String> apkUrls;
+    private int apkCursor;
     private boolean forced;
 
     private Updater() {
@@ -63,6 +65,7 @@ public class Updater implements Download.Callback, UpdateListener {
                 ResUtil.getString(R.string.mirror_direct)
         };
         int checked = Setting.getMirrorMode();
+        if (checked < 0 || checked >= items.length) checked = 0;
         new MaterialAlertDialogBuilder(activity)
                 .setTitle(R.string.setting_mirror)
                 .setSingleChoiceItems(items, checked, (dialog, which) -> {
@@ -140,8 +143,9 @@ public class Updater implements Download.Callback, UpdateListener {
                 return;
             }
 
-            // 找到 APK 下载链接
-            apkUrl = Github.findApkUrl(release);
+            // 找到 APK 下载链接（多镜像候选列表，下载失败自动 fallback）
+            apkUrls = Github.findApkUrls(release);
+            apkCursor = 0;
 
             // 连接成功，有新版本
             App.post(new Runnable() {
@@ -178,16 +182,33 @@ public class Updater implements Download.Callback, UpdateListener {
     }
 
     private void startDownload() {
-        if (apkUrl == null) {
+        if (apkUrls == null || apkUrls.isEmpty() || apkCursor >= apkUrls.size()) {
             if (dialog != null) {
                 dialog.setStatus(ResUtil.getString(R.string.update_download_failed, "APK not found"));
+                dialog.setConfirmEnabled(true);
             }
             return;
         }
+        String url = apkUrls.get(apkCursor);
+        // 进度条状态提示：当前正在下载的镜像名（如果不是直连 github.com 的话），避免"0% 卡死时不知道正在连哪个"
+        String mirrorTag;
+        if (url == null) mirrorTag = "APK";
+        else if (url.startsWith(Github.MIRROR_GHPROXY + "/")) mirrorTag = "ghproxy.com";
+        else if (url.startsWith(Github.MIRROR_MIRROR_GHPROXY + "/")) mirrorTag = "mirror.ghproxy.com";
+        else if (url.startsWith(Github.MIRROR_GHPS_CAMBRIDGECS + "/")) mirrorTag = "ghps.cambridgecs.co";
+        else if (url.startsWith(Github.MIRROR_GH_API_99988866 + "/")) mirrorTag = "gh.api.99988866.xyz";
+        else mirrorTag = "GitHub";
+        if (apkCursor > 0 && dialog != null) {
+            dialog.setStatus("镜像 " + (apkCursor) + "/" + apkUrls.size() + "：" + mirrorTag + " 下载中…（前一镜像失败）");
+        } else if (dialog != null) {
+            dialog.setStatus("下载中（" + mirrorTag + "）…");
+        }
         if (dialog != null) {
             dialog.showProgress();
+            dialog.setProgress(0);
         }
-        download = Download.create(apkUrl, getFile());
+        if (download != null) download.cancel();
+        download = Download.create(url, getFile());
         download.start(this);
     }
 
@@ -233,7 +254,9 @@ public class Updater implements Download.Callback, UpdateListener {
     @Override
     public void onConfirm(View view) {
         view.setEnabled(false);
+        apkCursor = 0;
         startDownload();
+        view.setEnabled(true);
     }
 
     @Override
@@ -257,8 +280,17 @@ public class Updater implements Download.Callback, UpdateListener {
 
     @Override
     public void error(String msg) {
+        // 下载失败自动切换下一个镜像（如果还有候选）
+        if (apkUrls != null && apkCursor + 1 < apkUrls.size()) {
+            apkCursor++;
+            // 下一轮 startDownload 会从 apkUrls[apkCursor] 继续
+            App.post(this::startDownload);
+            return;
+        }
+        // 所有镜像都失败：才真正显示错误
         if (dialog != null) {
             dialog.setStatus(ResUtil.getString(R.string.update_download_failed, msg));
+            dialog.setConfirmEnabled(true);
         }
         Notify.show(msg);
     }

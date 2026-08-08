@@ -9,6 +9,27 @@
 
 ## 最新更新
 
+### v5.5.44 · 2026-08-08 · 修复更新下载"进度条 0% 卡死 → ghproxy.com 93.46.8.90 超时 30s 后下载失败"（多镜像自动 fallback + UI 索引错位修复 + 默认改 mirror.ghproxy）
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **根因**：今天 ghproxy.com IP 93.46.8.90 全网宕机（用户截图 `failed to connect to ghproxy.com/93.46.8.90 (port 443) after 30000ms`）+ v5.5.42 下载流程**只会尝试唯一 1 个镜像 URL**，不会 fallback，进度条卡在 0% 30s 后必失败。**附带 bug**：Setting.MIRROR_* 索引与 Updater.showMirrorDialog `items` 索引错位（用户 UI 点 "ghproxy" → mode=0 → getMirror() 返回空 DIRECT 直连；UI 点 "mirror.ghproxy" → mode=1 → 返回 ghproxy.com；完全串位）。 | — | — |
+| 2 | **Github.java**：① getMirror 索引对齐（mode=0 → ghproxy.com；mode=1 → mirror.ghproxy.com；mode=2 → 直连），与 Updater.showMirrorDialog items 顺序一致。② 新增 2 个公共镜像 `ghps.cambridgecs.co` + `gh.api.99988866.xyz`。③ 新 API `findApkUrls(release)` 返回 **5 条去重候选 URL**：`用户首选 → mirror.ghproxy → ghps.cambridgecs → gh.api.99988866 → 直连 GitHub`。旧 `findApkUrl` 保留（返回候选第 1 条）。 | [Github.java#L22-L58](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L22-L58) / [Github.java#L152-L203](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L152-L203) |
+| 3 | **Updater.java（主修复）**：`String apkUrl` → `List<String> apkUrls + int apkCursor`；`startDownload()` 状态显示"下载中（<镜像名>）…"（0% 不再无提示卡死）；`error()` 回调里如果还有候选，自动 `apkCursor++` → `startDownload()` 切下一个镜像，直到 5 个镜像全部失败才会报"下载失败"。单镜像 connect 30s 最多等 5 次，总等待期约 1.5-2.5 分钟，自动切下一个时进度条也会从 0 重新开始走（不再永久 0%）。 | [Updater.java#L29-L31](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L29-L31) / [Updater.java#L184-L213](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L184-L213) / [Updater.java#L282-L296](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L282-L296) |
+| 4 | **Setting.java**：`MIRROR_GHPROXY=0, MIRROR_MIRROR_GHPROXY=1, MIRROR_DIRECT=2`（对齐 UI），默认值从 `MIRROR_GHPROXY` 改成 `MIRROR_MIRROR_GHPROXY`，v5.5.42 用户本地 `mirror_mode=1`（老默认）升级后新代码解读成 mode=1=**mirror.ghproxy.com**，**自动从宕机 ghproxy.com 切走，用户无需任何操作**。 | [Setting.java#L148-L162](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L148-L162) |
+| 5 | 版本号 | versionCode 592 → **593** / versionName 5.5.43 → **5.5.44** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+**🆘 v5.5.42 / v5.5.40 用户应急方案（现在立刻就能下载，不用等 v5.5.44）**：
+```
+设置 → 找到 "Update Source"（设置/下载源） → 弹窗 3 选 1：
+  ● 推荐选第 2 项 "mirror.ghproxy.com (CN)"  → 确定 → 杀进程重开 App → 再检查更新
+  ○ 或选第 3 项 "Direct GitHub" → 确定 → 重开 App
+  ✗ 不要再选第 1 项 ghproxy.com (今日宕机 IP 93.46.8.90)
+```
+改完后重开 App 进设置点版本号，下载会立即从 mirror.ghproxy.com 或 GitHub 直连开始，进度条正常走。
+
+---
+
 ### v5.5.43 · 2026-08-08 · 修复 v5.5.42 引入的"官方源播放失败"（getRealUrl 被 playUrl 前缀拼接污染）
 
 | # | 模块 | 行为 | 代码位置 |

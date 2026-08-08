@@ -7,6 +7,12 @@ import com.github.catvod.net.OkHttp;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+
 public class Github {
 
     public static final String REPO = "ssmhdssmhd/MXboxS";
@@ -16,16 +22,43 @@ public class Github {
     public static final String MIRROR_DIRECT = "";
     public static final String MIRROR_GHPROXY = "https://ghproxy.com";
     public static final String MIRROR_MIRROR_GHPROXY = "https://mirror.ghproxy.com";
+    public static final String MIRROR_GHPS_CAMBRIDGECS = "https://ghps.cambridgecs.co";
+    public static final String MIRROR_GH_API_99988866 = "https://gh.api.99988866.xyz";
+
+    /** 公共镜像池（含直连空串）。会被 getMirrorCandidates 去重。**/
+    private static final List<String> MIRROR_POOL = Arrays.asList(
+            MIRROR_GHPROXY,
+            MIRROR_MIRROR_GHPROXY,
+            MIRROR_GHPS_CAMBRIDGECS,
+            MIRROR_GH_API_99988866,
+            MIRROR_DIRECT
+    );
+
+    /** 镜像模式索引（与 Setting 中的常量 + Updater.showMirrorDialog 中的顺序保持一致）*/
+    public static String getMirror() {
+        int mode = Setting.getMirrorMode();
+        if (mode == Setting.MIRROR_GHPROXY) return MIRROR_GHPROXY;
+        if (mode == Setting.MIRROR_MIRROR_GHPROXY) return MIRROR_MIRROR_GHPROXY;
+        return MIRROR_DIRECT;
+    }
+
+    /**
+     * 返回「优先用户首选 + 所有公共镜像 + 直连」的去重候选列表，供下载失败时自动 fallback。
+     *
+     * 为什么要有 fallback：
+     *   2026-08-08 用户反馈 ghproxy.com IP 93.46.8.90 端口 443 超时 30s → 进度条 0% 后 failed。
+     *   之前 Updater 只会尝试唯一 1 个 URL，用户只能手动改镜像。现在会自动循环 4~5 个镜像直到成功。
+     */
+    public static List<String> getMirrorCandidates() {
+        String preferred = getMirror();
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        set.add(preferred);
+        set.addAll(MIRROR_POOL);
+        return new ArrayList<>(set);
+    }
 
     public static String getApiUrl() {
         return API_LATEST;
-    }
-
-    public static String getMirror() {
-        int mode = Setting.getMirrorMode();
-        if (mode == 1) return MIRROR_GHPROXY;
-        if (mode == 2) return MIRROR_MIRROR_GHPROXY;
-        return MIRROR_DIRECT;
     }
 
     public static JSONObject getLatestRelease() {
@@ -116,44 +149,57 @@ public class Github {
         return 0;
     }
 
-    public static String findApkUrl(JSONObject release) {
+    private static String pickDirectApkUrl(JSONObject release) throws Exception {
         if (release == null) return null;
-        try {
-            JSONArray assets = release.optJSONArray("assets");
-            if (assets == null) return null;
+        JSONArray assets = release.optJSONArray("assets");
+        if (assets == null) return null;
 
-            String mode = BuildConfig.FLAVOR_mode;
-            String abi = BuildConfig.FLAVOR_abi;
+        String mode = BuildConfig.FLAVOR_mode;
+        String abi = BuildConfig.FLAVOR_abi;
 
-            String mirror = getMirror();
-
-            for (int i = 0; i < assets.length(); i++) {
-                JSONObject asset = assets.getJSONObject(i);
-                String name = asset.optString("name");
-                if (name.endsWith(".apk") && name.contains(mode) && name.contains(abi)) {
-                    String downloadUrl = asset.optString("browser_download_url");
-                    if (!mirror.isEmpty()) {
-                        return mirror + "/" + downloadUrl;
-                    }
-                    return downloadUrl;
-                }
+        for (int i = 0; i < assets.length(); i++) {
+            JSONObject asset = assets.getJSONObject(i);
+            String name = asset.optString("name");
+            if (name.endsWith(".apk") && name.contains(mode) && name.contains(abi)) {
+                return asset.optString("browser_download_url");
             }
+        }
+        for (int i = 0; i < assets.length(); i++) {
+            JSONObject asset = assets.getJSONObject(i);
+            String name = asset.optString("name");
+            if (name.endsWith(".apk") && name.contains(mode)) {
+                return asset.optString("browser_download_url");
+            }
+        }
+        return null;
+    }
 
-            for (int i = 0; i < assets.length(); i++) {
-                JSONObject asset = assets.getJSONObject(i);
-                String name = asset.optString("name");
-                if (name.endsWith(".apk") && name.contains(mode)) {
-                    String downloadUrl = asset.optString("browser_download_url");
-                    if (!mirror.isEmpty()) {
-                        return mirror + "/" + downloadUrl;
-                    }
-                    return downloadUrl;
-                }
+    /**
+     * 旧版 API：返回用户首选镜像对应的 APK URL（单一）。
+     * 保留给外部可能的引用，代码内部的下载流程请改用 findApkUrls() 走 fallback。
+     */
+    public static String findApkUrl(JSONObject release) {
+        List<String> urls = findApkUrls(release);
+        return urls == null || urls.isEmpty() ? null : urls.get(0);
+    }
+
+    /**
+     * 新版 API：按「用户首选 → 公共镜像池 → 直连 GitHub」的去重候选顺序，返回多个可下载 APK URL。
+     * Updater 下载第一个失败时自动切换下一个，避免 ghproxy 单镜像宕机就进度条 0% 卡死、30s 后失败。
+     */
+    public static List<String> findApkUrls(JSONObject release) {
+        List<String> out = new ArrayList<>();
+        try {
+            String direct = pickDirectApkUrl(release);
+            if (direct == null || direct.isEmpty()) return Collections.emptyList();
+            for (String mirror : getMirrorCandidates()) {
+                String u = (mirror == null || mirror.isEmpty()) ? direct : mirror + "/" + direct;
+                if (u != null && !u.isEmpty() && !out.contains(u)) out.add(u);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return null;
+        return out;
     }
 
     /**
