@@ -9,16 +9,25 @@
 
 ## 最新更新
 
-### v5.5.42 · 2026-08-06 · 修复 m3u8 播放报错 "Network Connection Failed"（第三方解析站伪造 127.0.0.1 本地代理 URL）
+### v5.5.42 · 2026-08-08 · 修复"检测不到最新版本" + 版本检测双保险 + m3u8 伪造本地代理 URL 还原（4 道防线）
 
-| # | 防线位置 | 行为 | 代码位置 |
-|---|---------|------|---------|
-| 1 | **UrlUtil** | 新增 `unwrapFakeLocalProxy(url)` 还原算法：识别 `http://127.0.0.1:非9978~9999/p/0/.../base64/index.m3u8` 结构，从 base64 段解码出真实页面 URL（如 https://player.ypls.com/play/...） | [UrlUtil.java#L24-L81](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L24-L81) |
-| 2 | **ParseJob** | 解析成功出口拦截：先嗅探还原 URL（直链 probe + 正文正则候选逐个 probe），未命中则 `fallbackConcurrentParse` 重跑「JSON解析站 + WebView sniff + jsonExtend」多路兜底挖真 m3u8 | [ParseJob.java#L717-L805](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L717-L805) |
-| 3 | **CustomWebView** | shouldInterceptRequest 过滤伪造本地代理 URL，不把它当直链触发 onParseSuccess | [CustomWebView.java#L117-L134](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWebView.java#L117-L134) |
-| 4 | **PlayerManager** | onParseSuccess 入口第三道防线：仍检测到伪造则用还原真实 URL 重走 `parse(useParse=true)`（+reparse 尾标防递归） | [PlayerManager.java#L515-L539](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L515-L539) |
-| 5 | **PlaybackActivity** | startPlayer 入口第四道防线：SiteApi 直接返回的伪造 URL 替换为真实 URL，并强制 `parse=1 / useParse=true` 走解析 | [PlaybackActivity.java#L232-L261](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L232-L261) |
-| 6 | 版本号 | versionCode 590 → **591** / versionName 5.5.41 → **5.5.42** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **Updater.java（主修复）** | 优先 `Github.getHighestRelease()`（遍历 `/releases?per_page=10` 全部 releases 含 prerelease，从 APK 文件名取数字比较最高版），失败回退 `getLatestRelease()`；复用公共方法 `Github.compareVersion` 版本比较；`version/desc` 显式 final，`App.post` 改匿名 Runnable 消除 lambda 非 effectively final 变量导致的 **javac 编译失败**（这是之前 MXboxS-latest 始终没产出的根因） | [Updater.java#L86-L162](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L86-L162) |
+| 2 | **Github.java** | 新增 `API_LIST` / `getHighestRelease()` / `compareVersion()` 公共方法；修复 `extractVersionFromAssets` 兜底 p2 正则少右括号 `)` 的 PatternSyntaxException | [Github.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java) |
+| 3 | **四道防线 · 伪造 127.0.0.1 本地代理 URL 还原**（m3u8 Network Connection Failed） | UrlUtil.unwrapFakeLocalProxy → ParseJob 拦截 + aiSmartParseFallbackFrom + fallbackConcurrentParse 重跑多路兜底 → CustomWebView shouldInterceptRequest 过滤假直链 → PlayerManager.onParseSuccess / PlaybackActivity.startPlayer 入口兜底；成功把 `http://127.0.0.1:10079/p/.../aHR0cHM6...Lw/index.m3u8` 还原为 `https://player.ypls.com/play/...` 页面再挖真 m3u8 | [UrlUtil.java#L24-L81](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L24-L81) / [ParseJob.java#L717-L805](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L717-L805) / [CustomWebView.java#L117-L134](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWebView.java#L117-L134) / [PlayerManager.java#L515-L539](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L515-L539) / [PlaybackActivity.java#L232-L261](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L232-L261) |
+| 4 | **CI 构建验证** | 3 workflow 全部通过（push main / workflow_dispatch / tag v5.5.42），双 release 产出：`MXboxS-latest`（设为 🟢 Latest，4 APK 5.5.42）+ 稳定 release `v5.5.42` | [Actions](https://github.com/ssmhdssmhd/MXboxS/actions/workflows/build.yml) / [Releases](https://github.com/ssmhdssmhd/MXboxS/releases) |
+| 5 | 版本号 | versionCode 590 → **591** / versionName 5.5.41 → **5.5.42** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+**端到端验证（用户 5.5.40 客户端模拟）**：
+```
+GET /repos/ssmhdssmhd/MXboxS/releases/latest
+  tag_name     = MXboxS-latest  prerelease=False  🟢 Latest
+  assets[0..3] = MXboxS-*-5.5.42.apk  （4 个变体都是 5.5.42）
+  提取 version = 5.5.42
+  本地 version = 5.5.40
+  compareVersion(5.5.42, 5.5.40) = +2 > 0   →   ✅ 弹出更新对话框并开始下载!
+```
 
 ### v5.5.41 · 2026-08-06 · 修复自动更新：push main 自动更新 Releases Latest，App 自动感知最新版
 

@@ -2,9 +2,9 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
-## [v5.5.42] - 2026-08-06
+## [v5.5.42] - 2026-08-08
 
-### 修复 m3u8 播放报错 "Network Connection Failed"（第三方解析站伪造 127.0.0.1 本地代理 URL）
+### 一、修复 m3u8 播放报错 "Network Connection Failed"（第三方解析站伪造 127.0.0.1 本地代理 URL）
 
 #### 问题复现与根因
 
@@ -15,7 +15,7 @@
 
 #### 修复（四道防线 + 还原后再解析）
 
-**1. UrlUtil 新增 `unwrapFakeLocalProxy(url)` 还原算法**（[UrlUtil.java#L24-L81](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L24-L81)）：
+**1. UrlUtil 新增 `unwrapFakeLocalProxy(url)` 还原算法**（[UrlUtil.java#L24-L81](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L24-L81)）
 
 识别特征：
 - `scheme == http/https` && `host == 127.0.0.1 / localhost`
@@ -37,8 +37,68 @@
 **5. PlaybackActivity.startPlayer 第四道防线**（[PlaybackActivity.java#L232-L261](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L232-L261)）：
 - SiteApi 直接返回的 Result，如果 url 是伪造本地代理 URL → 替换为还原出的真实 URL，并强制 `parse=1 / useParse=true` 走解析流程（因为 base64 里一般是 player.ypls.com 这种页面，不是直链 m3u8）
 
-#### 版本号
+---
 
+### 二、修复版本检测不生效 / 不到最新版本 + CI 编译失败
+
+#### 现象（用户截图）
+
+> App v5.5.40 → 设置 → 检查更新 → 提示 **"已是最新版本"**，但实际仓库已经到 v5.5.42 了。
+
+#### 根因 1 · GitHub /releases/latest 返回旧的 v5.5.36
+- GitHub 的 `/releases/latest` API **只返回被官方标记为 "Latest" 的 Release**（忽略 prerelease，除非显式 `gh release create ... --latest`）。
+- 之前 v5.5.37 ~ v5.5.41 期间每次 push main 的 CI step#10 `assembleMobileArm64_v8aRelease` 都是 **BUILD FAILED**，`Update Latest Pre-release` 步骤被跳过，所以 `MXboxS-latest` release **从未真正创建成功**。
+- 最终 /releases/latest 返回的是稳定发布里被标为 Latest 的 **v5.5.36** → `5.5.36 < 5.5.40` → 客户端判为"已是最新"。
+
+#### 根因 2 · CI 编译失败（Updater lambda 非 final 变量）
+- [Updater.java#L148-149](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L148-L149) 两个 `App.post(λ)` 里引用了 `version` / `desc`，但它们之前在 `if (version.isEmpty()) version = tag...` 分支被改过 → javac 判定 **非 effectively final** →
+  ```
+  error: local variables referenced from a lambda expression must be final or effectively final
+  ```
+- 导致 `:app:compileMobileArm64_v8aReleaseJavaWithJavac` 失败 → 4 APK 构建全 skip → MXboxS-latest release 永远不会产生。
+
+#### 根因 3 · Github.java 兜底正则少右括号（PatternSyntaxException）
+- [Github.java#L176](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L176) `Pattern.compile("([0-9]+\\.[0-9]+\\.[0-9]+")` 少 `)` → 语法错误被 catch(ignored) 吞掉 → APK 文件名提取版本号的兜底路径完全失效。
+
+#### 根因 4 · Updater 仅调用 `/releases/latest` 无兜底
+- 就算 MXboxS-latest 某次没被设为 Latest，只要 `/releases/latest` 返回旧版就判定"没有更新"。
+- 新增 releases 列表兜底后，就算 Latest 标记错乱，也会遍历 `/releases?per_page=10` 所有 release（含 prerelease），按 APK 文件名版本号取 **数字比较最高** 的那个返回。
+
+#### 修复
+
+| # | 文件 | 做了什么 |
+|---|------|---------|
+| 1 | **Github.java** | 新增 `API_LIST` / `getHighestRelease()` / `parseIntOrZero()` / `compareVersion(a,b)` 公共方法；修复 `extractVersionFromAssets` p2 正则缺失的 `)`；`findApkUrl` 不变 | [Github.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java) |
+| 2 | **Updater.java** | `doInBackground` 优先 `Github.getHighestRelease()`（遍历 releases 列表取最高 APK 版本），失败再回退 `getLatestRelease()`；版本比较复用 `Github.compareVersion`；`version / desc` 显式 `final` 引用，`App.post` 改为显式 `new Runnable()` 匿名类，彻底消除 lambda 捕获非 effectively final 变量的 javac 报错 | [Updater.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java) |
+| 3 | **.gitignore** | 新增 `.trae-html-share-packages/`，防止会话产物被意外提交 | [.gitignore](file:///workspace/.gitignore) |
+
+#### 验证 🔥 三条 workflow 全通过 + Releases 双产出
+
+```
+RUN# 31230501772  branch=main       push               SUCCESS  ✅ 自动产出 MXboxS-latest 并设为 Latest（4 APK 5.5.42）
+RUN# 31230506677  branch=v5.5.42    push tag           SUCCESS  ✅ 产出正式 tag release v5.5.42
+RUN# 31230506893  branch=main       workflow_dispatch  SUCCESS
+```
+
+```
+GH Releases 当前（Latest 行高亮）:
+──────────────────────────────────────────────────────────
+v5.5.42                                             v5.5.42  （正式稳定 Release）
+MXboxS v5.5.42 (build 91fa94e)  🟢 Latest    MXboxS-latest  （/releases/latest 现在返回它！4 APK 都是 5.5.42）
+v5.5.36  ...                                               （旧版 Latest，不再被 /latest 返回）
+──────────────────────────────────────────────────────────
+```
+
+**模拟用户手机 v5.5.40 检测更新（端到端）**：
+```
+/releases/latest  tag_name = MXboxS-latest
+assets            = [ MXboxS-mobile-arm64_v8a-5.5.42.apk, ... ]
+extract version   = 5.5.42
+本地版本          = 5.5.40
+compareVersion    = +2   （> 0）  →  ✅ 弹出更新对话框!
+```
+
+#### 版本号
 versionCode 590 → **591** / versionName 5.5.41 → **5.5.42**
 
 ## [v5.5.41] - 2026-08-06
