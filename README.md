@@ -9,6 +9,19 @@
 
 ## 最新更新
 
+### v5.5.46 · 2026-08-08 · 修复直播无法正常获取和播放（直播格式识别 + M3U过滤 + 多线路自动切源）
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **直播 MIME 类型增强识别** | `MediaItemFactory.resolveMimeType` 重写：① `hasExt(url, ext)` 正确处理含 `?`/`#` 的扩展名；② 新增 `isLikelyHls / isLikelyDash / isLikelyLiveStream` 按路径关键字（`/live/`、`/stream/`、`/playlist`、`/hls/`、`.tv/`、`cctv/hdtv/iptv/直播/频道`、`mime=m3u8`、`type=m3u8`）兜底识别；③ `rtsp://`/`rtmp://` 交由 Media3 内置 Source | [MediaItemFactory.java#L37-L111](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/media/MediaItemFactory.java#L37-L111) |
+| 2 | **M3U 解析白名单** | `LiveParser.m3u` 引入 `LIVE_URL_SCHEME`，只接受 `http(s)://`、`rtmp://`、`rtsp://`、`video://`、`proxy://`；跳过空行与非 URL 行（`#EXTHTTP:{...}` 等脏行不再混入频道 URL） | [LiveParser.java#L82-L132](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/parser/LiveParser.java#L82-L132) |
+| 3 | **失败自动切源 / 重试** | `LiveFallbackPolicy.playbackError` 移除 `isLast()` 限制（任何线路出错都切下一条）；`LivePlaybackController.switchLine` 移除 `isOnly()` 限制（单线路频道也能 `refresh()` 重试）；先 `renderLineSelection` 再 `nextLine/refresh`，UI 同步显示切换状态 | [LiveFallbackPolicy.java#L19-L25](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/live/LiveFallbackPolicy.java#L19-L25) / [LivePlaybackController.java#L129-L137](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/live/LivePlaybackController.java#L129-L137) |
+| 4 | 版本号 | versionCode 594 → **595** / versionName 5.5.45 → **5.5.46** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+**兼容覆盖的直播格式**：`.m3u8/.m3u/.mpd/.ts/.flv`（含 query/fragment）→ 无扩展名 IPTV/HTTP(S) 直播流（`/live`、`/stream`、`.tv`、`cctv/hdtv/iptv`、`mime=m3u8` 等）→ `rtsp://` / `rtmp://` → 内置 `video://` / `proxy://` 通道。
+
+---
+
 ### v5.5.45 · 2026-08-08 · AI 智能过滤广告字幕 + AI 功能默认全开
 
 | # | 模块 | 行为 | 代码位置 |
