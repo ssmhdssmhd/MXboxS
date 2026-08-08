@@ -530,10 +530,10 @@ public class PlayerManager implements ParseCallback {
                 // parse=1 足以让 needParse() 返回 true（needParse 内部是 parse==1 || jx==1），避免 jx 缺失 setter
                 result.setParse(1);
                 if (spec != null) {
-                    // 尽量保留原 result 的附加信息：drm/subs/danmaku/format 这些在 fromParse 构造 PlaySpec 时会用到
+                    // 尽量保留原 result 的附加信息：drm/subs/format 在 fromParse 构造 PlaySpec 时会用到
+                    // danmaku 无 public setter，弹幕是体验增强，不影响播放，跳过拷贝
                     result.setDrm(spec.getDrm());
                     result.setSubs(spec.getSubs());
-                    result.setDanmaku(spec.getDanmakus());
                     result.setFormat(spec.getFormat());
                 }
                 if (spec != null) parse(spec.getKey(), result, true, spec.getMetadata(), pendingStartPositionMs);
