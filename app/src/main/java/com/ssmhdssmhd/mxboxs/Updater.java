@@ -337,7 +337,13 @@ public class Updater implements Download.Callback, UpdateListener {
 
     @Override
     public void progress(int progress) {
+        // 兼容旧接口（如果其他地方直接调用 progress(int) 而非新接口）
         if (dialog != null) dialog.setProgress(progress);
+    }
+
+    @Override
+    public void progress(int progress, long downloadedBytes, long totalBytes) {
+        if (dialog != null) dialog.setProgress(progress, downloadedBytes, totalBytes);
     }
 
     @Override

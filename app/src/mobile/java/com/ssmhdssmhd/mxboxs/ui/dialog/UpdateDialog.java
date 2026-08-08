@@ -131,6 +131,22 @@ public class UpdateDialog extends BaseAlertDialog {
         }
     }
 
+    /** 带字节数的进度显示：已知总大小时显示「已下载 X.X MB / 总 Y.Y MB」，未知时显示「已下载 X.X MB」。 */
+    public void setProgress(int progress, long downloadedBytes, long totalBytes) {
+        if (binding == null) return;
+        StringBuilder sb = new StringBuilder();
+        if (progress >= 0) sb.append(progress).append("%");
+        if (downloadedBytes > 0) {
+            if (sb.length() > 0) sb.append(" · ");
+            sb.append(com.ssmhdssmhd.mxboxs.utils.Download.formatBytes(downloadedBytes));
+            if (totalBytes > 0 && totalBytes >= downloadedBytes) {
+                sb.append(" / ").append(com.ssmhdssmhd.mxboxs.utils.Download.formatBytes(totalBytes));
+            }
+        }
+        binding.progressBar.setProgress(Math.max(0, Math.min(100, progress)));
+        binding.progressText.setText(sb.toString());
+    }
+
     public void setConfirmEnabled(boolean enabled) {
         setConfirmEnabled(enabled, R.string.update_confirm);
     }

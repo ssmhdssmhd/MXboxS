@@ -9,6 +9,19 @@
 
 ## 最新更新
 
+### v5.5.50 · 2026-08-08 · 修复下载进度条全程 0%——Range 头拿总大小 + 每 200ms 汇报已下载字节数
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **Range 头强制拿 Content-Range** | `doInBackground` 改用 `Request.Builder().header("Range", "bytes=0-")`；`getContentLength()` 优先解析 `Content-Range: bytes 0-N/N`，退化到 `Content-Length` | [Download.java#L79-L111](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Download.java#L79-L111) |
+| 2 | **双路进度回调** | 已知总大小→每块回调百分比+字节数；未知总大小→每 200ms 回调已下载字节数；下载完成强制 100% | [Download.java#L113-L154](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Download.java#L113-L154) |
+| 3 | **Callback 接口升级** | 新增 `progress(int progress, long downloadedBytes, long totalBytes)` 默认方法，兼容旧 `progress(int)`；新增 `formatBytes()` 工具 | [Download.java#L182-L212](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Download.java#L182-L212) |
+| 4 | **UI 带字节数进度** | `UpdateDialog.setProgress(progress, downloaded, total)` 显示「42% · 12.3 MB / 29.1 MB」或「已下载 12.3 MB」 | [mobile UpdateDialog#L134-L148](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L134-L148) / [leanback UpdateDialog#L127-L141](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L127-L141) |
+| 5 | **Updater 适配** | 实现新 `progress(progress, downloaded, total)` 接口 | [Updater.java#L344-L347](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L344-L347) |
+| 6 | 版本号 | versionCode 598 → **599** / versionName 5.5.49 → **5.5.50** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.49 · 2026-08-08 · 修复「下载失败 timeout」按钮仍置灰——10s 短超时 + 10 条镜像秒切 + 全部失败按钮改为「重试」
 
 | # | 模块 | 行为 | 代码位置 |

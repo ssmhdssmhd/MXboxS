@@ -2,6 +2,41 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.50] - 2026-08-08
+
+### 修复：下载进度条全程 0%（无 Content-Length 导致回调被跳过） —— Range 头拿总大小 + 每 200ms 汇报已下载字节数
+
+#### 现象（来自你的截图）
+- 下载对话框显示 `下载中 (mirror.ghproxy.com) …`，但进度条一直停在 0%，数字也是 0%；
+- 右下角按钮文案正确变成「正在下载…」（v5.5.49 修复的），但进度条完全不动。
+
+#### 根因
+1. **GitHub browser_download_url 走 chunked 编码**：APK 下载响应没有 `Content-Length` header，旧 `Download.getLength()` 返回 -1；
+2. **进度回调被跳过**：`download()` 方法中 `if (length <= 0) continue;` 直接跳过了所有进度回调，导致 UI 永远 0%；
+3. **即使有 Content-Length 也只更新百分比**：没有显示已下载字节数/总大小，用户无法判断下载是否真的在进行。
+
+#### 修复
+1. **强制 Range 头请求**：`doInBackground` 改用 `Request.Builder().header("Range", "bytes=0-")`，让 GitHub 返回 `Content-Range: bytes 0-N/N`，从而解析出 APK 总大小；
+2. **双路进度回调**：
+   - 已知总大小：`callback.progress(percent, downloadedBytes, totalBytes)` 每块都回调；
+   - 未知总大小：每 200ms 回调一次 `callback.progress(-1, downloadedBytes, -1)`，显示「已下载 X.X MB」；
+3. **Callback 接口升级**：新增 `progress(int progress, long downloadedBytes, long totalBytes)` 默认方法，兼容旧 `progress(int)` 接口；
+4. **UI 显示升级**：`UpdateDialog.setProgress(progress, downloaded, total)` 显示「42% · 12.3 MB / 29.1 MB」或「已下载 12.3 MB」；
+5. **Download.formatBytes() 工具方法**：格式化字节为 "X.X KB/MB/GB"。
+
+#### 代码位置
+- [Download.java#L79-L154](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Download.java#L79-L154) — Range 头 + Content-Range 解析 + 双路进度回调
+- [Download.java#L182-L212](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Download.java#L182-L212) — Callback 接口升级 + formatBytes
+- [mobile UpdateDialog#L127-L148](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L127-L148) — 带字节数的进度显示
+- [leanback UpdateDialog#L120-L141](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L120-L141) — 同上（TV 端）
+- [Updater.java#L338-L347](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L338-L347) — 新 progress 回调适配
+
+#### 版本号
+- versionCode 598 → **599**
+- versionName 5.5.49 → **5.5.50**
+
+---
+
 ## [v5.5.49] - 2026-08-08
 
 ### 修复：「下载失败：timeout」后按钮一直「正在下载…」置灰，无重试入口 —— 短超时 10s 自动秒切 10 条镜像 + 所有镜像失败后按钮改为「重试」

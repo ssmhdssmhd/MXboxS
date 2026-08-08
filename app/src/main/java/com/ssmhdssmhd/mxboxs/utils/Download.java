@@ -14,7 +14,9 @@ import java.util.concurrent.Future;
 
 import okhttp3.Call;
 import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 public class Download {
 
@@ -79,10 +81,18 @@ public class Download {
         Call call = null;
         Response res = null;
         try {
-            call = OkHttp.newCall(client, url, tag);
+            // 加 Range: bytes=0- 头：强制 GitHub browser_download_url 返回 Content-Range，从而拿到 APK 总大小
+            // 没有这个头 GitHub 会走 chunked 编码，响应体没有 Content-Length，getLength() 返回 -1，进度永远 0%
+            Request request = new Request.Builder()
+                    .url(url)
+                    .tag(tag)
+                    .header("Range", "bytes=0-")
+                    .build();
+            call = client.newCall(request);
             activeCall = call;
             res = call.execute();
-            download(res.body().byteStream(), getLength(res));
+            long total = getContentLength(res);
+            download(res.body().byteStream(), total);
             if (callback != null) App.post(() -> callback.success(file));
         } catch (Exception e) {
             Path.clear(file);
@@ -100,37 +110,104 @@ public class Download {
         }
     }
 
-    private void download(InputStream is, double length) throws IOException {
+    private void download(InputStream is, long totalBytes) throws IOException {
         try (BufferedInputStream input = new BufferedInputStream(is); FileOutputStream os = new FileOutputStream(Path.create(file))) {
             byte[] buffer = new byte[16384];
             int readBytes;
-            long totalBytes = 0;
+            long downloadedBytes = 0;
+            long lastReportTime = 0;
             while ((readBytes = input.read(buffer)) != -1) {
                 if (Thread.interrupted()) return;
-                totalBytes += readBytes;
+                downloadedBytes += readBytes;
                 os.write(buffer, 0, readBytes);
-                if (length <= 0) continue;
-                int progress = (int) (totalBytes / length * 100.0);
-                if (callback != null) App.post(() -> callback.progress(progress));
+
+                // 进度回调策略：
+                // 1) 如果已知 totalBytes，计算百分比；
+                // 2) 如果未知 totalBytes，每 200ms 回调一次已下载字节数（给 UI 显示「已下载 X.X MB」）
+                long now = System.currentTimeMillis();
+                if (totalBytes > 0) {
+                    int progress = (int) (downloadedBytes * 100L / totalBytes);
+                    if (callback != null) {
+                        final int p = progress;
+                        final long d = downloadedBytes;
+                        final long t = totalBytes;
+                        App.post(() -> callback.progress(p, d, t));
+                    }
+                } else if (now - lastReportTime >= 200) {
+                    if (callback != null) {
+                        final long d = downloadedBytes;
+                        App.post(() -> callback.progress(-1, d, -1));
+                    }
+                    lastReportTime = now;
+                }
+            }
+            // 下载完成：100% 回调一次，确保 UI 显示完成状态
+            if (callback != null && totalBytes > 0) {
+                final long d = downloadedBytes;
+                final long t = totalBytes;
+                App.post(() -> callback.progress(100, d, t));
+            } else if (callback != null) {
+                final long d = downloadedBytes;
+                App.post(() -> callback.progress(100, d, -1));
             }
         }
     }
 
-    private double getLength(Response res) {
+    /** 优先从 Content-Range 解析总大小（Range: bytes=0- 会让 GitHub 返回 Content-Range），退化到 Content-Length。 */
+    private long getContentLength(Response res) {
         try {
-            String header = res.header(HttpHeaders.CONTENT_LENGTH);
-            return header != null ? Double.parseDouble(header) : -1;
-        } catch (Exception e) {
-            return -1;
+            // Content-Range: bytes 0-1234567/1234567  ← 总大小为 / 后面的数字
+            String contentRange = res.header(HttpHeaders.CONTENT_RANGE);
+            if (contentRange != null && !contentRange.isEmpty()) {
+                int slash = contentRange.lastIndexOf('/');
+                if (slash >= 0 && slash < contentRange.length() - 1) {
+                    String total = contentRange.substring(slash + 1);
+                    try {
+                        long v = Long.parseLong(total.trim());
+                        if (v > 0) return v;
+                    } catch (Throwable ignored) {}
+                }
+            }
+            // 退化：Content-Length
+            String cl = res.header(HttpHeaders.CONTENT_LENGTH);
+            if (cl != null && !cl.isEmpty()) {
+                long v = Long.parseLong(cl.trim());
+                if (v > 0) return v;
+            }
+        } catch (Exception ignored) {
         }
+        return -1;
     }
 
     public interface Callback {
 
-        void progress(int progress);
+        /**
+         * 进度回调（新接口，带字节数信息）。
+         *
+         * @param progress 百分比 0-100，若 totalBytes=-1 则为 -1 表示总大小未知
+         * @param downloadedBytes 已下载字节数
+         * @param totalBytes 总字节数，-1 表示未知（服务器未返回 Content-Length/Range）
+         */
+        default void progress(int progress, long downloadedBytes, long totalBytes) {
+            // 默认回退：只调旧的 int progress(int) 接口，方便旧代码兼容
+            progress(progress);
+        }
+
+        /** 旧接口：仅百分比，保留兼容 */
+        default void progress(int progress) {
+        }
 
         void error(String msg);
 
         void success(File file);
+    }
+
+    /** 工具方法：将字节数格式化为 "X.X MB" / "X.X GB" */
+    public static String formatBytes(long bytes) {
+        if (bytes < 0) return "";
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024L * 1024) return String.format(java.util.Locale.getDefault(), "%.1f KB", bytes / 1024.0);
+        if (bytes < 1024L * 1024 * 1024) return String.format(java.util.Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024));
+        return String.format(java.util.Locale.getDefault(), "%.2f GB", bytes / (1024.0 * 1024 * 1024));
     }
 }
