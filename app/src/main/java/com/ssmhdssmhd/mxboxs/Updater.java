@@ -200,6 +200,7 @@ public class Updater implements Download.Callback, UpdateListener {
 
             // 找到 APK 下载链接（多镜像候选列表，下载失败自动 fallback）
             apkUrls = Github.findApkUrls(release);
+            apkUrls = Github.ensureCandidates(apkUrls, release, Github.getMirrorCandidates());
             apkCursor = 0;
 
             // 连接成功，有新版本
@@ -241,7 +242,7 @@ public class Updater implements Download.Callback, UpdateListener {
         if (apkUrls == null || apkUrls.isEmpty() || apkCursor >= apkUrls.size()) {
             if (dialog != null) {
                 dialog.setStatus(ResUtil.getString(R.string.update_download_failed, "APK not found"));
-                dialog.setConfirmEnabled(true);
+                dialog.setConfirmEnabled(true, R.string.update_retry);
             }
             return;
         }
@@ -262,14 +263,14 @@ public class Updater implements Download.Callback, UpdateListener {
         if (apkCursor > 0 && dialog != null) {
             dialog.setStatus("镜像 " + (apkCursor + 1) + "/" + apkUrls.size() + "：" + mirrorTag + " 下载中…（前一镜像失败，自动切换）");
         } else if (dialog != null) {
-            dialog.setStatus("下载中（" + mirrorTag + "，候选镜像共 " + apkUrls.size() + " 条）…");
+            dialog.setStatus("下载中（" + mirrorTag + "，候选镜像共 " + apkUrls.size() + " 条 · 10s 超时快速切源）…");
         }
         if (dialog != null) {
             dialog.showProgress();
             dialog.setProgress(0);
         }
         if (download != null) download.cancel();
-        download = Download.create(url, getFile());
+        download = Download.create(url, getFile(), Download.APK_DOWNLOAD_TIMEOUT_MS).tag(url);
         download.start(this);
     }
 
@@ -314,10 +315,10 @@ public class Updater implements Download.Callback, UpdateListener {
 
     @Override
     public void onConfirm(View view) {
-        view.setEnabled(false);
+        // 手动点右下角（"更新"/"重试"）：把游标重置到候选列表开头，重新按并行 HEAD 挑最快镜像再下载。
+        // 按钮禁用/文案切换统一由 startDownload()->showProgress() 或 error()->setConfirmEnabled(true, 重试) 管理，不要在这里手动写回 enabled。
         apkCursor = 0;
         startDownload();
-        view.setEnabled(true);
     }
 
     @Override
@@ -349,15 +350,23 @@ public class Updater implements Download.Callback, UpdateListener {
             final int total = apkUrls.size();
             final String nextLabel = Github.getMirrorLabel(apkUrls.get(apkCursor));
             if (dialog != null) {
-                dialog.setStatus("镜像 " + cur + "/" + total + "：切换到 " + nextLabel + " …");
+                dialog.setStatus("镜像 " + cur + "/" + total + "：切换到 " + nextLabel + " …（" + msg + "）");
+                // 切源过程中按钮保持禁用，文案仍显示 Downloading（因为我们会立刻 startDownload）
+                dialog.setConfirmEnabled(false);
             }
             App.post(this::startDownload);
             return;
         }
-        // 所有镜像都失败：才真正显示错误
+        // 所有镜像都失败：才真正显示错误，并把「正在下载…」按钮改为「重试」可点击
         if (dialog != null) {
             dialog.setStatus(ResUtil.getString(R.string.update_download_failed, msg + "（全部 " + (apkUrls == null ? 0 : apkUrls.size()) + " 条镜像均失败）"));
-            dialog.setConfirmEnabled(true);
+            dialog.setConfirmEnabled(true, R.string.update_retry);
+            // 再把 debug 信息追加一条，避免用户看不到失败全貌
+            CharSequence prev = dialog.readDebugInfo();
+            String more = "\n\n最后一次错误：" + msg
+                    + "\n已尝试 10 条候选镜像（短超时 10s 自动切源）。"
+                    + "\n可点击右下角『重试』再次从第一个镜像按连通性重排后重新下载；或到「设置 → 更新源」切换首选镜像（例如手动改成 GitHub 直连 / mirror.ghproxy / ghps 等）。";
+            dialog.setDebugInfo(prev == null ? more : (prev + more));
         }
         Notify.show(msg);
     }

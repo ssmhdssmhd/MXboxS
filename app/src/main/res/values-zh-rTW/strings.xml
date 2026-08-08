@@ -232,6 +232,7 @@
     <string name="update_no_new">已是最新版本</string>
     <string name="update_download_failed">下載失敗：<xliff:g name="name">%s</xliff:g></string>
     <string name="update_downloading">正在下載…</string>
+    <string name="update_retry">重試</string>
     <string name="update_installing">正在安裝…</string>
     <string name="setting_mirror">更新源</string>
     <string name="mirror_direct">GitHub 直連</string>

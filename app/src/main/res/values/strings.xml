@@ -237,6 +237,7 @@
     <string name="update_no_new">Already up to date</string>
     <string name="update_download_failed">Download failed: <xliff:g name="name">%s</xliff:g></string>
     <string name="update_downloading">Downloading…</string>
+    <string name="update_retry">Retry</string>
     <string name="update_installing">Installing…</string>
     <string name="setting_mirror">Update Source</string>
     <string name="mirror_direct">Direct GitHub</string>

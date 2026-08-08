@@ -383,14 +383,72 @@ public class Github {
         try {
             String direct = pickDirectApkUrl(release);
             if (direct == null || direct.isEmpty()) return Collections.emptyList();
+            // 1) 常规前缀镜像拼接
             for (String mirror : getMirrorCandidates()) {
                 String u = (mirror == null || mirror.isEmpty()) ? direct : mirror + "/" + direct;
                 if (u != null && !u.isEmpty() && !out.contains(u)) out.add(u);
+            }
+            // 2) JSDelivr @tag 专用候选（jsdelivr 能直接从 Release 资产拉，但需要形如 @tag + 文件名的路径）
+            try {
+                List<String> js = buildJsDelivrCandidates(release, direct);
+                for (String u : js) if (u != null && !out.contains(u)) out.add(u);
+            } catch (Throwable ignored) {
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return out;
+    }
+
+    private static List<String> buildJsDelivrCandidates(JSONObject release, String directApkUrl) {
+        List<String> out = new ArrayList<>();
+        if (release == null || directApkUrl == null) return out;
+        // directApkUrl 形如：https://github.com/{owner}/{repo}/releases/download/{tag}/{filename}.apk
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
+                "https?://github\\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/(.+\\.apk)",
+                java.util.regex.Pattern.CASE_INSENSITIVE
+        ).matcher(directApkUrl);
+        if (!m.matches()) return out;
+        String owner = m.group(1);
+        String repo = m.group(2);
+        String tag = m.group(3);
+        String file = m.group(4);
+        if (owner == null || repo == null || tag == null || file == null) return out;
+        // jsdelivr /gh/owner/repo@tag/path/to/file  →  path 用 releases/download/tag/file.apk 有时不稳定，换用 release asset 的 CDN 格式：
+        // https://fastly.jsdelivr.net/gh/owner/repo@tag/  只能从 repo 文件系统取，无法直接读 release asset (上传到 GitHub release 的文件不在 git tree)
+        // → 但我们能把 fastly/jsdelivr 的前缀，直接当成普通镜像用（走反代回 releases/download 路径），这样即便 jsdelivr 不能从 @tag 读 asset，也会回源到 GitHub。
+        // 同时保留 @tag 备用版本，作为「额外候选」丢给 rankByConnectivity 做 HEAD，能通就用。
+        String basePath = "/releases/download/" + tag + "/" + file;
+        out.add(MIRROR_JSDELIVR_FASTLY + basePath);
+        out.add(MIRROR_JSDELIVR_CN + basePath);
+        return out;
+    }
+
+    /**
+     * 兜底增强：若 findApkUrls 返回的候选数不足（v5.5.46 客户端只有 5 条前缀时常见），
+     * 这里再用 getMirrorCandidates() 对 direct URL 重拼一遍，保证候选数达到 mirrorCandidates.size() 以上 + jsdelivr 额外 2 条。
+     */
+    public static List<String> ensureCandidates(List<String> existing, JSONObject release, List<String> mirrorCandidates) {
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        if (existing != null) set.addAll(existing);
+        try {
+            String direct = pickDirectApkUrl(release);
+            if (direct != null && !direct.isEmpty()) {
+                if (mirrorCandidates != null) {
+                    for (String mirror : mirrorCandidates) {
+                        String u = (mirror == null || mirror.isEmpty()) ? direct : mirror + "/" + direct;
+                        if (u != null && !u.isEmpty()) set.add(u);
+                    }
+                }
+                try {
+                    List<String> js = buildJsDelivrCandidates(release, direct);
+                    set.addAll(js);
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return new ArrayList<>(set);
     }
 
     /**

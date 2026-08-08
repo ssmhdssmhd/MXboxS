@@ -9,6 +9,19 @@
 
 ## 最新更新
 
+### v5.5.49 · 2026-08-08 · 修复「下载失败 timeout」按钮仍置灰——10s 短超时 + 10 条镜像秒切 + 全部失败按钮改为「重试」
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **APK 下载短超时 10s** | `Download.create(url, file, 10_000ms)` 重载；`OkHttp.client(true, timeoutMs)` 直接带超时；SocketTimeout 消息追加「10000ms 内未响应，已自动快速失败」；新增 `volatile Call activeCall` 快速取消 | [Download.java#L19-L101](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Download.java#L19-L101) |
+| 2 | **按钮「正在下载…」失败变「重试」可点** | `UpdateDialog.setConfirmEnabled(enabled, textRes)` 重载；Updater.error 全部失败 → `setConfirmEnabled(true, R.string.update_retry)`，Debug 面板追加指引；切源中 status 含失败原因，不再默默转圈 | [mobile UpdateDialog](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L128-L149) / [leanback UpdateDialog](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L121-L149) / [Updater.error](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L343-L372) |
+| 3 | **onConfirm 状态不写乱** | 移除 `view.setEnabled(false) ... view.setEnabled(true)`，统一由 `showProgress() + setConfirmEnabled` 管理 | [Updater.onConfirm](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L315-L320) |
+| 4 | **10+ 条候选镜像兜底** | `Github.findApkUrls` 新增 `buildJsDelivrCandidates`（fastly + cdn jsdelivr 反代 release 路径）+ `ensureCandidates()` 对老客户端候选太少时重拼；最多 12 条全部进入并行 HEAD 排好 | [Github.java#L377-L452](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L377-L452) / [Updater.doInBackground](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L201-L204) |
+| 5 | 国际化 strings | 新增 `update_retry`（zh 重试 / 重試 / en Retry） | [zh-CN](file:///workspace/app/src/main/res/values-zh-rCN/strings.xml#L235-L237) / [zh-TW](file:///workspace/app/src/main/res/values-zh-rTW/strings.xml#L234-L236) / [en](file:///workspace/app/src/main/res/values/strings.xml#L239-L241) |
+| 6 | 版本号 | versionCode 597 → **598** / versionName 5.5.48 → **5.5.49** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.48 · 2026-08-08 · 修复「检测更新却显示已是最新」的诊断难题——对话框追加 Debug 版本信息
 
 | # | 模块 | 行为 | 代码位置 |

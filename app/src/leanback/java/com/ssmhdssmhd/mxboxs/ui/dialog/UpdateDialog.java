@@ -100,6 +100,12 @@ public class UpdateDialog extends BaseAlertDialog {
         }
     }
 
+    public CharSequence readDebugInfo() {
+        if (binding == null || binding.debug == null) return "";
+        CharSequence t = binding.debug.getText();
+        return t == null ? "" : t;
+    }
+
     public void showProgress() {
         if (binding != null) {
             binding.progressBar.setVisibility(View.VISIBLE);
@@ -120,6 +126,12 @@ public class UpdateDialog extends BaseAlertDialog {
 
     public void setConfirmEnabled(boolean enabled) {
         binding.confirm.setEnabled(enabled);
+        if (enabled) binding.confirm.setText(R.string.update_confirm);
+    }
+
+    public void setConfirmEnabled(boolean enabled, int textRes) {
+        binding.confirm.setEnabled(enabled);
+        if (enabled) binding.confirm.setText(textRes);
     }
 
     private void onConfirm(View view) {

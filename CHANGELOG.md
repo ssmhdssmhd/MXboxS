@@ -2,6 +2,56 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.49] - 2026-08-08
+
+### 修复：「下载失败：timeout」后按钮一直「正在下载…」置灰，无重试入口 —— 短超时 10s 自动秒切 10 条镜像 + 所有镜像失败后按钮改为「重试」
+
+#### 现象（来自你的 v5.5.46 客户端截图）
+- 检测新版本正常（发现 v5.5.47 / e718f36，Commit 一致），但下载后显示 `下载失败：timeout`；
+- 右下角按钮仍显示「正在下载…」并保持 **置灰不可点**，用户除了点「取消」关闭对话框别无他法；
+- 没看到 `镜像 2/10：切换到 ghps…` 这类切源提示，v5.5.46 默认下载超时是 OkHttp 30s 级别，用户等不及直接取消。
+
+#### 根因
+1. **OkHttp 默认 connect/read 超时太长**：旧 `Download.doInBackground()` 直接用 `OkHttp.newCall(url, tag)` 走全局默认 30s 超时，ghproxy 被墙/宕机时要等足 30s 才抛 SocketTimeoutException。
+2. **「正在下载…」按钮状态不恢复**：`showProgress()` 把 PositiveButton `setEnabled(false) + setText(正在下载…)`，但 `error()` 里只调用了 `setConfirmEnabled(true)`，**按钮文案没改回可识别的「重试/更新」**，于是即便内部 enabled=true，UI 上用户看还是灰色「正在下载…」四个字（颜色不可点），实际 disabled 状态与文案不一致。
+3. **按钮 onConfirm 也有状态置乱**：点击后 `view.setEnabled(false)`，切回 `apkCursor=0, startDownload()` 马上又 `view.setEnabled(true)`，导致 `showProgress()` 内刚设的禁用被覆盖。
+4. **旧 v5.5.46 客户端候选列表可能不足 5 条**：`Github.getMirrorCandidates()` 在 v5.5.46 只有 5 条前缀，且不含 `mirror.ghproxy.com`/`ghps.cambridgecs`/`ghproxy.net`/`gh.mirai`/`jsdelivr`，失败就没得切。
+
+#### 修复
+1. **Download 专属 APK 下载短超时（10s）**
+   - `Download.create(url, file, timeoutMs)` 新重载；新增 `DEFAULT_TIMEOUT_MS=20s` / `APK_DOWNLOAD_TIMEOUT_MS=10s` 常量；
+   - `doInBackground` 改用 `OkHttp.client(true, timeoutMs)` + `OkHttp.newCall(client, url, tag)`；
+   - 失败时错误消息追加上下文：`timeout（10000ms 内未响应，已自动快速失败）`，避免用户以为卡死；
+   - 新增 `volatile Call activeCall`，cancel 时优先 `call.cancel()`（比 dispatcher().queuedCalls/runningCalls + tag 取消更快）。
+
+2. **「正在下载…」按钮失败后改为「重试」并可点击（两套布局 mobile + leanback 都处理）**
+   - `UpdateDialog.setConfirmEnabled(boolean enabled, int textRes)` 新增重载，enabled=true 时同时把按钮文字改成指定资源（`R.string.update_retry = 重试`）；
+   - Updater.error() 全部失败分支：`dialog.setConfirmEnabled(true, R.string.update_retry)`，status 显示「下载失败：xxx（全部 10 条镜像均失败）」，debug 面板追加「最后一次错误…可点击右下角『重试』…」指引；
+   - Updater.error() 切源分支：status 显示「镜像 2/10：切换到 ghps …（timeout 10000ms…）」，明确告知用户前次失败原因；
+   - startDownload 当 APK not found 时也设为「重试」可点击。
+   - 国际化补齐：zh-rCN「重试」/ zh-rTW「重試」/ en "Retry"（values-zh-rCN、values-zh-rTW、values 三条 strings 都加了 `update_retry`）。
+
+3. **onConfirm 去掉手动 view.setEnabled 写回**
+   - 原 onConfirm 内的 `view.setEnabled(false); apkCursor=0; startDownload(); view.setEnabled(true);` 会把 `showProgress()` 刚设的 disabled 顶成 true，导致 UI 上「正在下载…」其实是 enabled 状态但灰色；现在直接由 `showProgress()` 和 `setConfirmEnabled()` 统一管理，不用手动写。
+
+4. **保证候选 URL >= 10 条（兜底 ensureCandidates + jsdelivr 专用镜像）**
+   - `Github.findApkUrls()` 额外调用 `buildJsDelivrCandidates(release, direct)`：从 `https://github.com/{owner}/{repo}/releases/download/{tag}/{file}.apk` 正则切出 owner/repo/tag/file，再拼出 fastly.jsdelivr + cdn.jsdelivr 的两条反代路径；
+   - `Github.ensureCandidates()` 再兜底：`Updater.doInBackground` 对 findApkUrls 的结果再 `ensureCandidates(existing, release, getMirrorCandidates())` 重拼去重，保证 v5.5.46 老版本如果继承了旧 findApkUrls 候选太少，也能自动补到 10+；
+   - 候选池现 10 条前缀 + jsdelivr 2 条专用，最多 12 条，全部进入 rankByConnectivity 并行 HEAD 探测排好。
+
+**代码位置：**
+- [Download.java#L19-L101](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Download.java#L19-L101) 短超时 + activeCall 取消
+- [UpdateDialog(mobile).setConfirmEnabled+readDebugInfo](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L128-L149) / [UpdateDialog(leanback)](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L121-L149) setConfirmEnabled 重载 + readDebugInfo
+- [strings.xml update_retry](file:///workspace/app/src/main/res/values-zh-rCN/strings.xml#L235-L237) / [zh-rTW](file:///workspace/app/src/main/res/values-zh-rTW/strings.xml#L234-L236) / [en](file:///workspace/app/src/main/res/values/strings.xml#L239-L241)
+- [Updater.startDownload 10s 短超时 + 按钮文案](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L240-L275)
+- [Updater.onConfirm 移除 view.setEnabled 手动写回](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L315-L320)
+- [Updater.error 切源按钮状态 + 全部失败改为「重试」+ Debug 追加指引](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L343-L372)
+- [Github.findApkUrls + buildJsDelivrCandidates + ensureCandidates](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L377-L452)
+
+版本号：versionCode 597 → **598** / versionName 5.5.48 → **5.5.49**（[app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23)）
+
+---
+
 ## [v5.5.48] - 2026-08-08
 
 ### 修复：点「检测更新」提示「已是最新」却不显示为什么？——对话框追加 Debug 版本信息，版本号来源/Release 来源/比较结果一目了然

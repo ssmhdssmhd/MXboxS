@@ -12,24 +12,41 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.Future;
 
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
 public class Download {
 
+    public static final long DEFAULT_TIMEOUT_MS = 20_000L;
+    /** APK 下载专属「快速失败」短超时：让 5.5.46 客户端在 ghproxy.com 30s 超时前自动切源。 */
+    public static final long APK_DOWNLOAD_TIMEOUT_MS = 10_000L;
+
     private final File file;
     private final String url;
+    private final long timeoutMs;
     private Callback callback;
     private Future<?> future;
     private String tag;
+    private volatile Call activeCall;
 
     public static Download create(String url, File file) {
-        return new Download(url, file);
+        return new Download(url, file, DEFAULT_TIMEOUT_MS);
+    }
+
+    public static Download create(String url, File file, long timeoutMs) {
+        return new Download(url, file, timeoutMs);
     }
 
     public Download(String url, File file) {
+        this(url, file, DEFAULT_TIMEOUT_MS);
+    }
+
+    public Download(String url, File file, long timeoutMs) {
         this.tag = url;
         this.url = url;
         this.file = file;
+        this.timeoutMs = timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
     }
 
     public Download tag(String tag) {
@@ -50,18 +67,36 @@ public class Download {
     public Download cancel() {
         if (future != null) future.cancel(true);
         OkHttp.cancel(tag);
+        Call c = activeCall;
+        if (c != null) try { c.cancel(); } catch (Throwable ignored) {}
+        activeCall = null;
         future = null;
         return this;
     }
 
     private void doInBackground() {
-        try (Response res = OkHttp.newCall(url, tag).execute()) {
+        OkHttpClient client = OkHttp.client(true, timeoutMs);
+        Call call = null;
+        Response res = null;
+        try {
+            call = OkHttp.newCall(client, url, tag);
+            activeCall = call;
+            res = call.execute();
             download(res.body().byteStream(), getLength(res));
             if (callback != null) App.post(() -> callback.success(file));
         } catch (Exception e) {
             Path.clear(file);
-            if (callback != null) App.post(() -> callback.error(e.getMessage()));
-            else throw new RuntimeException(e.getMessage(), e);
+            if (callback != null) {
+                String msg = e.getMessage();
+                if (msg == null || msg.isEmpty()) msg = (e instanceof java.net.SocketTimeoutException ? "timeout" : e.getClass().getSimpleName());
+                final String fmsg = msg + "（" + timeoutMs + "ms 内未响应，已自动快速失败）";
+                App.post(() -> callback.error(fmsg));
+            } else {
+                throw new RuntimeException(e.getMessage(), e);
+            }
+        } finally {
+            if (res != null) try { res.close(); } catch (Throwable ignored) {}
+            activeCall = null;
         }
     }
 

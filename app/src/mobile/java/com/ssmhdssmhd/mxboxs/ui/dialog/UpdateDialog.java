@@ -104,6 +104,12 @@ public class UpdateDialog extends BaseAlertDialog {
         }
     }
 
+    public CharSequence readDebugInfo() {
+        if (binding == null || binding.debug == null) return "";
+        CharSequence t = binding.debug.getText();
+        return t == null ? "" : t;
+    }
+
     public void showProgress() {
         if (binding != null) {
             binding.progressBar.setVisibility(View.VISIBLE);
@@ -126,7 +132,15 @@ public class UpdateDialog extends BaseAlertDialog {
     }
 
     public void setConfirmEnabled(boolean enabled) {
+        setConfirmEnabled(enabled, R.string.update_confirm);
+    }
+
+    public void setConfirmEnabled(boolean enabled, int textRes) {
         AlertDialog dialog = (AlertDialog) getDialog();
-        if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(enabled);
+        if (dialog == null) return;
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(enabled);
+        if (enabled) {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(textRes);
+        }
     }
 }
