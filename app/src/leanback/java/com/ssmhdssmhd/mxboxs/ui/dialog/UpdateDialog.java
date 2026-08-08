@@ -20,6 +20,10 @@ public class UpdateDialog extends BaseAlertDialog {
     private String title;
     private String desc;
 
+    /** v5.5.51：leanback 版使用 binding.confirm（自己的按钮），无缓存问题；但为了保持对称 & 避免 future 改动，加 pending 兜底 + 状态访问安全 */
+    private Boolean pendingConfirmEnabled;
+    private Integer pendingConfirmTextRes;
+
     public static UpdateDialog create() {
         return new UpdateDialog();
     }
@@ -65,6 +69,15 @@ public class UpdateDialog extends BaseAlertDialog {
     protected void initEvent() {
         binding.confirm.setOnClickListener(this::onConfirm);
         binding.cancel.setOnClickListener(this::onCancel);
+        // initEvent 发生在布局 inflate 之后，这时 binding.confirm 已经可用，应用 pending
+        if (pendingConfirmEnabled != null) {
+            binding.confirm.setEnabled(pendingConfirmEnabled);
+            if (Boolean.TRUE.equals(pendingConfirmEnabled) && pendingConfirmTextRes != null) {
+                binding.confirm.setText(pendingConfirmTextRes);
+            }
+            pendingConfirmEnabled = null;
+            pendingConfirmTextRes = null;
+        }
     }
 
     public void setStatus(String text) {
@@ -113,8 +126,13 @@ public class UpdateDialog extends BaseAlertDialog {
             binding.progressBar.setProgress(0);
             binding.progressText.setText("0%");
         }
-        binding.confirm.setEnabled(false);
-        binding.confirm.setText(R.string.update_downloading);
+        if (binding != null && binding.confirm != null) {
+            binding.confirm.setEnabled(false);
+            binding.confirm.setText(R.string.update_downloading);
+        } else {
+            pendingConfirmEnabled = false;
+            pendingConfirmTextRes = R.string.update_downloading;
+        }
     }
 
     public void setProgress(int progress) {
@@ -141,13 +159,23 @@ public class UpdateDialog extends BaseAlertDialog {
     }
 
     public void setConfirmEnabled(boolean enabled) {
-        binding.confirm.setEnabled(enabled);
-        if (enabled) binding.confirm.setText(R.string.update_confirm);
+        if (binding != null && binding.confirm != null) {
+            binding.confirm.setEnabled(enabled);
+            if (enabled) binding.confirm.setText(R.string.update_confirm);
+        } else {
+            pendingConfirmEnabled = enabled;
+            pendingConfirmTextRes = R.string.update_confirm;
+        }
     }
 
     public void setConfirmEnabled(boolean enabled, int textRes) {
-        binding.confirm.setEnabled(enabled);
-        if (enabled) binding.confirm.setText(textRes);
+        if (binding != null && binding.confirm != null) {
+            binding.confirm.setEnabled(enabled);
+            if (enabled) binding.confirm.setText(textRes);
+        } else {
+            pendingConfirmEnabled = enabled;
+            pendingConfirmTextRes = textRes;
+        }
     }
 
     private void onConfirm(View view) {

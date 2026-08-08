@@ -35,7 +35,8 @@ public class Github {
     public static final String MIRROR_DIRECT = "";
     public static final String MIRROR_GHPROXY = "https://ghproxy.com";
     public static final String MIRROR_MIRROR_GHPROXY = "https://mirror.ghproxy.com";
-    public static final String MIRROR_GHPS_CAMBRIDGECS = "https://ghps.cambridgecs.co";
+    /** v5.5.51 修复：之前写成 .co 导致 DNS 解析失败（Unable to resolve host） */
+    public static final String MIRROR_GHPS_CAMBRIDGECS = "https://ghps.cambridgecs.com";
     public static final String MIRROR_GH_API_99988866 = "https://gh.api.99988866.xyz";
     /** 国内镜像补充：ghproxy.net（与 ghproxy.com 非同一服务）、gh.mirai.org（镜像 gh release）、gh-proxy.com（常见公益站） */
     public static final String MIRROR_GHPROXY_NET = "https://ghproxy.net";
@@ -44,17 +45,20 @@ public class Github {
     public static final String MIRROR_JSDELIVR_CN = "https://cdn.jsdelivr.net/gh";
     public static final String MIRROR_JSDELIVR_FASTLY = "https://fastly.jsdelivr.net/gh";
     public static final String MIRROR_CF_CN = "https://gh.tmoe.me";
+    /** 再补 2 条公益 ghproxy（避免前 10 条全挂） */
+    public static final String MIRROR_GH_1MS = "https://gh.1ms.run";
+    public static final String MIRROR_GH_DOG = "https://gh.dmirror.xyz";
 
     /** 显示名 → 前缀，用户 UI 下拉选单选 */
     public static final LinkedHashMap<String, String> MIRROR_OPTIONS = new LinkedHashMap<>();
     static {
         MIRROR_OPTIONS.put("ghproxy.com（国内）", MIRROR_GHPROXY);
         MIRROR_OPTIONS.put("mirror.ghproxy.com（国内）", MIRROR_MIRROR_GHPROXY);
-        MIRROR_OPTIONS.put("ghps.cambridgecs.co（国内）", MIRROR_GHPS_CAMBRIDGECS);
+        MIRROR_OPTIONS.put("ghps.cambridgecs.com（国内）", MIRROR_GHPS_CAMBRIDGECS);
         MIRROR_OPTIONS.put("gh.api.99988866.xyz（国内）", MIRROR_GH_API_99988866);
         MIRROR_OPTIONS.put("ghproxy.net（国内）", MIRROR_GHPROXY_NET);
         MIRROR_OPTIONS.put("gh.mirai.org（国内）", MIRROR_GH_MIRAI);
-        MIRROR_OPTIONS.put("jsdelivr CDN（海外）", MIRROR_JSDELIVR_FASTLY);
+        MIRROR_OPTIONS.put("gh.1ms.run（国内）", MIRROR_GH_1MS);
         MIRROR_OPTIONS.put("GitHub 直连", MIRROR_DIRECT);
     }
 
@@ -66,7 +70,9 @@ public class Github {
             MIRROR_GH_API_99988866,
             MIRROR_GH_MIRAI,
             MIRROR_GHPROXY,
-            MIRROR_CF_CN
+            MIRROR_CF_CN,
+            MIRROR_GH_1MS,
+            MIRROR_GH_DOG
     );
 
     /** 海外常用镜像池（GitHub 直连通常对海外/加速通道最快，放前面） */
@@ -87,11 +93,178 @@ public class Github {
             MIRROR_JSDELIVR_FASTLY,
             MIRROR_JSDELIVR_CN,
             MIRROR_CF_CN,
+            MIRROR_GH_1MS,
+            MIRROR_GH_DOG,
             MIRROR_DIRECT
     );
 
     /** 并行 HEAD 探测超时时长（毫秒）。给每个镜像最多 4s，超过就认为当前网络到这个镜像延迟过高。 */
     private static final long PING_TIMEOUT_MS = 4000L;
+
+    /** 「先测试再下载」阶段的超短探测：connect 1.5s / read 1.5s（不下载任何字节）。DNS 失败/超时直接快速排除。 */
+    public static final long PROBE_TIMEOUT_MS = 1500L;
+
+    /** probe 结果（给 Updater 显示和排序用）。 */
+    public static final class ProbeResult {
+        public final String url;
+        public final boolean ok;
+        public final long rttMs;      // 成功的 RTT，失败=Long.MAX_VALUE
+        public final String error;    // 失败原因，成功=null
+        public ProbeResult(String url, boolean ok, long rttMs, String error) {
+            this.url = url; this.ok = ok; this.rttMs = rttMs; this.error = error;
+        }
+    }
+
+    /** probe 进度回调（在 UI 线程上触发）。index 从 0 开始，total=N, result=当前探测完成的那条。 */
+    public interface ProbeListener {
+        void onProbeOne(int index, int total, ProbeResult result);
+    }
+
+    /**
+     * 先测试再下载：并行短超时探测每条 APK URL，返回「可用 URL 按 RTT 升序」的列表。
+     * 同时通过 listener 把「每完成一条的结果」回调到 UI，让对话框显示「探测 3/14：ghproxy.com ✅ 187ms」。
+     *
+     * @param apkUrls 来自 findApkUrls(release) 的候选 URL 列表
+     * @param listener UI 进度回调（可以为 null），回调在 UI 线程
+     * @return ProbeResult 列表，永远非 null，顺序=ok优先+RTT升序，失败=RTT Long.MAX_VALUE 放末尾
+     */
+    public static List<ProbeResult> probeUrls(final List<String> apkUrls, final ProbeListener listener) {
+        if (apkUrls == null || apkUrls.isEmpty()) return Collections.emptyList();
+        final int total = apkUrls.size();
+        final List<ProbeResult> results = Collections.synchronizedList(new ArrayList<ProbeResult>(total));
+        final java.util.concurrent.atomic.AtomicInteger doneCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(total, 8));
+        try {
+            List<Future<?>> futures = new ArrayList<>(total);
+            for (int i = 0; i < total; i++) {
+                final int idx = i;
+                final String url = apkUrls.get(i);
+                if (url == null) {
+                    results.add(new ProbeResult("", false, Long.MAX_VALUE, "URL is null"));
+                    continue;
+                }
+                futures.add(pool.submit(new Callable<Object>() {
+                    @Override
+                    public Object call() {
+                        ProbeResult r = probeOne(url, PROBE_TIMEOUT_MS);
+                        // 先填占位：保证 results 顺序与输入一致
+                        synchronized (results) {
+                            while (results.size() <= idx) results.add(null);
+                            results.set(idx, r);
+                        }
+                        int n = doneCount.incrementAndGet();
+                        if (listener != null) {
+                            final int fi = idx;
+                            final int ft = total;
+                            final ProbeResult fr = r;
+                            final int fn = n;
+                            try {
+                                App.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        // 用 fn 表示当前完成的第 n 条，UI 展示 fn/total 更直观
+                                        listener.onProbeOne(fi, ft, fr);
+                                    }
+                                });
+                            } catch (Throwable ignored) {
+                            }
+                        }
+                        return null;
+                    }
+                }));
+            }
+            pool.shutdown();
+            try {
+                pool.awaitTermination(PROBE_TIMEOUT_MS + 500L, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            pool.shutdownNow();
+        } catch (Throwable ignored) {
+            try { pool.shutdownNow(); } catch (Throwable ignore) {}
+        }
+
+        // 补空（如果有未完成的）
+        while (results.size() < total) results.add(new ProbeResult(apkUrls.get(results.size()), false, Long.MAX_VALUE, "probe cancelled"));
+
+        // 复制成非同步 List，按 ok 优先 + RTT 升序 排序
+        List<ProbeResult> sorted = new ArrayList<>(results);
+        Collections.sort(sorted, new Comparator<ProbeResult>() {
+            @Override
+            public int compare(ProbeResult a, ProbeResult b) {
+                if (a == null && b == null) return 0;
+                if (a == null) return 1;
+                if (b == null) return -1;
+                if (a.ok && !b.ok) return -1;
+                if (!a.ok && b.ok) return 1;
+                return Long.compare(a.rttMs, b.rttMs);
+            }
+        });
+        return sorted;
+    }
+
+    /** 从 ProbeResult 列表（排序后）中抽取「ok=true 的 URL 在前，ok=false 的 URL 在后」的纯 URL 列表，给下载阶段用。 */
+    public static List<String> extractUrls(List<ProbeResult> probes) {
+        List<String> out = new ArrayList<>();
+        if (probes == null) return out;
+        for (ProbeResult p : probes) if (p != null) out.add(p.url);
+        return out;
+    }
+
+    /** 单条探测：优先 HEAD（快），失败（例如服务器返回 405 Method Not Allowed）回退到 GET bytes=0-0 仅 1 字节探测。 */
+    private static ProbeResult probeOne(String url, long timeoutMs) {
+        OkHttpClient client = OkHttp.client(false, timeoutMs);
+        // 1) 试 HEAD
+        okhttp3.Call call = null;
+        Response res = null;
+        long start = System.currentTimeMillis();
+        try {
+            Request req = new Request.Builder().url(url).head().build();
+            call = client.newCall(req);
+            res = call.execute();
+            long rtt = System.currentTimeMillis() - start;
+            int code = res.code();
+            if (code >= 200 && code < 400) {
+                return new ProbeResult(url, true, rtt, null);
+            }
+            // 405/5xx/4xx 回退 GET 0-1 字节再试
+        } catch (Throwable e) {
+            // HEAD 抛异常（例如 UnknownHost、ConnectTimeout）再试 GET
+        } finally {
+            if (res != null) try { res.close(); } catch (Throwable ignored) {}
+            if (call != null) try { call.cancel(); } catch (Throwable ignored) {}
+            res = null; call = null;
+        }
+        // 2) 回退 GET Range: bytes=0-0
+        start = System.currentTimeMillis();
+        try {
+            Request req = new Request.Builder().url(url).header("Range", "bytes=0-0").build();
+            call = client.newCall(req);
+            res = call.execute();
+            long rtt = System.currentTimeMillis() - start;
+            int code = res.code();
+            if (code == 206 || (code >= 200 && code < 300) || code == 302 || code == 301 || code == 307) {
+                return new ProbeResult(url, true, rtt, null);
+            }
+            String msg = "HTTP " + code;
+            return new ProbeResult(url, false, Long.MAX_VALUE, msg);
+        } catch (Throwable e) {
+            long rtt = System.currentTimeMillis() - start;
+            String msg = e.getMessage();
+            if (msg == null || msg.isEmpty()) msg = e.getClass().getSimpleName();
+            // 把常见错误压缩成短字符串，便于 UI 显示
+            if (msg.contains("Unable to resolve host")) msg = "DNS 解析失败";
+            else if (msg.contains("SocketTimeout") || msg.contains("timeout") || msg.contains("timed out")) msg = "timeout";
+            else if (msg.contains("Connection refused")) msg = "连接被拒";
+            else if (msg.contains("SSLHandshakeException")) msg = "SSL 握手失败";
+            else if (msg.length() > 40) msg = msg.substring(0, 37) + "…";
+            return new ProbeResult(url, false, Long.MAX_VALUE, msg);
+        } finally {
+            if (res != null) try { res.close(); } catch (Throwable ignored) {}
+            if (call != null) try { call.cancel(); } catch (Throwable ignored) {}
+        }
+    }
 
     /**
      * 取镜像显示名（用于 Updater 文案）。

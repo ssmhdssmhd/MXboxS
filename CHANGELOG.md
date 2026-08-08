@@ -2,6 +2,55 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.51] - 2026-08-08
+
+### 新方案：先测试再下载（1.5s 超短探针并行扫描）+ 修复 ghps.cambridgecs.co → .com 域名拼写错误 + 修复「正在下载…」按钮一直置灰的根因（Button 引用缓存）
+
+#### 对应你最新两张截图里的问题
+1. `Unable to resolve host "ghps.cambridgecs.co": No address associated with hostname` → **之前把域名写错了！** 正确是 `cambridgecs.com` 而不是 `.co`；
+2. `下载失败：timeout` 但右下角按钮仍是 **灰色「正在下载…」** → mobile 版 `setConfirmEnabled(enabled, textRes)` 在 `getDialog()==null` 时直接 return，按钮状态永远没应用。
+
+#### 「先测试，再下载」方案设计（你问的思路已直接落地代码）
+
+**阶段 1 · Probe 预测试（并行 8 线程，1.5s connect/read 超时）**
+- 触发时机：`apkCursor == 0`（用户点「更新」或「重试」）时跑一次；
+- 测试对象：所有 10~14 条 APK URL（候选 = 镜像前缀 + jsdelivr @tag）；
+- 每条测试方法：
+  1. 先 `HEAD` 请求（最快，不下载字节），超时/HTTP 405/非 2xx 回退；
+  2. 回退 `GET Range: bytes=0-0` 只拿 1 字节（很多镜像对 HEAD 返回 405，但 GET 正常）；
+  3. 成功：ok=true + RTT（毫秒级），失败：ok=false + 短错误文案（DNS 解析失败/timeout/连接被拒/SSL 握手失败）。
+- UI 反馈：每条 probe 完成后立刻刷新 status：
+  - 成功：`探针 3/14：ghproxy.com ✅ 187ms（继续探测剩余 11 条）…`
+  - 失败：`探针 4/14：ghps.cambridgecs.com ❌ DNS 解析失败（继续探测剩余 10 条）…`
+  - 进度条 `setProgress(percent)` 跟着 `n/total` 推进，不会出现「0% 假死」。
+- 结束排序：ok 优先 → 按 RTT 升序，失败的放末尾；apkUrls 重排，后续下载就从 **最快的可用镜像** 开始。
+
+**阶段 2 · Download 真正下载（沿用 10s timeout + 自动切源）**
+- `apkCursor=0`：开始下载，status 文字立刻显示 `下载中（mirror.ghproxy.com，候选镜像共 14 条 · 10s 超时快速切源）…`
+- error() 切源：还是 `apkCursor++ → App.post startDownload`，但因为 **probe 阶段已把可用 URL 放最前**，通常到不了切源；
+- 全部失败：debug 面板**追加「预测试总结」详细列出 ✅X 条可用 / ❌Y 条失败 / 失败项明细**，用户一眼能判断哪几个镜像 DNS 不通或被墙。
+
+**按钮状态修复（mobile 端最关键）**
+- 新增 `cachedPositive` 字段（Button）+ `pendingConfirmEnabled/pendingConfirmTextRes` 挂起状态；
+- `setConfirmEnabled(enabled, textRes)` 改为：
+  1. 先取 cachedPositive，再尝试再取 dialog button；
+  2. 如果都为 null（onStart 未触发前 dialog 没创建），写入 pending 字段；
+  3. `onStart()` 触发时把 pending 应用到刚创建的 Button 上。
+- 保证 error 分支调用 `setConfirmEnabled(true, R.string.update_retry)` 时**哪怕 dialog 还没完全 ready，等 onStart 后也一定会变成蓝色可点的「重试」**，不会再停在灰色「正在下载…」。
+
+#### 镜像域名修复 & 新增
+- `MIRROR_GHPS_CAMBRIDGECS`：`https://ghps.cambridgecs.co` → `https://ghps.cambridgecs.com`
+- `MIRROR_OPTIONS` 显示名同步：`ghps.cambridgecs.co（国内）` → `ghps.cambridgecs.com（国内）`
+- 新增 2 条公益 ghproxy 镜像（避免前 10 条全挂）：
+  - `MIRROR_GH_1MS = https://gh.1ms.run`（国内）
+  - `MIRROR_GH_DOG = https://gh.dmirror.xyz`（国内）
+
+#### 版本号
+- versionCode 599 → **600**
+- versionName 5.5.50 → **5.5.51**
+
+---
+
 ## [v5.5.50] - 2026-08-08
 
 ### 修复：下载进度条全程 0%（无 Content-Length 导致回调被跳过） —— Range 头拿总大小 + 每 200ms 汇报已下载字节数

@@ -20,6 +20,7 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Updater implements Download.Callback, UpdateListener {
 
@@ -29,6 +30,8 @@ public class Updater implements Download.Callback, UpdateListener {
     private List<String> apkUrls;
     private int apkCursor;
     private boolean forced;
+    /** 预测试阶段完成后保存的 probe 总结文案，用于全部失败时追加到 debug 面板（让用户知道哪几个镜像 DNS 解析失败） */
+    private String lastProbeSummary;
 
     private Updater() {
     }
@@ -246,17 +249,61 @@ public class Updater implements Download.Callback, UpdateListener {
             }
             return;
         }
-        // 只有 apkCursor==0（第一次开始下载）时才做并行 HEAD 连通性排序，失败 fallback 的后续轮次不再重排
-        if (apkCursor == 0 && apkUrls.size() >= 2 && dialog != null) {
-            dialog.setStatus("正在挑选最快镜像（并行探测 4s）…");
-        }
+
+        // 先测试再下载：仅 apkCursor == 0（新开始 / 用户点重试）触发一次预测试。
+        //   1. probeUrls 并行跑，1.5s 超短探测（HEAD 失败回退 GET 0-0 字节），避免 ghps.cambridgecs.co 之类 DNS 解析失败拖到真正下载阶段才抛异常
+        //   2. UI 实时滚动「探针 3/14：ghproxy.com ✅ 187ms / ghps.cambridgecs.com ❌ DNS 解析失败」
+        //   3. probe 结束后 apkUrls 重新赋值为 extractUrls(sorted)：可用的放前面，RTT 小的放最前
         if (apkCursor == 0 && apkUrls.size() >= 2) {
-            try {
-                // 同步调用会阻塞「后台下载发起线程」，最多 ~4.3s；超时/异常直接用默认顺序
-                apkUrls = Github.rankByConnectivity(apkUrls);
-            } catch (Throwable ignored) {
+            // UI：预测试模式，progressBar 用不确定进度（如果支持），这里用 setProgress(0,0,0) 也能提示用户「准备阶段」
+            final int total = apkUrls.size();
+            final AtomicInteger doneCount = new AtomicInteger(0);
+            final StringBuilder probeSummary = new StringBuilder();
+            if (dialog != null) {
+                dialog.setStatus("预测试：正在扫描 " + total + " 条镜像可用性（最快 1.5s 出结果，失败的直接跳过，不进入下载阶段）…");
+                dialog.showProgress();
+                dialog.setProgress(0);
             }
+            final List<String> currentCandidates = apkUrls;
+            List<Github.ProbeResult> results = Github.probeUrls(currentCandidates, new Github.ProbeListener() {
+                @Override
+                public void onProbeOne(int index, int t, Github.ProbeResult r) {
+                    UpdateDialog d = UpdateDialogWrap.access(Updater.this);
+                    if (d == null) return;
+                    int dn = doneCount.incrementAndGet();
+                    String label = Github.getMirrorLabel(r.url);
+                    String mark;
+                    if (r.ok) mark = "✅";
+                    else mark = "❌";
+                    String extra = "";
+                    if (r.ok) extra = r.rttMs < Long.MAX_VALUE ? (r.rttMs + "ms") : "";
+                    else if (r.error != null) extra = r.error;
+                    probeSummary.setLength(0);
+                    probeSummary.append(label).append(" ").append(mark).append(" ").append(extra);
+                    d.setStatus("探针 " + dn + "/" + total + "：" + label + " " + mark + " " + extra + "（继续探测剩余 " + Math.max(0, total - dn) + " 条）…");
+                    // 用 setProgress 的「整数进度」模拟探测比例，让 UI 有反馈
+                    int percent = (int) (dn * 100L / Math.max(1, total));
+                    d.setProgress(percent);
+                }
+            });
+            // 构建总结文案（给 debug 面板用）和新 apkUrls（可用的放前面）
+            StringBuilder sb = new StringBuilder("预测试结果：" + total + " 条候选 → ");
+            int ok = 0, fail = 0;
+            for (Github.ProbeResult r : results) {
+                if (r == null) { fail++; continue; }
+                if (r.ok) ok++; else fail++;
+            }
+            sb.append("✅ ").append(ok).append(" 条可用，❌ ").append(fail).append(" 条失败；失败项明细：");
+            for (Github.ProbeResult r : results) {
+                if (r == null || r.ok) continue;
+                sb.append("\n  - ").append(Github.getMirrorLabel(r.url)).append(" → ").append(r.error == null ? "unknown" : r.error);
+            }
+            lastProbeSummary = sb.toString();
+            // 按 ok 优先 + RTT 升序，重排 apkUrls 列表（extractUrls 直接按排序后的顺序抽出）
+            List<String> sorted = Github.extractUrls(results);
+            if (sorted != null && !sorted.isEmpty()) apkUrls = sorted;
         }
+
         String url = apkUrls.get(apkCursor);
         // 进度条状态提示：当前正在下载的镜像名（如果不是直连 github.com 的话），避免"0% 卡死时不知道正在连哪个"
         String mirrorTag = Github.getMirrorLabel(url);
@@ -267,11 +314,16 @@ public class Updater implements Download.Callback, UpdateListener {
         }
         if (dialog != null) {
             dialog.showProgress();
-            dialog.setProgress(0);
+            dialog.setProgress(0, 0, 0);
         }
         if (download != null) download.cancel();
         download = Download.create(url, getFile(), Download.APK_DOWNLOAD_TIMEOUT_MS).tag(url);
         download.start(this);
+    }
+
+    /** 小技巧：ProbeListener.onProbeOne 在 Github 内部通过 App.post 回 UI 线程，但内部类访问 Updater.this.dialog 要避免 null——直接从静态包装类拿引用。 */
+    private static final class UpdateDialogWrap {
+        static UpdateDialog access(Updater u) { return u.dialog; }
     }
 
     /**
@@ -369,10 +421,14 @@ public class Updater implements Download.Callback, UpdateListener {
             dialog.setConfirmEnabled(true, R.string.update_retry);
             // 再把 debug 信息追加一条，避免用户看不到失败全貌
             CharSequence prev = dialog.readDebugInfo();
-            String more = "\n\n最后一次错误：" + msg
-                    + "\n已尝试 10 条候选镜像（短超时 10s 自动切源）。"
-                    + "\n可点击右下角『重试』再次从第一个镜像按连通性重排后重新下载；或到「设置 → 更新源」切换首选镜像（例如手动改成 GitHub 直连 / mirror.ghproxy / ghps 等）。";
-            dialog.setDebugInfo(prev == null ? more : (prev + more));
+            StringBuilder more = new StringBuilder();
+            if (lastProbeSummary != null && !lastProbeSummary.isEmpty()) {
+                more.append("\n\n============ 预测试总结 ============\n").append(lastProbeSummary);
+            }
+            more.append("\n\n最后一次错误：").append(msg)
+                    .append("\n已尝试 ").append(apkUrls == null ? 0 : apkUrls.size()).append(" 条候选镜像（先测后下载：探针 1.5s 排除 DNS/连接超时，下载阶段 10s 自动切源）。")
+                    .append("\n可点击右下角『重试』再次从第一个镜像重新预测试并按连通性排序后下载；或到「设置 → 更新源」切换首选镜像（例如手动改成 GitHub 直连 / mirror.ghproxy / ghps 等）。");
+            dialog.setDebugInfo(prev == null ? more.toString() : (prev + more.toString()));
         }
         Notify.show(msg);
     }

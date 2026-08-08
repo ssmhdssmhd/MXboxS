@@ -2,6 +2,7 @@ package com.ssmhdssmhd.mxboxs.ui.dialog;
 
 import android.text.TextUtils;
 import android.view.View;
+import android.widget.Button;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.FragmentActivity;
@@ -20,6 +21,13 @@ public class UpdateDialog extends BaseAlertDialog {
     private UpdateListener listener;
     private String title;
     private String desc;
+
+    /** v5.5.51 新增：缓存 PositiveButton 引用，避免 dialog=null 时 setConfirmEnabled 直接 return 造成「正在下载…」一直置灰 */
+    private android.widget.Button cachedPositive;
+
+    /** 待应用的按钮状态（如果按钮还没准备好），onStart 会一并应用 */
+    private Boolean pendingConfirmEnabled;
+    private Integer pendingConfirmTextRes;
 
     public static UpdateDialog create() {
         return new UpdateDialog();
@@ -65,8 +73,24 @@ public class UpdateDialog extends BaseAlertDialog {
     public void onStart() {
         super.onStart();
         AlertDialog dialog = (AlertDialog) getDialog();
-        if (dialog != null) dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(view -> listener.onCancel(view));
-        if (dialog != null) dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> listener.onConfirm(view));
+        if (dialog != null) {
+            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            Button negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (positive != null) {
+                cachedPositive = positive;
+                positive.setOnClickListener(view -> listener.onConfirm(view));
+                // 把挂起的 pending 状态应用到新创建的按钮（error/setConfirmEnabled 先于 onStart 调用时会用）
+                if (pendingConfirmEnabled != null) {
+                    positive.setEnabled(pendingConfirmEnabled);
+                    if (Boolean.TRUE.equals(pendingConfirmEnabled) && pendingConfirmTextRes != null) {
+                        positive.setText(pendingConfirmTextRes);
+                    }
+                    pendingConfirmEnabled = null;
+                    pendingConfirmTextRes = null;
+                }
+            }
+            if (negative != null) negative.setOnClickListener(view -> listener.onCancel(view));
+        }
     }
 
     public void setStatus(String text) {
@@ -117,10 +141,19 @@ public class UpdateDialog extends BaseAlertDialog {
             binding.progressBar.setProgress(0);
             binding.progressText.setText("0%");
         }
-        AlertDialog dialog = (AlertDialog) getDialog();
-        if (dialog != null) {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(R.string.update_downloading);
+        // 直接用 cachedPositive，或尝试再取一次，避免 dialog==null 时跳过
+        Button btn = cachedPositive;
+        if (btn == null) {
+            AlertDialog dialog = (AlertDialog) getDialog();
+            if (dialog != null) btn = cachedPositive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        }
+        if (btn != null) {
+            btn.setEnabled(false);
+            btn.setText(R.string.update_downloading);
+        } else {
+            // 按钮尚未创建（onStart 未触发），挂到 pending 里等 onStart 应用
+            pendingConfirmEnabled = false;
+            pendingConfirmTextRes = R.string.update_downloading;
         }
     }
 
@@ -152,11 +185,18 @@ public class UpdateDialog extends BaseAlertDialog {
     }
 
     public void setConfirmEnabled(boolean enabled, int textRes) {
-        AlertDialog dialog = (AlertDialog) getDialog();
-        if (dialog == null) return;
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(enabled);
-        if (enabled) {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(textRes);
+        Button btn = cachedPositive;
+        if (btn == null) {
+            AlertDialog dialog = (AlertDialog) getDialog();
+            if (dialog != null) btn = cachedPositive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        }
+        if (btn != null) {
+            btn.setEnabled(enabled);
+            if (enabled) btn.setText(textRes);
+        } else {
+            // 按钮还没创建出来，缓存 pending，onStart 时再应用
+            pendingConfirmEnabled = enabled;
+            pendingConfirmTextRes = textRes;
         }
     }
 }

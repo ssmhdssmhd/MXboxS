@@ -9,6 +9,19 @@
 
 ## 最新更新
 
+### v5.5.51 · 2026-08-08 · 先测试再下载（1.5s 探针）+ 修复 ghps.cambridgecs.co→.com 域名错误 + 修复按钮一直置灰根因
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **「先测试再下载」Probe 预测试** | `Github.probeUrls()` 并行 8 线程，1.5s 超时；每条先 HEAD 再回退 GET bytes=0-0；UI 实时滚动「探针 3/14：ghproxy.com ✅ 187ms / ❌ DNS 解析失败」；按 ok + RTT 升序重排 apkUrls | [Github.probeUrls](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L131-L205) / [Github.probeOne](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L216-L267) / [Updater.startDownload probe 部分](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L253-L305) |
+| 2 | **域名拼写错误修复** | `ghps.cambridgecs.co` → `ghps.cambridgecs.com`（之前 DNS 解析失败根因） | [Github.java#L38-L50](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L38-L50) |
+| 3 | **新增 2 条公益镜像** | gh.1ms.run + gh.dmirror.xyz（镜像池从 10 条扩到 12 条） | [Github.java#L48-L99](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L48-L99) |
+| 4 | **「正在下载…」一直置灰根因修复** | mobile 版新增 `cachedPositive` Button 引用缓存 + `pendingConfirmEnabled/TextRes` 挂起状态，onStart 再应用；`setConfirmEnabled` 不再因 `getDialog()==null` 直接 return | [mobile UpdateDialog](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L25-L94) / [mobile UpdateDialog setConfirmEnabled](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L187-L201) |
+| 5 | **Updater debug 追加预测试总结** | 全部失败时 debug 面板新增「预测试总结：✅X 可用 ❌Y 失败 + 失败项明细」 | [Updater.error 追加 lastProbeSummary](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L418-L434) |
+| 6 | 版本号 | versionCode 599 → **600** / versionName 5.5.50 → **5.5.51** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.50 · 2026-08-08 · 修复下载进度条全程 0%——Range 头拿总大小 + 每 200ms 汇报已下载字节数
 
 | # | 模块 | 行为 | 代码位置 |
