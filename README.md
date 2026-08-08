@@ -9,6 +9,20 @@
 
 ## 最新更新
 
+### v5.5.52 · 2026-08-08 · 播放设置分为「点播播放器」和「直播播放器」，可独立选择不同引擎
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **PlayerSetting 直播引擎** | 新增 `getLiveEngine()`/`putLiveEngine()`，key=`live_engine`，默认回退 `getEngine()` | [PlayerSetting.java#L38-L54](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/PlayerSetting.java#L38-L54) |
+| 2 | **PlayerEngineFactory live 参数** | 新增 `create(decode,live,listener)` / `matches(engine,spec,live)` 重载，`live=true` 读取 `getLiveEngine()` | [PlayerEngineFactory.java#L37-L104](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/engine/PlayerEngineFactory.java#L37-L104) |
+| 3 | **PlayerManager liveMode** | 新增 `liveMode` 字段 + `setLiveMode()`/`isLiveMode()`；`setEngine()`/`ensureEngine()` 根据 `liveMode` 走 live 路径 | [PlayerManager.java#L60-L84](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L60-L84) |
+| 4 | **LiveActivity 设置 liveMode** | mobile + leanback 在 `onServiceConnected()` 调 `player().setLiveMode(true)` | [mobile LiveActivity#L156-L161](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/LiveActivity.java#L156-L161) / [leanback LiveActivity#L152-L158](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/LiveActivity.java#L152-L158) |
+| 5 | **设置 UI 新增直播播放器行** | mobile + leanback 布局新增 `liveEngine`/`liveEngineText`；Fragment/Activity 新增 `setLiveEngine()` 点击循环 | [mobile SettingPlayerFragment#L117-L121](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/fragment/SettingPlayerFragment.java#L117-L121) / [leanback SettingPlayerActivity#L114-L118](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingPlayerActivity.java#L114-L118) |
+| 6 | **字符串三语** | `player_engine`="点播播放器"/"VOD Player"；`player_engine_live`="直播播放器"/"Live Player" | [strings.xml#L166-L167](file:///workspace/app/src/main/res/values/strings.xml#L166-L167) |
+| 7 | 版本号 | versionCode 600 → **601** / versionName 5.5.51 → **5.5.52** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.51 · 2026-08-08 · 先测试再下载（1.5s 探针）+ 修复 ghps.cambridgecs.co→.com 域名错误 + 修复按钮一直置灰根因
 
 | # | 模块 | 行为 | 代码位置 |

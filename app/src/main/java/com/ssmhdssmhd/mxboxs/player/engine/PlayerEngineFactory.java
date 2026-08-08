@@ -18,24 +18,41 @@ import com.ssmhdssmhd.mxboxs.utils.UrlUtil;
 
 public final class PlayerEngineFactory {
 
+    // ===== 旧接口（点播，live=false）保留兼容 =====
+
     public static PlayerEngine create(int decode, Player.Listener listener) {
-        return create(decode, resolve(), listener);
+        return create(decode, false, listener);
     }
 
     public static PlayerEngine create(int decode, PlaySpec spec, Player.Listener listener) {
-        return create(decode, resolve(spec), listener);
+        return create(decode, spec, false, listener);
     }
+
+    public static boolean matches(PlayerEngine engine, PlaySpec spec) {
+        return matches(engine, spec, false);
+    }
+
+    // ===== 新接口（带 live 参数）=====
+
+    public static PlayerEngine create(int decode, boolean live, Player.Listener listener) {
+        return create(decode, resolve(live), listener);
+    }
+
+    public static PlayerEngine create(int decode, PlaySpec spec, boolean live, Player.Listener listener) {
+        return create(decode, resolve(spec, live), listener);
+    }
+
+    public static boolean matches(PlayerEngine engine, PlaySpec spec, boolean live) {
+        return engine != null && engine.getType() == resolve(spec, live);
+    }
+
+    // ===== 内部实现 =====
 
     private static PlayerEngine create(int decode, PlayerEngine.Type type, Player.Listener listener) {
         return switch (type) {
             case EXO -> new ExoPlayerEngine(decode, listener);
             case MPV -> new MpvPlayerEngine(decode, listener);
             case SYSTEM -> new SystemPlayerEngine(decode, listener);
-            // 新增引擎：未集成原生 so 时复用 ExoPlayer 内核（实现、性能、兼容性一致）
-            // 但通过匿名子类重写 getType() / 部分 rebuild 语义，保证：
-            // ① PlayerManager.getEngine() 能正确返回 ENGINE_ALI / ENGINE_NOVA / ENGINE_IJK
-            // ② PlayerEngineDialog 下次打开时能高亮用户选择的按钮（不会再永远显示 EXO 选中）
-            // ③ ensureEngine() 的 matches 判定不会因 EXO!=ALI 而每次强制重建引擎
             case ALI -> new ExoPlayerEngine(decode, listener) {
                 @Override public PlayerEngine.Type getType() { return PlayerEngine.Type.ALI; }
             };
@@ -48,30 +65,26 @@ public final class PlayerEngineFactory {
         };
     }
 
-    public static boolean matches(PlayerEngine engine, PlaySpec spec) {
-        return engine != null && engine.getType() == resolve(spec);
-    }
-
-    private static PlayerEngine.Type resolve(PlaySpec spec) {
+    private static PlayerEngine.Type resolve(PlaySpec spec, boolean live) {
         if (requiresExo(spec)) return PlayerEngine.Type.EXO;
-        PlayerEngine.Type preferred = resolveFromSetting();
-        if (preferred == MPV && !isMpvReady()) return EXO;
+        PlayerEngine.Type preferred = resolveFromSetting(live);
+        if (preferred == MPV && !isMpvReady(live)) return EXO;
         return preferred;
     }
 
-    private static PlayerEngine.Type resolve() {
-        PlayerEngine.Type preferred = resolveFromSetting();
-        if (preferred == MPV && !isMpvReady()) return EXO;
+    private static PlayerEngine.Type resolve(boolean live) {
+        PlayerEngine.Type preferred = resolveFromSetting(live);
+        if (preferred == MPV && !isMpvReady(live)) return EXO;
         return preferred;
     }
 
     /**
      * 将 PlayerSetting 中保存的 engine 常量映射到枚举。
-     * 新增引擎（ALI/NOVA/IJK）在未引入专用实现时会在 create 里降级到 Exo，
-     * 这里直接返回对应枚举类型以便 UI / 配置面板区分展示。
+     * live=true 时读取直播专属引擎设置（live_engine），否则读取点播引擎（player_engine）。
      */
-    private static PlayerEngine.Type resolveFromSetting() {
-        return switch (PlayerSetting.getEngine()) {
+    private static PlayerEngine.Type resolveFromSetting(boolean live) {
+        int engine = live ? PlayerSetting.getLiveEngine() : PlayerSetting.getEngine();
+        return switch (engine) {
             case PlayerSetting.ENGINE_MPV -> MPV;
             case PlayerSetting.ENGINE_SYSTEM -> SYSTEM;
             case PlayerSetting.ENGINE_ALI -> ALI;
@@ -85,7 +98,8 @@ public final class PlayerEngineFactory {
         return spec.getDrm() != null || "smb".equals(UrlUtil.scheme(spec.getUrl()));
     }
 
-    private static boolean isMpvReady() {
-        return PlayerSetting.isMpv() && MpvPlayerEngine.isAvailable();
+    private static boolean isMpvReady(boolean live) {
+        boolean isMpv = live ? PlayerSetting.isLiveMpv() : PlayerSetting.isMpv();
+        return isMpv && MpvPlayerEngine.isAvailable();
     }
 }

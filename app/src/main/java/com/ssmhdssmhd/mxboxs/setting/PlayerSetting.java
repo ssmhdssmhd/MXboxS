@@ -35,6 +35,24 @@ public class PlayerSetting {
         if (!isMpv() && !isSystem() && isTunnel()) Prefers.put("render", RENDER_SURFACE);
     }
 
+    // ===== 直播播放器引擎（独立于点播，默认回退到点播引擎，保证老用户无感升级） =====
+
+    public static int getLiveEngine() {
+        return Math.clamp(Prefers.getInt("live_engine", getEngine()), ENGINE_EXO, ENGINE_MAX);
+    }
+
+    public static void putLiveEngine(int engine) {
+        Prefers.put("live_engine", Math.clamp(engine, ENGINE_EXO, ENGINE_MAX));
+    }
+
+    public static boolean isLiveMpv() {
+        return getLiveEngine() == ENGINE_MPV;
+    }
+
+    public static boolean isLiveSystem() {
+        return getLiveEngine() == ENGINE_SYSTEM;
+    }
+
     public static boolean isMpv() {
         return getEngine() == ENGINE_MPV;
     }

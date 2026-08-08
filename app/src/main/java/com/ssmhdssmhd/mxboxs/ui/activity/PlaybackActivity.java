@@ -545,6 +545,8 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         mService.setSessionActivity(buildSessionIntent());
         mService.setNavigationCallback(getNavigationCallback(), getPlaybackKey());
         mService.addPlayerCallback(mPlayerCallback);
+        // VOD 点播模式：确保从 LiveActivity 返回时 liveMode 被重置为 false
+        if (mService.player() != null) mService.player().setLiveMode(false);
         onServiceConnected();
         applyDanmaku();
     }

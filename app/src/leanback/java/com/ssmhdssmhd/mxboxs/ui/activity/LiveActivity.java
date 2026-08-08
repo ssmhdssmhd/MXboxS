@@ -151,6 +151,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     @Override
     protected void onServiceConnected() {
+        player().setLiveMode(true);
         PlaybackAction.setPlaybackMode(player(), mBinding.control.action.player, mBinding.control.action.decode);
         PlaybackAction.setSpeedText(player(), mBinding.control.action.speed);
         checkLive();

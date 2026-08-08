@@ -159,7 +159,8 @@
 
     <!-- Player -->
     <string name="player">播放核心</string>
-    <string name="player_engine">播放引擎</string>
+    <string name="player_engine">点播播放器</string>
+    <string name="player_engine_live">直播播放器</string>
     <string name="player_debug">调试</string>
     <string name="player_render">渲染方式</string>
     <string name="player_scale">缩放比例</string>

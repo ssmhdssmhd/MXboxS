@@ -57,16 +57,30 @@ public class PlayerManager implements ParseCallback {
     private boolean initTrack;
     private int retry;
     private int decode;
+    /** 直播模式标记：true 时引擎创建/切换走 PlayerSetting.getLiveEngine() 而非 getEngine() */
+    private boolean liveMode;
 
     public PlayerManager(Callback callback) {
         this.callback = callback;
         this.runnable = this::onPlayTimeout;
         this.decode = PlayerEngine.HARD;
-        this.engine = PlayerEngineFactory.create(decode, listener);
+        this.engine = PlayerEngineFactory.create(decode, liveMode, listener);
         this.player = engine.getPlayer();
         this.pendingStartPositionMs = C.TIME_UNSET;
         this.danmakuConfig = DanmakuSetting.getConfig();
         this.danmakuEnabled = DanmakuSetting.isShow();
+    }
+
+    /** 设置直播模式：LiveActivity 在 onServiceConnected 中调 setLiveMode(true)，VOD 调 setLiveMode(false) */
+    public void setLiveMode(boolean live) {
+        if (this.liveMode == live) return;
+        this.liveMode = live;
+        // 模式切换后立即重建引擎，使 live/VOD 引擎各自独立
+        setEngine(live ? PlayerSetting.getLiveEngine() : PlayerSetting.getEngine());
+    }
+
+    public boolean isLiveMode() {
+        return liveMode;
     }
 
     public static MediaMetadata buildMetadata(String title, String artist, String artUri) {
@@ -233,7 +247,9 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void setEngine(int targetEngine) {
-        PlayerSetting.putEngine(targetEngine);
+        // 直播模式写入 live_engine，点播模式写入 player_engine
+        if (liveMode) PlayerSetting.putLiveEngine(targetEngine);
+        else PlayerSetting.putEngine(targetEngine);
         // 无条件重建 engine 实例：
         // ① 保证 PlayerManager.getEngine() 在保存设置后立即返回对应用户选择的引擎常量
         //    (否则旧 engine.getType() 会在下次打开引擎选择弹窗时把显示状态拉回 EXO)
@@ -244,7 +260,7 @@ public class PlayerManager implements ParseCallback {
         PlayerEngine oldEngine = this.engine;
         if (player != null) player.removeListener(listener);
         // 根据新 setting 直接创建目标类型引擎（不受 DRM/SMB 强制 EXO 影响，因为此时 spec 可能还没设置）
-        this.engine = PlayerEngineFactory.create(decode, listener);
+        this.engine = PlayerEngineFactory.create(decode, liveMode, listener);
         this.player = engine.getPlayer();
         callback.onPlayerRebuild(player);
         if (oldEngine != null) {
@@ -425,10 +441,10 @@ public class PlayerManager implements ParseCallback {
     }
 
     private void ensureEngine(PlaySpec spec) {
-        if (PlayerEngineFactory.matches(engine, spec)) return;
+        if (PlayerEngineFactory.matches(engine, spec, liveMode)) return;
         PlayerEngine old = engine;
         player.removeListener(listener);
-        engine = PlayerEngineFactory.create(decode, spec, listener);
+        engine = PlayerEngineFactory.create(decode, spec, liveMode, listener);
         setPlayer(engine.getPlayer());
         old.release();
     }

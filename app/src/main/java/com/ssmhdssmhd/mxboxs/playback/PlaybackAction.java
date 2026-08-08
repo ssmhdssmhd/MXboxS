@@ -66,8 +66,15 @@ public final class PlaybackAction {
     }
 
     public static int getEngine(PlayerManager player) {
-        if (player == null || player.isReleased()) return PlayerSetting.getEngine();
+        if (player == null || player.isReleased()) {
+            return PlayerSetting.getEngine();
+        }
         return player.getEngine();
+    }
+
+    /** 在没有 player 实例时（如设置页面），根据 live 标志返回对应引擎常量 */
+    public static int getEngineStatic(boolean live) {
+        return live ? PlayerSetting.getLiveEngine() : PlayerSetting.getEngine();
     }
 
     private static String getDecodeText(PlayerManager player) {

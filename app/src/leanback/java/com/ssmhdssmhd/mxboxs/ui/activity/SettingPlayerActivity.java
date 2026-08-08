@@ -64,6 +64,7 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, S
     @Override
     protected void initEvent() {
         mBinding.engine.setOnClickListener(this::setEngine);
+        mBinding.liveEngine.setOnClickListener(this::setLiveEngine);
         mBinding.mpvConf.setOnClickListener(this::onMpvConf);
         mBinding.mpvGpuNext.setOnClickListener(this::setMpvGpuNext);
         mBinding.mpvVulkan.setOnClickListener(this::setMpvVulkan);
@@ -110,6 +111,12 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, S
         setVisible();
     }
 
+    private void setLiveEngine(View view) {
+        int index = (PlayerSetting.getLiveEngine() + 1) % engine.length;
+        PlayerSetting.putLiveEngine(index);
+        setPlaybackModeText();
+    }
+
     private void onMpvConf(View view) {
         MpvConfDialog.show(this);
     }
@@ -134,6 +141,7 @@ public class SettingPlayerActivity extends BaseActivity implements UaListener, S
         engine = ResUtil.getStringArray(R.array.select_engine);
         render = ResUtil.getStringArray(R.array.select_render);
         mBinding.engineText.setText(engine[PlayerSetting.getEngine()]);
+        mBinding.liveEngineText.setText(engine[PlayerSetting.getLiveEngine()]);
         mBinding.renderText.setText(render[PlayerSetting.getRender()]);
     }
 

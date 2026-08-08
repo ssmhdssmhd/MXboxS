@@ -163,7 +163,8 @@
 
     <!-- Player -->
     <string name="player">Player</string>
-    <string name="player_engine">Engine</string>
+    <string name="player_engine">VOD Player</string>
+    <string name="player_engine_live">Live Player</string>
     <string name="player_debug">Debug</string>
     <string name="player_render">Render</string>
     <string name="player_scale">Scale</string>

@@ -2,6 +2,29 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.52] - 2026-08-08
+
+### 新功能：设置中播放设置分为「点播播放器」和「直播播放器」，可独立选择不同引擎
+
+#### 背景
+之前点播和直播共用同一个播放引擎设置（`PlayerSetting.getEngine()`），用户无法为直播单独指定引擎。例如点播用 EXO、直播用 System，需要分开设置。
+
+#### 改动
+1. **PlayerSetting** 新增 `getLiveEngine()` / `putLiveEngine()`，key=`live_engine`，默认回退到 `getEngine()`（老用户无感升级）
+2. **PlayerEngineFactory** 新增 `live` 参数重载：`create(decode, live, listener)` / `create(decode, spec, live, listener)` / `matches(engine, spec, live)`，`live=true` 时读取 `getLiveEngine()`
+3. **PlayerManager** 新增 `liveMode` 字段 + `setLiveMode(boolean)` / `isLiveMode()`；`setEngine()` 根据 `liveMode` 写入 `putLiveEngine()` 或 `putEngine()`；`ensureEngine()` 传入 `liveMode`
+4. **LiveActivity（mobile + leanback）** 在 `onServiceConnected()` 调用 `player().setLiveMode(true)`
+5. **PlaybackActivity** 在 `onServiceConnected()` 调用 `player().setLiveMode(false)`（VOD 重置）
+6. **设置 UI（mobile + leanback）**：原「播放引擎」改为「点播播放器」，新增「直播播放器」行（点击循环切换 EXO/MPV/System/Ali/Nova/IJK）
+7. **字符串**：`player_engine` = "点播播放器"/"VOD Player"；新增 `player_engine_live` = "直播播放器"/"Live Player"（zh-CN/zh-TW/en 三语）
+8. **PlaybackAction** 新增 `getEngineStatic(boolean live)` 工具方法
+
+#### 版本号
+- versionCode 600 → **601**
+- versionName 5.5.51 → **5.5.52**
+
+---
+
 ## [v5.5.51] - 2026-08-08
 
 ### 新方案：先测试再下载（1.5s 超短探针并行扫描）+ 修复 ghps.cambridgecs.co → .com 域名拼写错误 + 修复「正在下载…」按钮一直置灰的根因（Button 引用缓存）
