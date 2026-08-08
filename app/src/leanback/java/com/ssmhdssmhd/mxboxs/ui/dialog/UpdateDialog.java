@@ -1,5 +1,6 @@
 package com.ssmhdssmhd.mxboxs.ui.dialog;
 
+import android.text.TextUtils;
 import android.view.View;
 
 import androidx.fragment.app.FragmentActivity;
@@ -78,8 +79,24 @@ public class UpdateDialog extends BaseAlertDialog {
     public void updateDesc(String text) {
         this.desc = text;
         if (binding != null) {
+            CharSequence debug = binding.debug != null ? binding.debug.getText() : "";
             binding.desc.setText(text != null ? text : "");
             binding.desc.setVisibility(text != null ? View.VISIBLE : View.GONE);
+            if (binding.debug != null && !TextUtils.isEmpty(debug) && TextUtils.isEmpty(binding.debug.getText())) {
+                binding.debug.setText(debug);
+                binding.debug.setVisibility(View.VISIBLE);
+            }
+        }
+    }
+
+    public void setDebugInfo(String text) {
+        if (binding == null || binding.debug == null) return;
+        if (text == null || text.isEmpty()) {
+            binding.debug.setVisibility(View.GONE);
+            binding.debug.setText("");
+        } else {
+            binding.debug.setText(text);
+            binding.debug.setVisibility(View.VISIBLE);
         }
     }
 

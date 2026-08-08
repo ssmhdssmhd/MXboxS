@@ -74,6 +74,41 @@ public class Updater implements Download.Callback, UpdateListener {
                 .show();
     }
 
+    /**
+     * 生成版本检测 Debug 信息（用于对话框底部「本地/远程/比较」三行），
+     * 帮助用户定位「为什么显示已是最新」「为什么提示 5.5.46 而不是 5.5.47」等问题。
+     */
+    private static String buildDebugInfo(String tagName, String remoteVersion, String versionSource,
+                                         String debugApkName, String debugSource,
+                                         String compareResult) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("本地：").append(BuildConfig.VERSION_NAME).append(" (").append(BuildConfig.VERSION_CODE).append(")").append("\n");
+        if (remoteVersion == null || remoteVersion.isEmpty()) {
+            sb.append("远程：<未取到>").append("\n");
+        } else {
+            sb.append("远程：").append(remoteVersion);
+            if (versionSource != null && !versionSource.isEmpty()) sb.append(" (来源：").append(versionSource).append(")");
+            sb.append("\n");
+        }
+        if (tagName != null && !tagName.isEmpty()) {
+            sb.append("Release tag：").append(tagName).append("\n");
+        }
+        if (debugApkName != null && !debugApkName.isEmpty()) {
+            sb.append("匹配 APK：").append(debugApkName).append("\n");
+        }
+        if (debugSource != null && !debugSource.isEmpty()) {
+            sb.append("Release来源：").append(debugSource).append("\n");
+        }
+        if (compareResult != null && !compareResult.isEmpty()) {
+            sb.append("比较：").append(compareResult);
+        }
+        return sb.toString().trim();
+    }
+
+    private void ensureDialogShown(FragmentActivity activity) {
+        if (dialog == null) showDialog(activity);
+    }
+
     private void showDialog(FragmentActivity activity) {
         dismiss();
         dialog = UpdateDialog.create()
@@ -84,28 +119,32 @@ public class Updater implements Download.Callback, UpdateListener {
         dialog.setStatus(ResUtil.getString(R.string.update_connecting));
     }
 
-    private void doInBackground(FragmentActivity activity) {
+    private void doInBackground(final FragmentActivity activity) {
         try {
             // 优先策略：
             // 1) 用 getHighestRelease() 遍历 /releases?per_page=10，从 APK 文件名里提取版本号取最高的那个。
             //    这解决了 GitHub /releases/latest 只返回被官方设为 "Latest" 标记的 Release，
             //    而我们 push main 自动构建的 MXboxS-latest 是 prerelease，/latest 永远不会返回它的问题。
             // 2) 若失败则回退 getLatestRelease()（保留原语义）
+            String releaseSource = "getHighestRelease(/releases?per_page=10)";
             release = Github.getHighestRelease();
-            if (release == null) release = Github.getLatestRelease();
             if (release == null) {
-                // 连接失败
+                release = Github.getLatestRelease();
+                releaseSource = "getLatestRelease(/releases/latest)";
+            }
+            if (release == null) {
+                // 连接失败：强制模式（手动检查）也要 showDialog，否则用户点了「检测更新」看不到对话框
+                releaseSource = "network error（getHighestRelease 和 getLatestRelease 都返回 null）";
+                final String debugSource = releaseSource;
                 App.post(() -> {
+                    ensureDialogShown(activity);
                     if (dialog != null) {
                         dialog.setStatus(ResUtil.getString(R.string.update_download_failed, "network error"));
+                        dialog.setDebugInfo(buildDebugInfo("", "", "", "", debugSource,
+                                "没有拿到任何 Release 对象 → 视为「已是最新」。\n可能原因：(1) 本机网络/代理被墙 api.github.com；(2) 还没 push main / 还没完成 CI build；(3) 镜像前缀解析不到 GitHub API。"));
                         dialog.setConfirmEnabled(false);
-                    } else if (forced) {
-                        showDialog(activity);
-                        if (dialog != null) {
-                            dialog.setStatus(ResUtil.getString(R.string.update_download_failed, "network error"));
-                            dialog.setConfirmEnabled(false);
-                        }
                     }
+                    Notify.show("更新检测：未连上 GitHub API（Release来源：" + debugSource + "）");
                 });
                 return;
             }
@@ -114,27 +153,45 @@ public class Updater implements Download.Callback, UpdateListener {
             String rawDesc = release.optString("body", "");
             // 优先从 APK asset 文件名提取版本号（兼容 MXboxS-latest 自动预发布 tag）
             // 否则从 tag_name 提取（v5.5.36 这种稳定发布 tag）
-            String rawVersion = Github.extractVersionFromAssets(release);
-            if (rawVersion.isEmpty()) {
-                rawVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
+            android.util.Pair<String, String> assetVer = Github.extractVersionFromAssetsWithDebug(release);
+            String versionSource = "";
+            String debugApkName = "";
+            String rawVersion = "";
+            if (assetVer != null && assetVer.first != null && !assetVer.first.isEmpty()) {
+                rawVersion = assetVer.first;
+                versionSource = "APK 文件名";
+                debugApkName = assetVer.second == null ? "" : assetVer.second;
+            } else {
+                String fromTag = tagName.startsWith("v") ? tagName.substring(1) : tagName;
+                if (fromTag != null && !fromTag.isEmpty()) {
+                    rawVersion = fromTag;
+                    versionSource = "tag_name";
+                }
+                if (assetVer != null) debugApkName = assetVer.second == null ? "" : assetVer.second;
             }
             final String version = rawVersion;
             final String desc = rawDesc;
+            final String fTagName = tagName;
+            final String fVersionSource = versionSource;
+            final String fApkName = debugApkName;
+            final String fReleaseSource = releaseSource;
 
-            if (Github.compareVersion(version, BuildConfig.VERSION_NAME) <= 0) {
-                // 已是最新版本
+            int cmp = Github.compareVersion(version, BuildConfig.VERSION_NAME);
+            if (cmp <= 0) {
+                // 已是最新版本：强制模式必须 showDialog，否则用户看不到对话框，也无法查看 Debug 信息
+                final String compareLine = "server=" + (version.isEmpty() ? "<empty>" : version)
+                        + ", local=" + BuildConfig.VERSION_NAME
+                        + ", compareVersion 返回 " + cmp + "（<=0 → 判定已是最新）。\n"
+                        + "要升级到 5.5.47+，请先把本地 3 个新 commit push 到 origin/main 触发 CI 产出 v5.5.47 APK asset，这里才能检测到。";
                 App.post(new Runnable() {
                     @Override
                     public void run() {
+                        ensureDialogShown(activity);
                         if (dialog != null) {
                             dialog.setStatus(ResUtil.getString(R.string.update_no_new));
+                            dialog.setDebugInfo(buildDebugInfo(fTagName, version, fVersionSource,
+                                    fApkName, fReleaseSource, compareLine));
                             dialog.setConfirmEnabled(false);
-                        } else if (forced) {
-                            showDialog(activity);
-                            if (dialog != null) {
-                                dialog.setStatus(ResUtil.getString(R.string.update_no_new));
-                                dialog.setConfirmEnabled(false);
-                            }
                         }
                     }
                 });
@@ -146,14 +203,16 @@ public class Updater implements Download.Callback, UpdateListener {
             apkCursor = 0;
 
             // 连接成功，有新版本
+            final String compareLine = "server=" + version + " > local=" + BuildConfig.VERSION_NAME
+                    + "（compareVersion=" + cmp + "）→ 有新版本";
             App.post(new Runnable() {
                 @Override
                 public void run() {
-                    if (dialog == null) {
-                        // 非强制模式（自动检查）首次弹出对话框
-                        showDialog(activity);
-                    }
+                    ensureDialogShown(activity);
                     if (dialog != null) {
+                        dialog.setDebugInfo(buildDebugInfo(fTagName, version, fVersionSource,
+                                fApkName, fReleaseSource, compareLine
+                                        + "\n候选 APK 镜像：" + (apkUrls == null ? 0 : apkUrls.size()) + " 条"));
                         dialog.setStatus(ResUtil.getString(R.string.update_connected, version));
                         dialog.updateTitle(ResUtil.getString(R.string.update_version, version));
                         dialog.updateDesc(desc.isEmpty() ? ResUtil.getString(R.string.update_downloading) : desc);
@@ -162,19 +221,18 @@ public class Updater implements Download.Callback, UpdateListener {
                     }
                 }
             });
-        } catch (Exception e) {
+        } catch (final Exception e) {
             e.printStackTrace();
+            final String debugSource = "Exception: " + (e.getClass().getSimpleName()) + " " + e.getMessage();
             App.post(() -> {
+                ensureDialogShown(activity);
                 if (dialog != null) {
                     dialog.setStatus(ResUtil.getString(R.string.update_download_failed, e.getMessage()));
+                    dialog.setDebugInfo(buildDebugInfo("", "", "", "", debugSource,
+                            "异常抛出，详情见堆栈 → 视为「已是最新」不弹窗。\n修复后会显示错误原因，也能再次手动重试。"));
                     dialog.setConfirmEnabled(false);
-                } else if (forced) {
-                    showDialog(activity);
-                    if (dialog != null) {
-                        dialog.setStatus(ResUtil.getString(R.string.update_download_failed, e.getMessage()));
-                        dialog.setConfirmEnabled(false);
-                    }
                 }
+                Notify.show("更新检测异常：" + e.getMessage());
             });
         }
     }

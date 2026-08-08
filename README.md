@@ -9,6 +9,19 @@
 
 ## 最新更新
 
+### v5.5.48 · 2026-08-08 · 修复「检测更新却显示已是最新」的诊断难题——对话框追加 Debug 版本信息
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **Debug 信息面板** | mobile/leanback 两套 `dialog_update.xml` 底部新增 monospace `<debug>` 字段（默认 GONE），`Updater.buildDebugInfo()` 一次性输出：本地版本 + 远程版本 + 来源（APK 文件名 / tag_name / <未取到>）+ Release tag + 匹配 APK 文件名 + Release 来源（getHighestRelease / getLatestRelease / network error / Exception）+ compareVersion 比较结果与解释 | [Updater.buildDebugInfo](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L77-L106) / [mobile.xml](file:///workspace/app/src/mobile/res/layout/dialog_update.xml#L57-L71) / [leanback.xml](file:///workspace/app/src/leanback/res/layout/dialog_update.xml#L79-L93) |
+| 2 | **终态分支强制 showDialog** | 无论「无网络」「已是最新」「有新版本」「异常」四大终态，全部先走 `ensureDialogShown(activity)`，避免 forced 模式（点按钮检测）UI 静默；无网络 / Exception 同时 Toast 提醒 | [Updater.doInBackground](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L122-L238) + [ensureDialogShown](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L108-L110) |
+| 3 | **APK 文件名匹配保留证据** | `Github.extractVersionFromAssetsWithDebug` 返回 Pair<版本号, 对应 APK 文件名>，失败时 second=首个 APK 名，直接暴露「CI 还没 build v5.5.47/5.5.48 资产」 | [Github.extractVersionFromAssetsWithDebug](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L404-L429) |
+| 4 | 版本号 | versionCode 596 → **597** / versionName 5.5.47 → **5.5.48** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+**你的现场诊断**：截图显示「版本 5.5.46」→ 远端 APK 资产最高仍是 5.5.46。本次会话本地又新增 2 个 commit（v5.5.47、v5.5.48），**尚未 `git push origin main`** → CI 还没产出 `MXboxS-*-5.5.48.apk`，因此 `compareVersion(5.5.46, 本地 5.5.46) = 0`，被判定「已是最新」。Push 后 v5.5.48 客户端的 Debug 区域会直接显示「远程 5.5.48 / 匹配 APK …5.5.48.apk / 候选镜像 10 条」→ 进入下载。
+
+---
+
 ### v5.5.47 · 2026-08-08 · 镜像加速升级（国内 7 条 + 海外 3 条，并行 HEAD 探测自动挑最快 + 失败秒切）
 
 | # | 模块 | 行为 | 代码位置 |

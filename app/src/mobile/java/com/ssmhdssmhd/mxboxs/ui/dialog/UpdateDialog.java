@@ -1,5 +1,6 @@
 package com.ssmhdssmhd.mxboxs.ui.dialog;
 
+import android.text.TextUtils;
 import android.view.View;
 
 import androidx.appcompat.app.AlertDialog;
@@ -81,8 +82,25 @@ public class UpdateDialog extends BaseAlertDialog {
     public void updateDesc(String text) {
         this.desc = text;
         if (binding != null) {
+            CharSequence debug = binding.debug != null ? binding.debug.getText() : "";
             binding.desc.setText(text != null ? text : "");
             binding.desc.setVisibility(text != null ? View.VISIBLE : View.GONE);
+            // 如果更新时清掉了 debug 字段，保留它：防止 updateDesc 覆盖后 debug 信息丢失
+            if (binding.debug != null && TextUtils.isEmpty(debug) == false && TextUtils.isEmpty(binding.debug.getText())) {
+                binding.debug.setText(debug);
+                binding.debug.setVisibility(View.VISIBLE);
+            }
+        }
+    }
+
+    public void setDebugInfo(String text) {
+        if (binding == null || binding.debug == null) return;
+        if (text == null || text.isEmpty()) {
+            binding.debug.setVisibility(View.GONE);
+            binding.debug.setText("");
+        } else {
+            binding.debug.setText(text);
+            binding.debug.setVisibility(View.VISIBLE);
         }
     }
 

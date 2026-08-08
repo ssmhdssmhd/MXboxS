@@ -54,4 +54,20 @@
         tools:text="0%"
         tools:visibility="visible" />
 
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/debug"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="?attr/colorSurfaceVariant"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.01"
+        android:lineSpacingExtra="4dp"
+        android:padding="8dp"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="11sp"
+        android:visibility="gone"
+        tools:text="本地：5.5.46 (595)&#10;远程：5.5.46 (来源：tag_name)&#10;比较：server &lt;= local，已是最新"
+        tools:visibility="visible" />
+
 </androidx.appcompat.widget.LinearLayoutCompat>

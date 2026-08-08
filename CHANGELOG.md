@@ -2,6 +2,62 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.48] - 2026-08-08
+
+### 修复：点「检测更新」提示「已是最新」却不显示为什么？——对话框追加 Debug 版本信息，版本号来源/Release 来源/比较结果一目了然
+
+#### 现象
+- 你截图显示「正在检测更新…」，下面「版本 5.5.46」；
+- 点检测更新后最终状态 `update_no_new = 已是最新`，但远端 **Release 到底被识别成哪个版本 / 走了哪个 API / 为什么比 5.5.47 小** 完全看不见；
+- 之前 `forced=true` 但结果是「已是最新 / 连接失败 / 异常」三个分支都不一定会 `showDialog`，导致用户点了按钮 UI 上看似无响应，也看不到任何 Debug 信息。
+
+#### 根因
+1. **对话框完全不展示版本比较细节**：`update_no_new` 文案只有四个字，无法区分「网络根本没连上 GitHub」 vs 「连到了但返回 v5.5.46」 vs 「返回 MXboxS-latest tag 但 APK 文件名匹配不到 X.Y.Z」。
+2. **forced 分支不保证 showDialog**：旧版只有 `dialog!=null || forced` 才 showDialog，`getHighestRelease` 网络成功但 cmp<=0 时，若之前还没 new 过对话框则 UI 静默。
+3. **APK 文件名取版本失败时缺少 APK 名证据**：`extractVersionFromAssets` 只返回 String，失败时用户不知道 CI 实际上传的 APK 叫什么（例如 CI 还没 build v5.5.47 就会只有 5.5.46）。
+
+#### 修复
+1. **对话框底部新增 `<debug>` 字段（mobile + leanback 两套布局都加）**
+   - [mobile dialog_update.xml](file:///workspace/app/src/mobile/res/layout/dialog_update.xml#L57-L71) / [leanback dialog_update.xml](file:///workspace/app/src/leanback/res/layout/dialog_update.xml#L79-L93)：新增 `debug` MaterialTextView（monospace、灰色底、默认 GONE）。
+   - [mobile UpdateDialog.java](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L95-L104) / [leanback UpdateDialog.java](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L92-L101)：新增 `setDebugInfo(text)`；`updateDesc` 会保留 debug 内容，不被覆盖清空。
+   - `Updater.buildDebugInfo()` 统一生成 6 行诊断信息：
+     ```
+     本地：5.5.46 (595)
+     远程：5.5.46 (来源：APK 文件名)
+     Release tag：MXboxS-latest
+     匹配 APK：MXboxS-mobile-arm64_v8a-5.5.46.apk
+     Release来源：getHighestRelease(/releases?per_page=10)
+     比较：server=5.5.46, local=5.5.46, compareVersion 返回 0 → 判定已是最新。
+           要升级到 5.5.47+，请先把本地 3 个新 commit push 到 origin/main 触发 CI 产出 v5.5.47 APK asset。
+     ```
+
+2. **`ensureDialogShown(activity)`：所有终态分支（无网络 / 已是最新 / 有新版本 / Exception）都先确保 showDialog**
+   - 解决 forced 模式点按钮没反应、Toast 一下就没了的问题，让 Debug 信息一定能被用户看到。
+   - 无 Release 对象时追加 Toast `Notify.show("更新检测：未连上 GitHub API（Release来源：xxx）")`；Exception 追加 Toast `更新检测异常：xxx`。
+
+3. **`Github.extractVersionFromAssetsWithDebug(release)`：除了返回版本号，还返回匹配到的 APK 文件名**
+   - 失败时 second = 第一个 APK 文件名（哪怕没 X.Y.Z），直接暴露「CI 还没 build 这个版本」。
+
+#### 你的问题具体怎么看？（诊断结论）
+你现在看到「版本显示最新版本」→ 100% 是因为 **GitHub 远端（origin/main）还没有 v5.5.47 / v5.5.48 的 APK assets**：
+- 这节会话我们本地 commit 了 v5.5.46 → v5.5.47 → v5.5.48 三次 commit，**但你还没 `git push origin main`**；
+- 没有 push → CI 不会重新运行 build.yml → 不会在 `MXboxS-latest` prerelease 下上传 `MXboxS-mobile-arm64_v8a-5.5.48.apk`；
+- 因此 `getHighestRelease()` 能拿到的最高 APK 版本号还是 5.5.46，`compareVersion(5.5.46, 5.5.46) = 0` → 判定「已是最新」。
+
+Push 之后 v5.5.48 版的 Debug 区域会直接显示：
+- `远程：5.5.48 (来源：APK 文件名)` / `匹配 APK：MXboxS-mobile-arm64_v8a-5.5.48.apk` → 证明确实已经检测到新版本；
+- `候选 APK 镜像：10 条` → 紧接着就自动进入「并行 HEAD 探测 → 下载」流程。
+
+**代码位置：**
+- [Updater.java#L77-L238](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L77-L238) buildDebugInfo + ensureDialogShown + doInBackground 四个终态分支统一 showDialog + setDebugInfo
+- [Github.java#L404-L433](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L404-L433) extractVersionFromAssetsWithDebug
+- [mobile UpdateDialog.java](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L81-L104) / [leanback UpdateDialog.java](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L79-L101) setDebugInfo
+- [mobile dialog_update.xml](file:///workspace/app/src/mobile/res/layout/dialog_update.xml#L57-L71) / [leanback dialog_update.xml](file:///workspace/app/src/leanback/res/layout/dialog_update.xml#L79-L93) 新增 debug 字段
+
+版本号：versionCode 596 → **597** / versionName 5.5.47 → **5.5.48**（[app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23)）
+
+---
+
 ## [v5.5.47] - 2026-08-08
 
 ### 镜像加速升级：国内 7 条 + 海外 3 条公共镜像，并行 HEAD 预探测「自动挑最快」，失败秒切
