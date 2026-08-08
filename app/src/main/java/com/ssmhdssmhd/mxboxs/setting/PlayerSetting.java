@@ -215,7 +215,7 @@ public class PlayerSetting {
     }
 
     public static boolean isAiHdr() {
-        return Prefers.getBoolean("ai_hdr");
+        return Prefers.getBoolean("ai_hdr", true);
     }
 
     public static void putAiHdr(boolean hdr) {
@@ -223,7 +223,7 @@ public class PlayerSetting {
     }
 
     public static boolean isAiDenoise() {
-        return Prefers.getBoolean("ai_denoise");
+        return Prefers.getBoolean("ai_denoise", true);
     }
 
     public static void putAiDenoise(boolean denoise) {
@@ -231,7 +231,7 @@ public class PlayerSetting {
     }
 
     public static boolean isAiSharpness() {
-        return Prefers.getBoolean("ai_sharpness");
+        return Prefers.getBoolean("ai_sharpness", true);
     }
 
     public static void putAiSharpness(boolean sharpness) {
@@ -239,7 +239,7 @@ public class PlayerSetting {
     }
 
     public static boolean isAiSmoothPlayback() {
-        return Prefers.getBoolean("ai_smooth_playback");
+        return Prefers.getBoolean("ai_smooth_playback", true);
     }
 
     public static void putAiSmoothPlayback(boolean smooth) {
@@ -247,7 +247,7 @@ public class PlayerSetting {
     }
 
     public static boolean isAiAutoFrameRate() {
-        return Prefers.getBoolean("ai_auto_fps");
+        return Prefers.getBoolean("ai_auto_fps", true);
     }
 
     public static void putAiAutoFrameRate(boolean auto) {
@@ -263,7 +263,7 @@ public class PlayerSetting {
     }
 
     public static boolean isAiBassBoost() {
-        return Prefers.getBoolean("ai_bass_boost");
+        return Prefers.getBoolean("ai_bass_boost", true);
     }
 
     public static void putAiBassBoost(boolean bass) {

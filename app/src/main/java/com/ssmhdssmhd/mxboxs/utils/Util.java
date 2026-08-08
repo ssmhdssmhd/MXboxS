@@ -32,6 +32,32 @@ import java.util.regex.Pattern;
 public class Util {
 
     private static final Pattern EPISODE = Pattern.compile("(?i)(?:ep|第|e|[\\-\\.\\s])\\s?(\\d{1,4})");
+    
+    // 广告过滤关键词模式（用于清洗简介中的广告文本）
+    private static final Pattern[] AD_PATTERNS = {
+            // 赞助/推广类
+            Pattern.compile("本片由[^\\s]*\\s*(?:赞助|推广|联合出品|独家提供)"),
+            Pattern.compile("本视频由[^\\s]*\\s*(?:赞助|推广)"),
+            Pattern.compile("由[^\\s]*\\s*(?:赞助|推广|联合出品)"),
+            // 联系方式类
+            Pattern.compile("(?:添加|加|咨询|联系)[^\\s]*\\s*(?:微信|威信|QQ|qq|微信公众号)"),
+            Pattern.compile("(?:微信|威信|QQ|qq)[^，。\\s]*\\s*(?:在线|客服|客服微信|商务|合作)"),
+            Pattern.compile("导航到[^\\s，。]*"),
+            // 广告后缀类
+            Pattern.compile("在线播放地址"),
+            Pattern.compile("转载请注明"),
+            Pattern.compile("版权声明"),
+            Pattern.compile("免责声明"),
+            // 福利引导类
+            Pattern.compile("更多精彩内容?请?加"),
+            Pattern.compile("更多资源请?加?微信"),
+            Pattern.compile("扫码关注[^\\s]*公众号"),
+            Pattern.compile("关注[^\\s]*微信公众号"),
+            // 网站推广类
+            Pattern.compile("下载[^\\s]*APP"),
+            Pattern.compile("全网免费观看"),
+            Pattern.compile("高清无广告在线观看"),
+    };
 
     public static void toggleFullscreen(Activity activity, boolean fullscreen) {
         if (fullscreen) hideSystemUI(activity);
@@ -113,11 +139,32 @@ public class Util {
     }
 
     public static String clean(String text) {
-        if (!text.contains("<")) return text;
+        if (TextUtils.isEmpty(text)) return "";
+        if (!text.contains("<")) return filterAds(text);
         StringBuilder sb = new StringBuilder();
         text = Html.fromHtml(text, Html.FROM_HTML_MODE_LEGACY).toString().replace("\u00A0", " ").replace("\u3000", " ");
         for (String line : text.split("\\r?\\n")) sb.append(line.trim()).append("\n");
-        return substring(sb.toString()).trim();
+        return filterAds(substring(sb.toString()).trim());
+    }
+
+    /**
+     * 过滤简介中的广告文本内容
+     */
+    public static String filterAds(String text) {
+        if (TextUtils.isEmpty(text)) return "";
+        String result = text;
+        for (Pattern pattern : AD_PATTERNS) {
+            Matcher matcher = pattern.matcher(result);
+            if (matcher.find()) {
+                int start = matcher.start();
+                if (start > 0) {
+                    result = result.substring(0, start).trim();
+                } else {
+                    result = "";
+                }
+            }
+        }
+        return result;
     }
 
     public static String getAndroidId() {

@@ -2,6 +2,34 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.45] - 2026-08-08
+
+### 新增功能：AI 智能广告过滤 + AI 功能默认全开
+
+#### 1. 自动过滤简介中的广告文本
+- 在 `Util.clean()` 方法中集成广告关键词过滤逻辑
+- 支持过滤常见广告类型：
+  - 赞助/推广类（如“本片由xxx赞助发布”）
+  - 联系方式类（如“添加微信/QQ”、“导航到xxx”）
+  - 网站推广类（如“下载APP”、“全网免费观看”）
+  - 福利引导类（如“扫码关注公众号”、“更多精彩内容请加”）
+- 简介显示时自动清除广告，无需手动操作
+
+#### 2. AI 功能默认全开
+- 画质增强、HDR、智能降噪、动态锐化 → 默认开启
+- 运动补偿、自适应帧率 → 默认开启
+- AI 音质增强、超重低音、对白增强 → 默认开启
+- 新安装用户直接享受 AI 优化效果
+
+**代码位置：**
+- [Util.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Util.java#L36-L60) 广告关键词模式
+- [Util.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Util.java#L150-L168) 过滤逻辑实现
+- [PlayerSetting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/PlayerSetting.java#L208-L279) AI 功能默认值
+
+版本号：versionCode 593 → **594** / versionName 5.5.44 → **5.5.45**（[app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23)）
+
+---
+
 ## [v5.5.44] - 2026-08-08
 
 ### 修复更新下载"进度条 0% 卡死 → 30s 超时 → 下载失败"（ghproxy.com 宕机 + 索引错位 + 单一 URL 无 fallback）

@@ -9,6 +9,16 @@
 
 ## 最新更新
 
+### v5.5.45 · 2026-08-08 · AI 智能过滤广告字幕 + AI 功能默认全开
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **简介广告过滤** | `Util.clean()` 集成 `filterAds()`，自动识别并截断赞助/推广、联系方式（微信/QQ）、网站推广、福利引导等 19 种广告话术模式，视频详情页简介干净无广告 | [Util.java#L36-L60](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Util.java#L36-L60) / [Util.java#L150-L168](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Util.java#L150-L168) |
+| 2 | **AI 功能默认全开** | 画质增强/HDR/降噪/锐化 + 运动补偿/自适应帧率 + 音质增强/超重低音/对白增强 共 9 项 AI 功能全部默认 `true`；新用户安装即用，老用户需手动关闭才会保存 | [PlayerSetting.java#L208-L279](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/PlayerSetting.java#L208-L279) |
+| 3 | 版本号 | versionCode 593 → **594** / versionName 5.5.44 → **5.5.45** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.44 · 2026-08-08 · 修复更新下载"进度条 0% 卡死 → ghproxy.com 93.46.8.90 超时 30s 后下载失败"（多镜像自动 fallback + UI 索引错位修复 + 默认改 mirror.ghproxy）
 
 | # | 模块 | 行为 | 代码位置 |
