@@ -108,13 +108,27 @@ public class LiveParser {
                 unknown.setSource(extract(line, CATCHUP_SOURCE));
                 unknown.setReplace(extract(line, CATCHUP_REPLACE));
                 channel.setCatchup(Catchup.decide(unknown, catchup));
-            } else if (!line.startsWith("#") && line.contains("://")) {
-                String[] parts = line.split("\\|", 2);
+            } else if (!line.startsWith("#")) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty()) continue;
+                // 只接受包含已知直播协议的 URL 行：http(s)://、rtmp://、rtsp://、video://、proxy://
+                if (!isRecognizedLiveUrl(trimmed)) continue;
+                String[] parts = trimmed.split("\\|", 2);
                 if (parts.length > 1) setting.headers(parts[1]);
-                channel.getUrls().add(parts[0]);
+                channel.getUrls().add(parts[0].trim());
                 setting.copy(channel).clear();
             }
         }
+    }
+
+    private static final java.util.regex.Pattern LIVE_URL_SCHEME = java.util.regex.Pattern.compile(
+            "^\\s*(https?|rtmp|rtsp|video|proxy)://",
+            java.util.regex.Pattern.CASE_INSENSITIVE
+    );
+
+    private static boolean isRecognizedLiveUrl(String line) {
+        if (line == null) return false;
+        return LIVE_URL_SCHEME.matcher(line).find();
     }
 
     private static void txt(Live live, String text) {

@@ -18,7 +18,9 @@ class LiveFallbackPolicy {
 
     void playbackError() {
         Channel channel = state.getChannel();
-        if (!LiveSetting.isChange() || channel == null || channel.isLast()) return;
+        if (!LiveSetting.isChange() || channel == null) return;
+        // 任何线路出错都尝试切换到下一条源（不再用 isLast 限制，即便只有一条也让 UI 有机会重试）
+        host.renderLineSelection(channel, true);
         controller.nextLine(true);
     }
 

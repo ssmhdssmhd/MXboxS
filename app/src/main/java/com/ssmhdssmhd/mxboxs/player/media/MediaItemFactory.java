@@ -38,28 +38,70 @@ public final class MediaItemFactory {
         String format = spec.getFormat();
         if (format != null && !format.isEmpty()) return format;
         String url = spec.getUrl();
-        if (url != null) {
-            String lowerUrl = url.toLowerCase();
-            if (lowerUrl.contains(".m3u8") || lowerUrl.contains(".m3u8?")) {
-                return MimeTypes.APPLICATION_M3U8;
-            }
-            if (lowerUrl.contains(".mpd") || lowerUrl.contains(".mpd?")) {
-                return MimeTypes.APPLICATION_MPD;
-            }
-            if (lowerUrl.contains(".mp4") || lowerUrl.contains(".mp4?")) {
-                return MimeTypes.VIDEO_MP4;
-            }
-            if (lowerUrl.contains(".mkv")) {
-                return MimeTypes.VIDEO_MATROSKA;
-            }
-            if (lowerUrl.contains(".webm")) {
-                return MimeTypes.VIDEO_WEBM;
-            }
-            if (lowerUrl.contains(".ts")) {
-                return MimeTypes.VIDEO_MPEG;
-            }
+        if (url == null) return null;
+        String lowerUrl = url.toLowerCase();
+        // 1) 基于扩展名的识别（带 query/fragment 的常见直播 URL）
+        if (hasExt(lowerUrl, ".m3u8") || hasExt(lowerUrl, ".m3u") || lowerUrl.contains(".m3u8?") || lowerUrl.contains(".m3u8#")) {
+            return MimeTypes.APPLICATION_M3U8;
+        }
+        if (hasExt(lowerUrl, ".mpd") || lowerUrl.contains(".mpd?") || lowerUrl.contains(".mpd#")) {
+            return MimeTypes.APPLICATION_MPD;
+        }
+        if (hasExt(lowerUrl, ".mp4")) {
+            return MimeTypes.VIDEO_MP4;
+        }
+        if (hasExt(lowerUrl, ".mkv")) {
+            return MimeTypes.VIDEO_MATROSKA;
+        }
+        if (hasExt(lowerUrl, ".webm")) {
+            return MimeTypes.VIDEO_WEBM;
+        }
+        if (hasExt(lowerUrl, ".ts") || lowerUrl.contains(".ts?")) {
+            return MimeTypes.VIDEO_MPEG;
+        }
+        // 2) 直播路径特征识别（很多源没有扩展名，但路径带 live/playlist/stream 等关键字）
+        if (isLikelyHls(lowerUrl)) return MimeTypes.APPLICATION_M3U8;
+        if (isLikelyDash(lowerUrl)) return MimeTypes.APPLICATION_MPD;
+        // 3) rtsp/rtmp 交给 Media3 内部 RTSP/RTMP Source 处理
+        if (lowerUrl.startsWith("rtsp://") || lowerUrl.startsWith("rtmp://")) {
+            return null;
+        }
+        // 4) http(s) 直播兜底：没有扩展名但像是直播流（路径带 /live、.tv、iptv、cctv、hdtv、直播等关键字）
+        if (lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://")) {
+            if (isLikelyLiveStream(lowerUrl)) return MimeTypes.APPLICATION_M3U8;
         }
         return null;
+    }
+
+    private static boolean hasExt(String url, String ext) {
+        int i = url.lastIndexOf('?');
+        int f = url.lastIndexOf('#');
+        int end = Math.min(i < 0 ? url.length() : i, f < 0 ? url.length() : f);
+        int dot = url.lastIndexOf('.', end);
+        if (dot < 0) return false;
+        return url.substring(dot, end).equalsIgnoreCase(ext);
+    }
+
+    private static boolean isLikelyHls(String url) {
+        // .m3u/.m3u8 的不同变种（如带 index_、playlist_、live 前缀）
+        return url.contains(".m3u8") || url.contains(".m3u")
+                || url.contains("mime=m3u8") || url.contains("format=m3u8")
+                || url.contains("type=m3u8") || url.contains("m3u8=");
+    }
+
+    private static boolean isLikelyDash(String url) {
+        return url.contains(".mpd") || url.contains("mime=mpd") || url.contains("format=mpd");
+    }
+
+    private static boolean isLikelyLiveStream(String url) {
+        // 常见直播路径关键字：/live/、/stream/、/playlist、/hls/、cctv、hdtv、iptv 等
+        return url.contains("/live") || url.contains("live/")
+                || url.contains("/stream") || url.contains("stream/")
+                || url.contains("/playlist") || url.contains("playlist/")
+                || url.contains("/hls") || url.contains("hls/")
+                || url.contains(".tv/")
+                || url.contains("cctv") || url.contains("hdtv") || url.contains("iptv")
+                || url.contains("直播") || url.contains("频道");
     }
 
     private static MediaItem.RequestMetadata buildRequestMetadata(PlaySpec spec) {

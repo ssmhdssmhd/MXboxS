@@ -128,7 +128,9 @@ public class LivePlaybackController {
 
     private void switchLine(boolean next, boolean show) {
         Channel channel = state.getChannel();
-        if (channel == null || channel.isOnly()) return;
+        if (channel == null) return;
+        // 无论频道标记 isOnly 与否，只要 urls.size() > 1 就允许切换；
+        // 即便只有 1 条线路也允许重新触发 refresh 做重试
         channel.switchLine(next);
         host.renderLineSelection(channel, show);
         refresh();
