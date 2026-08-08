@@ -59,18 +59,16 @@ public class Updater implements Download.Callback, UpdateListener {
     }
 
     public void showMirrorDialog(FragmentActivity activity) {
-        String[] items = new String[]{
-                ResUtil.getString(R.string.mirror_ghproxy),
-                ResUtil.getString(R.string.mirror_mirror_ghproxy),
-                ResUtil.getString(R.string.mirror_direct)
-        };
+        java.util.ArrayList<String> labels = new java.util.ArrayList<>(Github.MIRROR_OPTIONS.keySet());
+        String[] items = labels.toArray(new String[0]);
         int checked = Setting.getMirrorMode();
-        if (checked < 0 || checked >= items.length) checked = 0;
+        if (checked < 0 || checked >= items.length) checked = Setting.MIRROR_DEFAULT_INDEX;
+        final String[] finalItems = items;
         new MaterialAlertDialogBuilder(activity)
                 .setTitle(R.string.setting_mirror)
-                .setSingleChoiceItems(items, checked, (dialog, which) -> {
+                .setSingleChoiceItems(finalItems, checked, (dialog, which) -> {
                     Setting.putMirrorMode(which);
-                    Notify.show(items[which]);
+                    Notify.show(finalItems[which]);
                     dialog.dismiss();
                 })
                 .show();
@@ -189,19 +187,24 @@ public class Updater implements Download.Callback, UpdateListener {
             }
             return;
         }
+        // 只有 apkCursor==0（第一次开始下载）时才做并行 HEAD 连通性排序，失败 fallback 的后续轮次不再重排
+        if (apkCursor == 0 && apkUrls.size() >= 2 && dialog != null) {
+            dialog.setStatus("正在挑选最快镜像（并行探测 4s）…");
+        }
+        if (apkCursor == 0 && apkUrls.size() >= 2) {
+            try {
+                // 同步调用会阻塞「后台下载发起线程」，最多 ~4.3s；超时/异常直接用默认顺序
+                apkUrls = Github.rankByConnectivity(apkUrls);
+            } catch (Throwable ignored) {
+            }
+        }
         String url = apkUrls.get(apkCursor);
         // 进度条状态提示：当前正在下载的镜像名（如果不是直连 github.com 的话），避免"0% 卡死时不知道正在连哪个"
-        String mirrorTag;
-        if (url == null) mirrorTag = "APK";
-        else if (url.startsWith(Github.MIRROR_GHPROXY + "/")) mirrorTag = "ghproxy.com";
-        else if (url.startsWith(Github.MIRROR_MIRROR_GHPROXY + "/")) mirrorTag = "mirror.ghproxy.com";
-        else if (url.startsWith(Github.MIRROR_GHPS_CAMBRIDGECS + "/")) mirrorTag = "ghps.cambridgecs.co";
-        else if (url.startsWith(Github.MIRROR_GH_API_99988866 + "/")) mirrorTag = "gh.api.99988866.xyz";
-        else mirrorTag = "GitHub";
+        String mirrorTag = Github.getMirrorLabel(url);
         if (apkCursor > 0 && dialog != null) {
-            dialog.setStatus("镜像 " + (apkCursor) + "/" + apkUrls.size() + "：" + mirrorTag + " 下载中…（前一镜像失败）");
+            dialog.setStatus("镜像 " + (apkCursor + 1) + "/" + apkUrls.size() + "：" + mirrorTag + " 下载中…（前一镜像失败，自动切换）");
         } else if (dialog != null) {
-            dialog.setStatus("下载中（" + mirrorTag + "）…");
+            dialog.setStatus("下载中（" + mirrorTag + "，候选镜像共 " + apkUrls.size() + " 条）…");
         }
         if (dialog != null) {
             dialog.showProgress();
@@ -284,12 +287,18 @@ public class Updater implements Download.Callback, UpdateListener {
         if (apkUrls != null && apkCursor + 1 < apkUrls.size()) {
             apkCursor++;
             // 下一轮 startDownload 会从 apkUrls[apkCursor] 继续
+            final int cur = apkCursor + 1;
+            final int total = apkUrls.size();
+            final String nextLabel = Github.getMirrorLabel(apkUrls.get(apkCursor));
+            if (dialog != null) {
+                dialog.setStatus("镜像 " + cur + "/" + total + "：切换到 " + nextLabel + " …");
+            }
             App.post(this::startDownload);
             return;
         }
         // 所有镜像都失败：才真正显示错误
         if (dialog != null) {
-            dialog.setStatus(ResUtil.getString(R.string.update_download_failed, msg));
+            dialog.setStatus(ResUtil.getString(R.string.update_download_failed, msg + "（全部 " + (apkUrls == null ? 0 : apkUrls.size()) + " 条镜像均失败）"));
             dialog.setConfirmEnabled(true);
         }
         Notify.show(msg);

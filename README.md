@@ -9,6 +9,18 @@
 
 ## 最新更新
 
+### v5.5.47 · 2026-08-08 · 镜像加速升级（国内 7 条 + 海外 3 条，并行 HEAD 探测自动挑最快 + 失败秒切）
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **镜像池扩充到 10 条** | 国内 7 条（mirror.ghproxy / ghps.cambridgecs / ghproxy.net / gh.api.99988866.xyz / gh.mirai / ghproxy / gh.tmoe）+ 海外 3 条（GitHub 直连 + fastly.jsdelivr / cdn.jsdelivr），统一存 `Github.MIRROR_OPTIONS / CN_MIRRORS / OVERSEA_MIRRORS` | [Github.java#L35-L91](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L35-L91) |
+| 2 | **并行 HEAD 预探测** | 首次下载前 `Github.rankByConnectivity` 对所有候选 APK URL 做 6 线程 `HEAD` 请求（单镜像最多 4 秒），按 RTT 升序 + 2xx/3xx 可用优先，失败的放最后；用户首选镜像始终保持第一顺位；对话框显示「正在挑选最快镜像…」 | [Github.java#L141-L249](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L141-L249) / [Updater.java#L182-L216](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L182-L216) |
+| 3 | **UI 更新源 8 选项** | `Updater.showMirrorDialog` 直接读取 `Github.MIRROR_OPTIONS` 显示；`Setting` 新增 `MIRROR_DEFAULT_INDEX = mirror.ghproxy`，并迁移老用户的 `mirror_mode=2 → DIRECT=7` | [Updater.java#L61-L75](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L61-L75) / [Setting.java#L150-L184](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L150-L184) |
+| 4 | **切源/失败文案增强** | 显示当前镜像名 + 候选总数；失败时显示「切换到 X 镜像…」，全部失败追加「全部 N 条镜像均失败」 | [Updater.java#L284-L305](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L284-L305) / [Github.java#L96-L116](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L96-L116) |
+| 5 | 版本号 | versionCode 595 → **596** / versionName 5.5.46 → **5.5.47** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.46 · 2026-08-08 · 修复直播无法正常获取和播放（直播格式识别 + M3U过滤 + 多线路自动切源）
 
 | # | 模块 | 行为 | 代码位置 |

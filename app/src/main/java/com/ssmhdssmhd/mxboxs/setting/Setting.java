@@ -147,18 +147,36 @@ public class Setting {
 
     public static final String PARSE_SERVER_DEFAULT = "http://114.134.184.91:9002";
 
-    // ===== 镜像模式枚举（与 Updater.showMirrorDialog 的 items 索引严格一一对应）=====
-    // 0: ghproxy.com (CN)
-    // 1: mirror.ghproxy.com (CN)
-    // 2: Direct GitHub
+    // ===== 镜像模式枚举（与 Github.MIRROR_OPTIONS 的顺序严格一一对应，v5.5.47 起统一以 Github.MIRROR_OPTIONS 为准）=====
+    // 0: ghproxy.com（国内）
+    // 1: mirror.ghproxy.com（国内）
+    // 2: ghps.cambridgecs.co（国内）
+    // 3: gh.api.99988866.xyz（国内）
+    // 4: ghproxy.net（国内）
+    // 5: gh.mirai.org（国内）
+    // 6: jsdelivr CDN（海外）
+    // 7: GitHub 直连
     // 注意：此顺序故意与 v5.5.42 及以前不同。v5.5.42 默认 mirror_mode=1，
     //       升级后会被解析为 mirror.ghproxy.com，正好帮用户从今日宕机的 ghproxy.com (93.46.8.90) 自动切走。
     public static final int MIRROR_GHPROXY = 0;
     public static final int MIRROR_MIRROR_GHPROXY = 1;
-    public static final int MIRROR_DIRECT = 2;
+    public static final int MIRROR_GHPS_CAMBRIDGECS = 2;
+    public static final int MIRROR_GH_API_99988866 = 3;
+    public static final int MIRROR_GHPROXY_NET = 4;
+    public static final int MIRROR_GH_MIRAI = 5;
+    public static final int MIRROR_JSDELIVR = 6;
+    public static final int MIRROR_DIRECT = 7;
+    /** 默认索引：对中国大陆用户默认 mirror.ghproxy.com（v5.5.44 之后 ghproxy.com 经常宕机，mirror.ghproxy 更稳） */
+    public static final int MIRROR_DEFAULT_INDEX = MIRROR_MIRROR_GHPROXY;
 
     public static int getMirrorMode() {
-        return Prefers.getInt("mirror_mode", MIRROR_MIRROR_GHPROXY);
+        int saved = Prefers.getInt("mirror_mode", MIRROR_DEFAULT_INDEX);
+        // 防御：如果是 v5.5.46 及之前保存的 2 (=DIRECT)，现在 DIRECT=7，需显式做一次迁移映射。
+        // 其他老值 0/1 还能对得上，保留即可；超出范围用默认索引。
+        if (saved == 2 && MIRROR_DIRECT == 7) return MIRROR_DIRECT;
+        int totalMirrors = 8;
+        if (saved < 0 || saved >= totalMirrors) return MIRROR_DEFAULT_INDEX;
+        return saved;
     }
 
     public static void putMirrorMode(int mode) {

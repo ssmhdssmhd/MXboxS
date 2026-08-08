@@ -2,6 +2,53 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.47] - 2026-08-08
+
+### 镜像加速升级：国内 7 条 + 海外 3 条公共镜像，并行 HEAD 预探测「自动挑最快」，失败秒切
+
+#### 现象（来自 v5.5.46 实测反馈）
+- 用户截图看到 `镜像 1/5：ghproxy.com 下载中…（前一镜像失败）`，单 ghproxy.com 常宕机；
+- 默认只给 5 条镜像、候选里国内镜像覆盖不足（缺 ghproxy.net、gh.mirai.org 这类国内公益站），海外用户又缺 jsdelivr/fastly CDN；
+- 每次 fallback 顺序固定为「用户首选 → ghproxy → mirror.ghproxy…」，当前网络明明 ghps.cambridgecs 最快，也要先在 ghproxy 上卡 30s 才切过去；
+- 「设置 → 更新源」下拉只 3 个选项，没法手动选到 ghps/99988866/ghproxy.net/jsdelivr 等。
+
+#### 根因
+1. **镜像池太小 + 国内/海外未分流**：v5.5.46 只有 4 个镜像前缀，海外用户拿到的全是国内反代，延迟反而比 GitHub 直连还高。
+2. **下载顺序静态**：不管当前网络到某镜像 RTT 多高，都要先等 30s 超时才 fallback。
+3. **Setting 镜像索引写死**：`MIRROR_GHPROXY=0 / MIRROR_MIRROR_GHPROXY=1 / MIRROR_DIRECT=2`，新增镜像就要改 Updater 字符串数组 + Setting 两处，容易错位。
+
+#### 修复
+1. **镜像池扩充到 10 条前缀（国内 7 + 海外 3 + GitHub 直连）**
+   - 国内（`CN_MIRRORS`）：mirror.ghproxy / ghps.cambridgecs / ghproxy.net / gh.api.99988866.xyz / gh.mirai / ghproxy / gh.tmoe
+   - 海外（`OVERSEA_MIRRORS`）：GitHub Direct / fastly.jsdelivr.net / cdn.jsdelivr.net
+   - UI 默认索引改为 `MIRROR_DEFAULT_INDEX = MIRROR_MIRROR_GHPROXY`，避免 ghproxy.com 再次宕机。
+
+2. **并行 HEAD 探测自动挑最快（`Github.rankByConnectivity`）**
+   - 第一次点「下载」时，对全部候选 APK URL 做 6 线程并行 `HEAD` 请求，单镜像最多 4 秒（`PING_TIMEOUT_MS=4000`）；
+   - 返回 2xx/3xx 的按 RTT 升序排序；超时/非 2xx 的一律放最后；
+   - 用户手动设的「首选镜像」对应 APK URL 始终保持第一顺位（除非 HEAD 也失败了）。
+   - 探测阶段对话框显示 `正在挑选最快镜像（并行探测 4s）…`，避免用户以为卡死。
+
+3. **UI「更新源」对齐 Github.MIRROR_OPTIONS 单一数据源**
+   - `Github.MIRROR_OPTIONS` 统一维护「显示名 → 前缀」；`Updater.showMirrorDialog` 直接读取，不再自己写 String[]；
+   - `Setting.getMirrorMode` 兼容老数据：之前用户保存过 `2=DIRECT`，v5.5.47 里 DIRECT=7，自动做一次迁移映射。
+
+4. **镜像切换文案更清楚**
+   - 初始下载：`下载中（ghps.cambridgecs.co（国内），候选镜像共 10 条）…`
+   - 自动切源：`镜像 2/10：切换到 mirror.ghproxy.com（国内） …` → `镜像 2/10：mirror.ghproxy.com（国内） 下载中…（前一镜像失败，自动切换）`
+   - 全部失败：错误信息追加「（全部 10 条镜像均失败）」，明确告知不是偶发网络波动。
+
+**代码位置：**
+- [Github.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L35-L249) MIRROR_OPTIONS / CN_MIRRORS / OVERSEA_MIRRORS / rankByConnectivity / pingHead / getMirrorLabel
+- [Updater.java#L61-L75](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L61-L75) showMirrorDialog 改用 Github.MIRROR_OPTIONS
+- [Updater.java#L182-L216](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L182-L216) startDownload 首次启动并行探测 + 重排 + 文案
+- [Updater.java#L284-L305](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L284-L305) error() 失败切换提示
+- [Setting.java#L150-L184](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L150-L184) 新增 5~7 镜像枚举 + MIRROR_DEFAULT_INDEX + 老数据迁移
+
+版本号：versionCode 595 → **596** / versionName 5.5.46 → **5.5.47**（[app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23)）
+
+---
+
 ## [v5.5.46] - 2026-08-08
 
 ### 修复：直播无法正常获取和播放（直播格式识别 + M3U 脏数据过滤 + 多线路自动切源）

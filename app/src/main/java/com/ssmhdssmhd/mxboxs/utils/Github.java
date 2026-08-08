@@ -10,8 +10,21 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class Github {
 
@@ -24,22 +37,90 @@ public class Github {
     public static final String MIRROR_MIRROR_GHPROXY = "https://mirror.ghproxy.com";
     public static final String MIRROR_GHPS_CAMBRIDGECS = "https://ghps.cambridgecs.co";
     public static final String MIRROR_GH_API_99988866 = "https://gh.api.99988866.xyz";
+    /** 国内镜像补充：ghproxy.net（与 ghproxy.com 非同一服务）、gh.mirai.org（镜像 gh release）、gh-proxy.com（常见公益站） */
+    public static final String MIRROR_GHPROXY_NET = "https://ghproxy.net";
+    public static final String MIRROR_GH_MIRAI = "https://gh.mirai.org";
+    /** 海外镜像补充：objects.githubusercontent.com 直连 + JSDelivr（静态文件） + 欧洲 gh.123456789.xyz */
+    public static final String MIRROR_JSDELIVR_CN = "https://cdn.jsdelivr.net/gh";
+    public static final String MIRROR_JSDELIVR_FASTLY = "https://fastly.jsdelivr.net/gh";
+    public static final String MIRROR_CF_CN = "https://gh.tmoe.me";
 
-    /** 公共镜像池（含直连空串）。会被 getMirrorCandidates 去重。**/
+    /** 显示名 → 前缀，用户 UI 下拉选单选 */
+    public static final LinkedHashMap<String, String> MIRROR_OPTIONS = new LinkedHashMap<>();
+    static {
+        MIRROR_OPTIONS.put("ghproxy.com（国内）", MIRROR_GHPROXY);
+        MIRROR_OPTIONS.put("mirror.ghproxy.com（国内）", MIRROR_MIRROR_GHPROXY);
+        MIRROR_OPTIONS.put("ghps.cambridgecs.co（国内）", MIRROR_GHPS_CAMBRIDGECS);
+        MIRROR_OPTIONS.put("gh.api.99988866.xyz（国内）", MIRROR_GH_API_99988866);
+        MIRROR_OPTIONS.put("ghproxy.net（国内）", MIRROR_GHPROXY_NET);
+        MIRROR_OPTIONS.put("gh.mirai.org（国内）", MIRROR_GH_MIRAI);
+        MIRROR_OPTIONS.put("jsdelivr CDN（海外）", MIRROR_JSDELIVR_FASTLY);
+        MIRROR_OPTIONS.put("GitHub 直连", MIRROR_DIRECT);
+    }
+
+    /** 国内常用镜像池（优先顺序可根据站点稳定性调整） */
+    private static final List<String> CN_MIRRORS = Arrays.asList(
+            MIRROR_MIRROR_GHPROXY,
+            MIRROR_GHPS_CAMBRIDGECS,
+            MIRROR_GHPROXY_NET,
+            MIRROR_GH_API_99988866,
+            MIRROR_GH_MIRAI,
+            MIRROR_GHPROXY,
+            MIRROR_CF_CN
+    );
+
+    /** 海外常用镜像池（GitHub 直连通常对海外/加速通道最快，放前面） */
+    private static final List<String> OVERSEA_MIRRORS = Arrays.asList(
+            MIRROR_DIRECT,
+            MIRROR_JSDELIVR_FASTLY,
+            MIRROR_JSDELIVR_CN
+    );
+
+    /** 公共镜像池（含直连空串）。会被 getMirrorCandidates 去重。国内/海外会按 rankByConnectivity 重新排序。 */
     private static final List<String> MIRROR_POOL = Arrays.asList(
             MIRROR_GHPROXY,
             MIRROR_MIRROR_GHPROXY,
             MIRROR_GHPS_CAMBRIDGECS,
             MIRROR_GH_API_99988866,
+            MIRROR_GHPROXY_NET,
+            MIRROR_GH_MIRAI,
+            MIRROR_JSDELIVR_FASTLY,
+            MIRROR_JSDELIVR_CN,
+            MIRROR_CF_CN,
             MIRROR_DIRECT
     );
+
+    /** 并行 HEAD 探测超时时长（毫秒）。给每个镜像最多 4s，超过就认为当前网络到这个镜像延迟过高。 */
+    private static final long PING_TIMEOUT_MS = 4000L;
+
+    /**
+     * 取镜像显示名（用于 Updater 文案）。
+     */
+    public static String getMirrorLabel(String mirrorOrUrl) {
+        if (mirrorOrUrl == null || mirrorOrUrl.isEmpty()) return "GitHub 直连";
+        String url = mirrorOrUrl;
+        for (Map.Entry<String, String> e : MIRROR_OPTIONS.entrySet()) {
+            String p = e.getValue();
+            if (p == null || p.isEmpty()) continue;
+            if (url.startsWith(p + "/") || url.startsWith(p)) return e.getKey();
+        }
+        // 兜底：从 URL host 取
+        try {
+            int s = url.indexOf("://");
+            if (s < 0) return url;
+            int e = url.indexOf('/', s + 3);
+            return e < 0 ? url.substring(s + 3) : url.substring(s + 3, e);
+        } catch (Throwable ignored) {
+            return url;
+        }
+    }
 
     /** 镜像模式索引（与 Setting 中的常量 + Updater.showMirrorDialog 中的顺序保持一致）*/
     public static String getMirror() {
         int mode = Setting.getMirrorMode();
-        if (mode == Setting.MIRROR_GHPROXY) return MIRROR_GHPROXY;
-        if (mode == Setting.MIRROR_MIRROR_GHPROXY) return MIRROR_MIRROR_GHPROXY;
-        return MIRROR_DIRECT;
+        List<String> keys = new ArrayList<>(MIRROR_OPTIONS.values());
+        if (mode < 0 || mode >= keys.size()) return keys.get(Setting.MIRROR_DEFAULT_INDEX);
+        return keys.get(mode);
     }
 
     /**
@@ -55,6 +136,116 @@ public class Github {
         set.add(preferred);
         set.addAll(MIRROR_POOL);
         return new ArrayList<>(set);
+    }
+
+    /**
+     * 对 APK URL 候选列表做「当前网络连通性」重排：
+     *   - 先用默认 getMirrorCandidates() 基础顺序；
+     *   - 再对每个候选做 HEAD 探测（最多 4 秒，并行），得到 2xx 响应的毫秒级 RTT；
+     *   - 超时 / 非 2xx 的放最后；
+     *   - RTT 最短的放最前；
+     *   - 用户首选镜像（preferred）始终保持第一顺位（除非 HEAD 完全失败）。
+     *
+     * @param apkCandidates 来自 findApkUrls(release) 的候选 URL 列表
+     * @return 重排后的 APK URL 列表（永远非 null，可直接用）
+     */
+    public static List<String> rankByConnectivity(final List<String> apkCandidates) {
+        if (apkCandidates == null || apkCandidates.isEmpty()) return Collections.emptyList();
+        final int size = apkCandidates.size();
+        // 候选太少（<2）就没必要探测了，直接原样返回
+        if (size < 2) return new ArrayList<>(apkCandidates);
+
+        final String preferred = getMirror();
+        // preferred 对应的 APK URL（只要能被 preferred + direct 拼出的那条）
+        String preferredApk = null;
+        for (String u : apkCandidates) {
+            if (preferred == null || preferred.isEmpty()) {
+                if (u != null && !u.startsWith("http") && !u.contains("ghproxy") && !u.contains("ghps")
+                        && !u.contains("99988866") && !u.contains("mirai") && !u.contains("jsdelivr") && !u.contains("tmoe")) {
+                    preferredApk = u; break;
+                }
+                if (u != null && u.contains("github.com") && u.contains("releases")) { preferredApk = u; break; }
+            } else {
+                if (u != null && u.startsWith(preferred + "/")) { preferredApk = u; break; }
+            }
+        }
+        final String prefApkFinal = preferredApk;
+
+        // 并行 HEAD 探测
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(size, 6));
+        final Map<String, Long> rttMap = new HashMap<>();
+        final Map<String, Boolean> okMap = new HashMap<>();
+        try {
+            List<Future<?>> futures = new ArrayList<>(size);
+            for (final String url : apkCandidates) {
+                if (url == null) continue;
+                futures.add(pool.submit(new Callable<Object>() {
+                    @Override
+                    public Object call() {
+                        pingHead(url, rttMap, okMap);
+                        return null;
+                    }
+                }));
+            }
+            // 等 PING_TIMEOUT_MS + 200ms 给线程收尾，超时直接往下走（未完成的会被视为超时）
+            pool.shutdown();
+            try {
+                pool.awaitTermination(PING_TIMEOUT_MS + 300L, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            pool.shutdownNow();
+        } catch (Throwable ignored) {
+            try { pool.shutdownNow(); } catch (Throwable ignore) {}
+        }
+
+        // 按 RTT 升序排序，失败的放最后，preferred URL 保持第一（如果还能 2xx 的话）
+        List<String> sorted = new ArrayList<>(apkCandidates);
+        Collections.sort(sorted, new Comparator<String>() {
+            @Override
+            public int compare(String a, String b) {
+                if (a == null && b == null) return 0;
+                if (a == null) return 1;
+                if (b == null) return -1;
+                // preferred 保持首位
+                boolean aPref = a.equals(prefApkFinal);
+                boolean bPref = b.equals(prefApkFinal);
+                if (aPref && !bPref) return -1;
+                if (!aPref && bPref) return 1;
+                boolean aOk = Boolean.TRUE.equals(okMap.get(a));
+                boolean bOk = Boolean.TRUE.equals(okMap.get(b));
+                if (aOk && !bOk) return -1;
+                if (!aOk && bOk) return 1;
+                long ra = rttMap.containsKey(a) ? rttMap.get(a) : Long.MAX_VALUE;
+                long rb = rttMap.containsKey(b) ? rttMap.get(b) : Long.MAX_VALUE;
+                return Long.compare(ra, rb);
+            }
+        });
+        return sorted;
+    }
+
+    private static void pingHead(String url, Map<String, Long> rttMap, Map<String, Boolean> okMap) {
+        OkHttpClient client = OkHttp.client(false, PING_TIMEOUT_MS);
+        Request req = new Request.Builder().url(url).head().build();
+        long start = System.currentTimeMillis();
+        okhttp3.Call call = null;
+        Response res = null;
+        try {
+            call = client.newCall(req);
+            res = call.execute();
+            long rtt = System.currentTimeMillis() - start;
+            int code = res.code();
+            // 2xx/3xx 认为可用（HEAD 对 release asset 下载地址也常返回 302）
+            boolean ok = code >= 200 && code < 400;
+            rttMap.put(url, rtt);
+            okMap.put(url, ok);
+        } catch (Throwable e) {
+            rttMap.put(url, Long.MAX_VALUE);
+            okMap.put(url, false);
+        } finally {
+            if (res != null) try { res.close(); } catch (Throwable ignored) {}
+            if (call != null) try { call.cancel(); } catch (Throwable ignored) {}
+        }
     }
 
     public static String getApiUrl() {
