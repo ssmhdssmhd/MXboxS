@@ -1,5 +1,6 @@
 package com.ssmhdssmhd.mxboxs.utils;
 
+import com.ssmhdssmhd.mxboxs.App;
 import com.ssmhdssmhd.mxboxs.BuildConfig;
 import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.github.catvod.net.OkHttp;

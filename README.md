@@ -9,6 +9,16 @@
 
 ## 最新更新
 
+### v5.5.53 · 2026-08-08 · 修复 CI 编译失败 Github.java:163 `cannot find symbol App`（导致 Release 里只有 v5.5.50 APK 的根因）
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **Github.java 补 import** | v5.5.51 probeUrls 里写了 `App.post(new Runnable()` 但忘记 `import com.ssmhdssmhd.mxboxs.App;`，CI 直接 BUILD FAILED；加上一行 import 编译即过 | [Github.java#L1-L6](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L1-L6) |
+| 2 | **CI 事实对照** | Run #31269751767 (948f874) step 10 compileMobileArm64_v8a ❌ 失败 → 4 份 APK 一份都没产出；Release `MXboxS-latest` 只保留上次（6af35ce）的 v5.5.50。修复后新 Run 4 份 APK 会重新覆盖 assets | GitHub API 已验证 |
+| 3 | 版本号 | versionCode 601 → **602** / versionName 5.5.52 → **5.5.53** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.52 · 2026-08-08 · 播放设置分为「点播播放器」和「直播播放器」，可独立选择不同引擎
 
 | # | 模块 | 行为 | 代码位置 |

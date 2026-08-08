@@ -2,6 +2,22 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.53] - 2026-08-08
+
+### 修复 CI 编译失败：Github.java:163 `error: cannot find symbol App.post`
+
+Github.java v5.5.51 新增的 probeUrls 进度回调里调用了 `App.post(new Runnable() {...})`，但 Github.java 文件顶部缺少 `import com.ssmhdssmhd.mxboxs.App;`，导致 GitHub Actions 上 `Build Mobile arm64-v8a (Phone)` 在 compileMobileArm64_v8aReleaseJavaWithJavac 阶段报错 BUILD FAILED（44s），后续 Leanback/armeabi-v7a 全被 skipped → 只产出了 v5.5.50 APK。
+
+| 字段 | v5.5.52 Actions 状态 | v5.5.53 修复后 |
+|---|---|---|
+| Run #31269751767 (948f874) | Job build → step 10 ❌ compileMobileArm64_v8a failed | Run 新 commit 4 jobs ✅ |
+| APK outputs | No APK files found | MXboxS-*-5.5.53.apk 4 份 |
+| Release MXboxS-latest assets | 只有 5.5.50（Run #31260989317 6af35ce） | 自动更新到 5.5.53 |
+
+- 版本号：versionCode 601 → **602** / versionName 5.5.52 → **5.5.53**
+
+---
+
 ## [v5.5.52] - 2026-08-08
 
 ### 新功能：设置中播放设置分为「点播播放器」和「直播播放器」，可独立选择不同引擎
