@@ -2,6 +2,45 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.46] - 2026-08-08
+
+### 修复：直播无法正常获取和播放（直播格式识别 + M3U 脏数据过滤 + 多线路自动切源）
+
+#### 现象
+- 大量 IPTV / 直播源**一直转圈**或直接**播放失败**，典型受影响直播格式：
+  - 无扩展名 HTTP(S) 直播源（`http://example.com/live/cctv1`、`http://tv.example.com/cctv1/stream`）
+  - M3U8 查询参数式（`http://example.com/playlist?id=1&mime=m3u8`）
+  - m3u 文件中混有 `#EXTHTTP:`、空白行、未知 scheme 导致的脏 URL 列表
+  - 单线路频道播放失败后不再重试，卡死在"错误"状态
+
+#### 根因
+1. **MIME 类型只看扩展名**：大量直播源不含 `.m3u8/.mpd` 扩展名，ExoPlayer 无法路由到 HLS/DASH Source。
+2. **M3U 解析过度宽松**：只要行里含 `://` 就当 URL，把 `#EXTHTTP:{...}`、无效 scheme 加入频道 URL。
+3. **失败后不自动切源**：`LiveFallbackPolicy.playbackError` 被 `isLast()` 短路，`switchLine` 又被 `isOnly()` 限制，多线路/重试点完全不生效。
+
+#### 修复
+1. **直播 MIME 类型增强识别**：`MediaItemFactory.resolveMimeType`
+   - 新增 `hasExt(url, ext)` 正确处理含 `?` / `#` 的 URL 扩展名；
+   - 新增 `isLikelyHls / isLikelyDash / isLikelyLiveStream` 按路径关键字（`/live/`、`/stream/`、`/playlist`、`/hls/`、`.tv/`、`cctv/hdtv/iptv/直播/频道`、`mime=m3u8`、`type=m3u8` 等）兜底识别为 HLS/DASH；
+   - `rtsp://` / `rtmp://` 留给 Media3 内置 Source 自动处理。
+2. **M3U 解析白名单过滤**：`LiveParser.m3u` 新增 `LIVE_URL_SCHEME` 正则，只接受 `http(s)://`、`rtmp://`、`rtsp://`、`video://`、`proxy://` 等已知直播协议；跳过空行与非 URL 行。
+3. **多线路 Fallback + 重试**：
+   - `LiveFallbackPolicy.playbackError` 移除 `isLast()` 限制，任何线路出错都切下一条源（只有 1 条线路时等价于 `refresh()` 重试）；
+   - `LivePlaybackController.switchLine` 移除 `isOnly()` 限制，允许单线路频道重新刷新；
+   - 失败时先调用 `host.renderLineSelection`，UI 同步显示切换状态。
+
+**代码位置：**
+- [MediaItemFactory.java#L37-L111](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/media/MediaItemFactory.java#L37-L111) resolveMimeType 重写
+- [LiveParser.java#L82-L132](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/parser/LiveParser.java#L82-L132) LIVE_URL_SCHEME 白名单解析
+- [LiveFallbackPolicy.java#L19-L25](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/live/LiveFallbackPolicy.java#L19-L25) isLast 限制解除
+- [LivePlaybackController.java#L129-L137](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/live/LivePlaybackController.java#L129-L137) isOnly 限制解除
+
+支持的直播格式覆盖：`.m3u8/.m3u/.mpd/.ts/.flv`（含 query/fragment）→ 无扩展名 IPTV/HTTP(S) 直播流 → `rtsp://` / `rtmp://` → 内置 `video://` / `proxy://` 通道。
+
+版本号：versionCode 594 → **595** / versionName 5.5.45 → **5.5.46**（[app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23)）
+
+---
+
 ## [v5.5.45] - 2026-08-08
 
 ### 新增功能：AI 智能广告过滤 + AI 功能默认全开
