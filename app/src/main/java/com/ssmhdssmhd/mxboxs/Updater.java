@@ -110,25 +110,30 @@ public class Updater implements Download.Callback, UpdateListener {
             }
 
             String tagName = release.optString("tag_name", "");
-            String desc = release.optString("body", "");
+            String rawDesc = release.optString("body", "");
             // 优先从 APK asset 文件名提取版本号（兼容 MXboxS-latest 自动预发布 tag）
             // 否则从 tag_name 提取（v5.5.36 这种稳定发布 tag）
-            String version = Github.extractVersionFromAssets(release);
-            if (version.isEmpty()) {
-                version = tagName.startsWith("v") ? tagName.substring(1) : tagName;
+            String rawVersion = Github.extractVersionFromAssets(release);
+            if (rawVersion.isEmpty()) {
+                rawVersion = tagName.startsWith("v") ? tagName.substring(1) : tagName;
             }
+            final String version = rawVersion;
+            final String desc = rawDesc;
 
             if (Github.compareVersion(version, BuildConfig.VERSION_NAME) <= 0) {
                 // 已是最新版本
-                App.post(() -> {
-                    if (dialog != null) {
-                        dialog.setStatus(ResUtil.getString(R.string.update_no_new));
-                        dialog.setConfirmEnabled(false);
-                    } else if (forced) {
-                        showDialog(activity);
+                App.post(new Runnable() {
+                    @Override
+                    public void run() {
                         if (dialog != null) {
                             dialog.setStatus(ResUtil.getString(R.string.update_no_new));
                             dialog.setConfirmEnabled(false);
+                        } else if (forced) {
+                            showDialog(activity);
+                            if (dialog != null) {
+                                dialog.setStatus(ResUtil.getString(R.string.update_no_new));
+                                dialog.setConfirmEnabled(false);
+                            }
                         }
                     }
                 });
@@ -139,17 +144,20 @@ public class Updater implements Download.Callback, UpdateListener {
             apkUrl = Github.findApkUrl(release);
 
             // 连接成功，有新版本
-            App.post(() -> {
-                if (dialog == null) {
-                    // 非强制模式（自动检查）首次弹出对话框
-                    showDialog(activity);
-                }
-                if (dialog != null) {
-                    dialog.setStatus(ResUtil.getString(R.string.update_connected, version));
-                    dialog.updateTitle(ResUtil.getString(R.string.update_version, version));
-                    dialog.updateDesc(desc.isEmpty() ? ResUtil.getString(R.string.update_downloading) : desc);
-                    // 自动开始下载
-                    startDownload();
+            App.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (dialog == null) {
+                        // 非强制模式（自动检查）首次弹出对话框
+                        showDialog(activity);
+                    }
+                    if (dialog != null) {
+                        dialog.setStatus(ResUtil.getString(R.string.update_connected, version));
+                        dialog.updateTitle(ResUtil.getString(R.string.update_version, version));
+                        dialog.updateDesc(desc.isEmpty() ? ResUtil.getString(R.string.update_downloading) : desc);
+                        // 自动开始下载
+                        startDownload();
+                    }
                 }
             });
         } catch (Exception e) {
