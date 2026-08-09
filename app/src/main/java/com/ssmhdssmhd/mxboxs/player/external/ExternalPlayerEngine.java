@@ -31,6 +31,7 @@ import java.util.Map;
 public class ExternalPlayerEngine extends ExoPlayerEngine {
 
     private final Type type;
+    private final Player.Listener listener;
     private boolean started = false;
 
     /** 第三方 App 包名定义（免费版为主，找不到时尝试备选） */
@@ -46,6 +47,7 @@ public class ExternalPlayerEngine extends ExoPlayerEngine {
     public ExternalPlayerEngine(int decode, Type type, Player.Listener listener) {
         super(decode, listener);
         this.type = type;
+        this.listener = listener;
     }
 
     @Override
@@ -166,7 +168,9 @@ public class ExternalPlayerEngine extends ExoPlayerEngine {
             if (headers != null && !headers.isEmpty()) {
                 List<String> list = new ArrayList<>();
                 headers.forEach((k, v) -> { list.add(k); list.add(v); });
-                intent.putExtra("headers", list.toArray(String[]::new));
+                String[] arr = new String[list.size()];
+                list.toArray(arr);
+                intent.putExtra("headers", arr);
                 Bundle bundle = PlayerHelper.toBundle(headers);
                 intent.putExtra("extra_headers", bundle);
             }
