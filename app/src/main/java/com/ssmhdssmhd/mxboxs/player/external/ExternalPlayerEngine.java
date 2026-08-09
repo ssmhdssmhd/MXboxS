@@ -74,7 +74,7 @@ public class ExternalPlayerEngine extends ExoPlayerEngine {
                 fireError("未安装 " + label);
                 return;
             }
-            launchExternal(pkg, url, spec == null ? null : spec.getHeaders(), startPositionMs, spec == null ? null : spec.getTitle());
+            launchExternal(pkg, url, spec == null ? null : spec.getHeaders(), startPositionMs, spec == null || spec.getMetadata() == null ? null : spec.getMetadata().title);
             // 已经交给外部播放，通知 UI 层结束本地播放（避免进度条卡 0%）
             try {
                 App.post(() -> {
