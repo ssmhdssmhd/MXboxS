@@ -240,6 +240,7 @@
     <string name="update_downloading">Downloading…</string>
     <string name="update_retry">Retry</string>
     <string name="update_installing">Installing…</string>
+    <string name="update_install_failed">Install failed: %s</string>
     <string name="setting_mirror">Update Source</string>
     <string name="mirror_direct">Direct GitHub</string>
     <string name="mirror_ghproxy">ghproxy.com (CN)</string>

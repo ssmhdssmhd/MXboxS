@@ -2,8 +2,10 @@ package com.ssmhdssmhd.mxboxs.utils;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.StatFs;
 import android.text.TextUtils;
+import android.provider.Settings;
 
 import androidx.core.content.FileProvider;
 
@@ -50,24 +52,46 @@ public class FileUtil {
     }
 
     public static void installApk(File apk) {
-        Uri apkUri = getShareUri(apk);
-        Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-        intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if (apk == null || !apk.exists() || apk.length() == 0) {
+            Notify.show(String.format(ResUtil.getString(R.string.update_install_failed), "APK 文件无效"));
+            return;
+        }
         try {
+            // Android 8.0+ 需要检查是否允许安装未知来源应用
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!isCanInstallApk()) {
+                    Notify.show(String.format(ResUtil.getString(R.string.update_install_failed), "请先允许安装未知来源应用"));
+                    Intent settingsIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                    settingsIntent.setData(Uri.parse("package:" + App.get().getPackageName()));
+                    settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    App.get().startActivity(settingsIntent);
+                    return;
+                }
+            }
+            
+            Uri apkUri = getShareUri(apk);
+            Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             App.get().startActivity(intent);
         } catch (Throwable t) {
-            Intent fallback = new Intent(Intent.ACTION_VIEW);
-            fallback.setDataAndType(apkUri, "application/vnd.android.package-archive");
-            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            try {
-                App.get().startActivity(fallback);
-            } catch (Throwable tt) {
-                Notify.show(tt.getMessage());
-            }
+            Notify.show(String.format(ResUtil.getString(R.string.update_install_failed), t.getMessage()));
         }
+    }
+
+    /**
+     * 检查是否允许安装未知来源应用
+     */
+    private static boolean isCanInstallApk() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                return App.get().getPackageManager().canRequestPackageInstalls();
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return true;
     }
 
     public static void gzipCompress(File target) {
