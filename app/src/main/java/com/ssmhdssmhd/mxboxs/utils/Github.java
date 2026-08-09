@@ -514,29 +514,42 @@ public class Github {
         return 0;
     }
 
-    private static String pickDirectApkUrl(JSONObject release) throws Exception {
+    /**
+     * 按当前 flavor（mode=mobile|leanback / abi=arm64_v8a|armeabi_v7a|...）精准匹配
+     * 匹配度：APK 文件名同时含 {mode} 且含 {abi} > 仅含 {mode}。
+     * 不返回 String 形式的 URL，而是返回完整的 asset JSONObject，
+     * 让 Updater 下载后能拿 asset.optLong("size") 做【长度完整性校验】——
+     * 解决镜像服务器（尤其 ghproxy 国内反代）半路返回 error html 或提前截断，
+     * 但 HTTP 仍然 200，导致下载到一个几十字节的"假 APK"，安装时系统报
+     * 「解析软件包时出现问题」这种毫无定位价值的错误。
+     */
+    public static JSONObject pickDirectApkAsset(JSONObject release) throws Exception {
         if (release == null) return null;
         JSONArray assets = release.optJSONArray("assets");
-        if (assets == null) return null;
-
+        if (assets == null || assets.length() == 0) return null;
         String mode = BuildConfig.FLAVOR_mode;
         String abi = BuildConfig.FLAVOR_abi;
-
         for (int i = 0; i < assets.length(); i++) {
-            JSONObject asset = assets.getJSONObject(i);
-            String name = asset.optString("name");
-            if (name.endsWith(".apk") && name.contains(mode) && name.contains(abi)) {
-                return asset.optString("browser_download_url");
+            JSONObject a = assets.getJSONObject(i);
+            String name = a.optString("name");
+            if (name != null && name.endsWith(".apk") && name.contains(mode) && name.contains(abi)) {
+                return a;
             }
         }
         for (int i = 0; i < assets.length(); i++) {
-            JSONObject asset = assets.getJSONObject(i);
-            String name = asset.optString("name");
-            if (name.endsWith(".apk") && name.contains(mode)) {
-                return asset.optString("browser_download_url");
+            JSONObject a = assets.getJSONObject(i);
+            String name = a.optString("name");
+            if (name != null && name.endsWith(".apk") && name.contains(mode)) {
+                return a;
             }
         }
         return null;
+    }
+
+    private static String pickDirectApkUrl(JSONObject release) throws Exception {
+        JSONObject asset = pickDirectApkAsset(release);
+        if (asset == null) return null;
+        return asset.optString("browser_download_url");
     }
 
     /**

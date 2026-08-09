@@ -20,14 +20,18 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipEntry;
 
 public class Updater implements Download.Callback, UpdateListener {
 
     private Download download;
     private UpdateDialog dialog;
     private JSONObject release;
+    private JSONObject apkAsset; // 匹配到的 release asset（含 size/name），下载后用 asset.size 校验完整性
     private List<String> apkUrls;
     private int apkCursor;
     private boolean forced;
@@ -200,6 +204,8 @@ public class Updater implements Download.Callback, UpdateListener {
             apkUrls = Github.findApkUrls(release);
             apkUrls = Github.ensureCandidates(apkUrls, release, Github.getMirrorCandidates());
             apkCursor = 0;
+            // 顺便拿到匹配到的 APK asset（含 size/name），下载完成做完整性校验用
+            try { apkAsset = Github.pickDirectApkAsset(release); } catch (Throwable ignored) { apkAsset = null; }
 
             // 连接成功，有新版本
             App.post(new Runnable() {
@@ -427,10 +433,81 @@ public class Updater implements Download.Callback, UpdateListener {
 
     @Override
     public void success(File file) {
+        // ========== 下载完成 + 安装前，做「完整性双校验」 ==========
+        // 过去国内镜像（尤其 ghproxy/ghps）常见：半路返回 <html>error 502</html> 但 HTTP 200，
+        // 或者被 CDN 缓存截断到一半字节数。App 仍当"下载成功"调 installApk，
+        // 系统 PackageParser 读坏 zip 就弹用户"解析软件包时出现问题"，没任何有效信息。
+        // 这里先自己校验，失败直接走 error()，会自动切换到下一个镜像重下。
+        String verifyFail = verifyApkIntegrity(file);
+        if (verifyFail != null) {
+            // 这个文件是坏的，先删掉（免得下次继续用同一个缓存文件）
+            try { if (file != null && file.exists()) file.delete(); } catch (Throwable ignored) {}
+            Notify.show("APK 校验失败，自动切换下一镜像：" + verifyFail);
+            error("下载文件损坏（" + verifyFail + "）");
+            return;
+        }
         if (dialog != null) {
             dialog.setStatus(ResUtil.getString(R.string.update_installing));
         }
         FileUtil.installApk(file);
         dismiss();
+    }
+
+    /**
+     * 对刚下好的 APK 做两层校验，任何一层失败都返回错误描述（用于日志/UI 提示）。
+     *   ① 长度校验：release.asset.size （GitHub 官方声明） vs file.length()
+     *     允许 2% 误差（极少数 CDN 会做 gzip/br 传输，但下载器一般是解压写盘；给个 buffer 不要因此误伤）
+     *   ② zip 结构校验：能 new ZipFile(file) 并读到 entries，且能看到
+     *     `AndroidManifest.xml` + `resources.arsc` + `classes.dex` 三个典型文件
+     *     （覆盖了假 apk = html 报错页、zip 中心目录损坏、下载截断导致一半文件头好但缺 entries 等情况）
+     */
+    private String verifyApkIntegrity(File file) {
+        if (file == null) return "文件对象为空";
+        if (!file.exists()) return "文件不存在";
+        long fileLen = file.length();
+        if (fileLen <= 0) return "文件大小为 0";
+
+        // ① 长度完整性（优先：我们有 release.asset.size 的时候才做）
+        long expected = -1;
+        String apkNameForDebug = "";
+        if (apkAsset != null) {
+            expected = apkAsset.optLong("size", -1);
+            apkNameForDebug = apkAsset.optString("name", "");
+        }
+        if (expected > 0) {
+            // 允许 2% 容差，但绝对长度不能小于官方的 90%（严重截断），也不能大 1.1 倍以上
+            double ratio = (double) fileLen / expected;
+            if (ratio < 0.90d || ratio > 1.10d) {
+                return String.format("文件长度不匹配（官方 %dB，实际 %dB，ratio %.2f，对应 APK %s）",
+                        expected, fileLen, ratio, apkNameForDebug.isEmpty() ? "未知" : apkNameForDebug);
+            }
+        }
+
+        // ② zip 结构 + 典型 entries 存在校验（这一步能覆盖绝大多数"假 APK = html 页"）
+        ZipFile zf = null;
+        try {
+            zf = new ZipFile(file);
+            boolean hasManifest = false, hasArsc = false, hasClassesDex = false;
+            int entryCount = 0;
+            Enumeration<?> en = zf.entries();
+            while (en.hasMoreElements()) {
+                ZipEntry e = (ZipEntry) en.nextElement();
+                entryCount++;
+                String n = e.getName();
+                if (n == null) continue;
+                if ("AndroidManifest.xml".equals(n)) hasManifest = true;
+                else if ("resources.arsc".equals(n)) hasArsc = true;
+                else if (n.startsWith("classes") && n.endsWith(".dex")) hasClassesDex = true;
+            }
+            if (entryCount <= 0) return "Zip 文件读不出任何 entry（可能只写了 4 字节头就被截断）";
+            if (!hasManifest) return "Zip 内缺少 AndroidManifest.xml（这不是 APK，可能是镜像返回了 HTML 错误页）";
+            if (!hasArsc) return "Zip 内缺少 resources.arsc（APK 结构不完整）";
+            if (!hasClassesDex) return "Zip 内缺少 classes*.dex（APK 结构不完整）";
+            return null;
+        } catch (Throwable t) {
+            return "ZipFile 打开失败：" + t.getClass().getSimpleName() + " " + t.getMessage();
+        } finally {
+            if (zf != null) { try { zf.close(); } catch (Throwable ignored) {} }
+        }
     }
 }
