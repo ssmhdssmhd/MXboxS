@@ -76,21 +76,120 @@
         tools:text="0%"
         tools:visibility="visible" />
 
+    <!-- 兼容：旧代码仍会引用 binding.debug（默认 gone，不显示） -->
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/debug"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        tools:visibility="gone" />
+
+    <!-- 上部：授权激活码（原 debug 面板位置改造） -->
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/licensePanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:background="#1AFFFFFF"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="visible"
+        tools:visibility="visible">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/licenseTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="授权激活码"
+            android:textColor="#4CAF50"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatEditText
+                android:id="@+id/licenseCode"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/selector_input"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:fontFamily="monospace"
+                android:hint="请输入激活码"
+                android:imeOptions="actionDone"
+                android:inputType="textNoSuggestions|textVisiblePassword"
+                android:padding="10dp"
+                android:textColor="@color/white"
+                android:textColorHint="#80FFFFFF"
+                android:textSize="14sp"
+                tools:text="MXBOXS-XXXX-XXXX-XXXX" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/licenseSave"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/selector_button"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center"
+                android:minWidth="96dp"
+                android:paddingStart="12dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="10dp"
+                android:text="保存"
+                android:textColor="@color/white"
+                android:textSize="14sp" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/licenseStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text=""
+            android:textColor="#B3FFFFFF"
+            android:textSize="12sp"
+            tools:text="激活状态：未激活" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <!-- 下部：更新内容（changelog） -->
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/changelogPanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
         android:background="#1AFFFFFF"
-        android:fontFamily="monospace"
-        android:letterSpacing="0.01"
-        android:lineSpacingExtra="4dp"
-        android:padding="8dp"
-        android:textColor="#B3FFFFFF"
-        android:textSize="11sp"
+        android:orientation="vertical"
+        android:padding="12dp"
         android:visibility="gone"
-        tools:text="本地：5.5.46 (595)&#10;远程：5.5.46 (来源：tag_name)&#10;比较：server &lt;= local，已是最新"
-        tools:visibility="visible" />
+        tools:visibility="visible">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/changelogTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="更新内容"
+            android:textColor="#4CAF50"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/changelogText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:lineSpacingExtra="4dp"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            tools:text="1. 内置小姐姐壁纸 API 兜底，未配置时自动使用内置接口；设置界面仅显示「内置」两字\n2. 更新对话框改造：上部显示授权激活码，下部显示更新内容\n3. 其它优化" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
 
     <androidx.appcompat.widget.LinearLayoutCompat
         android:layout_width="match_parent"

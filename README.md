@@ -9,6 +9,18 @@
 
 ## 最新更新
 
+### v5.5.54 · 2026-08-08 · 壁纸未配置自动走内置接口（设置UI只显示「内置」） + 更新对话框改造（上=激活码 / 下=更新内容）
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **WallConfig 内置壁纸兜底** | url 空/未配置时自动用内置 `https://www.hhlqilongzhu.cn/api/MP4_xiaojiejie.php`，`WallConfig.getDesc()` 返回「内置」两字；Setting 页 wallUrl 文本、ConfigDialog 里都只显示「内置」，不把真实接口地址给用户看 | [WallConfig.java#L24-L88](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/WallConfig.java#L24-L88) / [mobile ConfigDialog#L73-L89](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/ConfigDialog.java#L73-L89) / [leanback ConfigDialog#L80-L109](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/dialog/ConfigDialog.java#L80-L109) |
+| 2 | **dialog_update 布局改造** | 原底部 debug 面板替换为两块：**上部 = 授权激活码**（输入框 + 保存 + 激活状态），**下部 = 更新内容**（release.body / 失败详情）；同时保留零高 `id=debug` 让旧代码判空不崩 | [mobile dialog_update.xml#L57-L169](file:///workspace/app/src/mobile/res/layout/dialog_update.xml#L57-L169) / [leanback dialog_update.xml#L79-L192](file:///workspace/app/src/leanback/res/layout/dialog_update.xml#L79-L192) |
+| 3 | **UpdateDialog 激活码保存** | `initView()` 回填 `Setting.getKami()` / `Setting.isKamiActivated()`；保存按钮/输入法 Done 都写入本地 kami（非空即置为已激活） | [mobile UpdateDialog.java#L69-L120](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L69-L120) / [leanback UpdateDialog.java#L64-L114](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java#L64-L114) |
+| 4 | **Updater 用 changelog 显示更新内容** | 已是最新/有新版本分支：`dialog.setChangelog(release.body)`；网络错误 / 下载失败时，下部更新内容区域展示错误原因 + 预测试总结（替换旧 setDebugInfo 写法） | [Updater.java#L138-L234](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L138-L234) / [Updater.java#L409-L425](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java#L409-L425) |
+| 5 | 版本号 | versionCode 602 → **603** / versionName 5.5.53 → **5.5.54** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.53 · 2026-08-08 · 修复 CI 编译失败 Github.java:163 `cannot find symbol App`（导致 Release 里只有 v5.5.50 APK 的根因）
 
 | # | 模块 | 行为 | 代码位置 |

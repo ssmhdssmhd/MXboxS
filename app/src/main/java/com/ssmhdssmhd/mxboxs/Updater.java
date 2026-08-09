@@ -137,17 +137,15 @@ public class Updater implements Download.Callback, UpdateListener {
             }
             if (release == null) {
                 // 连接失败：强制模式（手动检查）也要 showDialog，否则用户点了「检测更新」看不到对话框
-                releaseSource = "network error（getHighestRelease 和 getLatestRelease 都返回 null）";
-                final String debugSource = releaseSource;
+                final String errText = "没有拿到任何 Release 对象。\n可能原因：\n(1) 本机网络/代理被墙 api.github.com；\n(2) 还没 push main / 还没完成 CI build；\n(3) 镜像前缀解析不到 GitHub API。";
                 App.post(() -> {
                     ensureDialogShown(activity);
                     if (dialog != null) {
                         dialog.setStatus(ResUtil.getString(R.string.update_download_failed, "network error"));
-                        dialog.setDebugInfo(buildDebugInfo("", "", "", "", debugSource,
-                                "没有拿到任何 Release 对象 → 视为「已是最新」。\n可能原因：(1) 本机网络/代理被墙 api.github.com；(2) 还没 push main / 还没完成 CI build；(3) 镜像前缀解析不到 GitHub API。"));
+                        dialog.setChangelog(errText);
                         dialog.setConfirmEnabled(false);
                     }
-                    Notify.show("更新检测：未连上 GitHub API（Release来源：" + debugSource + "）");
+                    Notify.show("更新检测：未连上 GitHub API");
                 });
                 return;
             }
@@ -181,19 +179,15 @@ public class Updater implements Download.Callback, UpdateListener {
 
             int cmp = Github.compareVersion(version, BuildConfig.VERSION_NAME);
             if (cmp <= 0) {
-                // 已是最新版本：强制模式必须 showDialog，否则用户看不到对话框，也无法查看 Debug 信息
-                final String compareLine = "server=" + (version.isEmpty() ? "<empty>" : version)
-                        + ", local=" + BuildConfig.VERSION_NAME
-                        + ", compareVersion 返回 " + cmp + "（<=0 → 判定已是最新）。\n"
-                        + "要升级到 5.5.47+，请先把本地 3 个新 commit push 到 origin/main 触发 CI 产出 v5.5.47 APK asset，这里才能检测到。";
+                // 已是最新版本：强制模式必须 showDialog；更新内容显示 release.body（若有）
+                final String changelog = desc == null ? "" : desc;
                 App.post(new Runnable() {
                     @Override
                     public void run() {
                         ensureDialogShown(activity);
                         if (dialog != null) {
                             dialog.setStatus(ResUtil.getString(R.string.update_no_new));
-                            dialog.setDebugInfo(buildDebugInfo(fTagName, version, fVersionSource,
-                                    fApkName, fReleaseSource, compareLine));
+                            dialog.setChangelog(changelog);
                             dialog.setConfirmEnabled(false);
                         }
                     }
@@ -207,19 +201,16 @@ public class Updater implements Download.Callback, UpdateListener {
             apkCursor = 0;
 
             // 连接成功，有新版本
-            final String compareLine = "server=" + version + " > local=" + BuildConfig.VERSION_NAME
-                    + "（compareVersion=" + cmp + "）→ 有新版本";
             App.post(new Runnable() {
                 @Override
                 public void run() {
                     ensureDialogShown(activity);
                     if (dialog != null) {
-                        dialog.setDebugInfo(buildDebugInfo(fTagName, version, fVersionSource,
-                                fApkName, fReleaseSource, compareLine
-                                        + "\n候选 APK 镜像：" + (apkUrls == null ? 0 : apkUrls.size()) + " 条"));
                         dialog.setStatus(ResUtil.getString(R.string.update_connected, version));
                         dialog.updateTitle(ResUtil.getString(R.string.update_version, version));
                         dialog.updateDesc(desc.isEmpty() ? ResUtil.getString(R.string.update_downloading) : desc);
+                        // 下部「更新内容」展示 release.body（changelog）
+                        dialog.setChangelog(desc == null ? "" : desc);
                         // 自动开始下载
                         startDownload();
                     }
@@ -227,16 +218,16 @@ public class Updater implements Download.Callback, UpdateListener {
             });
         } catch (final Exception e) {
             e.printStackTrace();
-            final String debugSource = "Exception: " + (e.getClass().getSimpleName()) + " " + e.getMessage();
+            final String msg = "更新检测异常：" + e.getClass().getSimpleName() + " " + e.getMessage();
             App.post(() -> {
                 ensureDialogShown(activity);
                 if (dialog != null) {
                     dialog.setStatus(ResUtil.getString(R.string.update_download_failed, e.getMessage()));
-                    dialog.setDebugInfo(buildDebugInfo("", "", "", "", debugSource,
-                            "异常抛出，详情见堆栈 → 视为「已是最新」不弹窗。\n修复后会显示错误原因，也能再次手动重试。"));
+                    // 网络错误/解析错误时，更新内容显示错误原因便于排错
+                    dialog.setChangelog(msg);
                     dialog.setConfirmEnabled(false);
                 }
-                Notify.show("更新检测异常：" + e.getMessage());
+                Notify.show(msg);
             });
         }
     }
@@ -419,16 +410,16 @@ public class Updater implements Download.Callback, UpdateListener {
         if (dialog != null) {
             dialog.setStatus(ResUtil.getString(R.string.update_download_failed, msg + "（全部 " + (apkUrls == null ? 0 : apkUrls.size()) + " 条镜像均失败）"));
             dialog.setConfirmEnabled(true, R.string.update_retry);
-            // 再把 debug 信息追加一条，避免用户看不到失败全貌
-            CharSequence prev = dialog.readDebugInfo();
+            // 将失败详情追加到「更新内容」区域（下部），便于用户看到失败全貌
             StringBuilder more = new StringBuilder();
             if (lastProbeSummary != null && !lastProbeSummary.isEmpty()) {
-                more.append("\n\n============ 预测试总结 ============\n").append(lastProbeSummary);
+                more.append("============ 预测试总结 ============\n").append(lastProbeSummary).append("\n\n");
             }
-            more.append("\n\n最后一次错误：").append(msg)
+            more.append("最后一次错误：").append(msg)
                     .append("\n已尝试 ").append(apkUrls == null ? 0 : apkUrls.size()).append(" 条候选镜像（先测后下载：探针 1.5s 排除 DNS/连接超时，下载阶段 10s 自动切源）。")
                     .append("\n可点击右下角『重试』再次从第一个镜像重新预测试并按连通性排序后下载；或到「设置 → 更新源」切换首选镜像（例如手动改成 GitHub 直连 / mirror.ghproxy / ghps 等）。");
-            dialog.setDebugInfo(prev == null ? more.toString() : (prev + more.toString()));
+            CharSequence prev = dialog.readDebugInfo();
+            dialog.setChangelog(prev == null || TextUtils.isEmpty(prev.toString()) ? more.toString() : (prev + "\n\n" + more.toString()));
         }
         Notify.show(msg);
     }

@@ -24,17 +24,38 @@ import java.io.FileOutputStream;
 public class WallConfig extends BaseConfig {
 
     private static final String TAG = WallConfig.class.getSimpleName();
+    /** 用户未配置壁纸 URL 时默认走的内置小姐姐壁纸 API（官方内置） */
+    public static final String BUILTIN_WALLPAPER_URL = "https://www.hhlqilongzhu.cn/api/MP4_xiaojiejie.php";
+    /** 显示给用户看的占位文字：不显示真实 API 地址，只显示「内置」两个字 */
+    public static final String BUILTIN_DISPLAY_NAME = "内置";
+
+    /** 工具：当 url 空/未配置时，返回 BUILTIN_WALLPAPER_URL；否则原样返回。 */
+    public static String useBuiltinIfEmpty(String url) {
+        if (url == null || url.isEmpty()) return BUILTIN_WALLPAPER_URL;
+        return url;
+    }
+
+    /** 工具：当前 wallpaper config.getUrl() 是否属于「内置」（未配置或显式等于 BUILTIN URL） */
+    public static boolean isBuiltin(String url) {
+        if (url == null || url.isEmpty()) return true;
+        return BUILTIN_WALLPAPER_URL.equals(url);
+    }
 
     public static WallConfig get() {
         return Loader.INSTANCE;
     }
 
     public static String getUrl() {
-        return get().getConfig().getUrl();
+        return useBuiltinIfEmpty(get().getConfig().getUrl());
     }
 
     public static String getDesc() {
-        return get().getConfig().getDesc();
+        Config cfg = get().getConfig();
+        if (cfg != null && !android.text.TextUtils.isEmpty(cfg.getName())) return cfg.getName();
+        String url = cfg == null ? "" : cfg.getUrl();
+        if (isBuiltin(url)) return BUILTIN_DISPLAY_NAME;
+        if (!android.text.TextUtils.isEmpty(url)) return url;
+        return BUILTIN_DISPLAY_NAME;
     }
 
     public static void load(Config config, Callback callback) {
@@ -47,8 +68,16 @@ public class WallConfig extends BaseConfig {
 
     public WallConfig config(Config config) {
         this.config = config;
-        if (config.isEmpty()) return this;
-        this.sync = config.getUrl().equals(VodConfig.get().getWall());
+        String cfgUrl = config.getUrl();
+        boolean builtinEmpty = isBuiltin(cfgUrl);
+        if (builtinEmpty) {
+            // 内置：config.isEmpty() 会基于 getUrl() 判断，但内置应该视为「已配置」，
+            // 所以 sync 用内置 URL 与 VodConfig.wall() 比较
+            this.sync = BUILTIN_WALLPAPER_URL.equals(VodConfig.get().getWall());
+        } else {
+            if (config.isEmpty()) return this;
+            this.sync = config.getUrl().equals(VodConfig.get().getWall());
+        }
         return this;
     }
 
@@ -76,7 +105,9 @@ public class WallConfig extends BaseConfig {
     @Override
     protected void load(Config config) throws Throwable {
         File file = FileUtil.getWall(0);
-        String realUrl = resolveRealUrl(config.getUrl());
+        // url 空时用内置小姐姐壁纸 API 兜底
+        String url = useBuiltinIfEmpty(config.getUrl());
+        String realUrl = resolveRealUrl(url);
         checkUrl(realUrl, file);
         setWallType(file);
         setSnapshot(file);

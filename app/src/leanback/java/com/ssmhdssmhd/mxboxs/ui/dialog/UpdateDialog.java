@@ -2,6 +2,7 @@ package com.ssmhdssmhd.mxboxs.ui.dialog;
 
 import android.text.TextUtils;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewbinding.ViewBinding;
@@ -9,6 +10,8 @@ import androidx.viewbinding.ViewBinding;
 import com.ssmhdssmhd.mxboxs.R;
 import com.ssmhdssmhd.mxboxs.databinding.DialogUpdateBinding;
 import com.ssmhdssmhd.mxboxs.impl.UpdateListener;
+import com.ssmhdssmhd.mxboxs.setting.Setting;
+import com.ssmhdssmhd.mxboxs.utils.Notify;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.Locale;
@@ -63,6 +66,51 @@ public class UpdateDialog extends BaseAlertDialog {
         binding.version.setText(title);
         binding.desc.setText(desc != null ? desc : "");
         binding.desc.setVisibility(desc != null ? View.VISIBLE : View.GONE);
+        // 上部：授权激活码 - 回填 & 按钮 & 输入法 Done
+        refreshLicenseUi();
+        if (binding.licenseSave != null) {
+            binding.licenseSave.setOnClickListener(v -> saveLicenseCode());
+        }
+        if (binding.licenseCode != null) {
+            binding.licenseCode.setOnEditorActionListener((v, actionId, event) -> {
+                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                    saveLicenseCode();
+                    return true;
+                }
+                return false;
+            });
+        }
+    }
+
+    private void refreshLicenseUi() {
+        if (binding == null) return;
+        String saved = Setting.getKami();
+        boolean activated = Setting.isKamiActivated();
+        if (binding.licenseCode != null && !TextUtils.isEmpty(saved)) {
+            CharSequence cur = binding.licenseCode.getText();
+            if (cur == null || TextUtils.isEmpty(cur.toString().trim())) {
+                binding.licenseCode.setText(saved);
+                binding.licenseCode.setSelection(saved.length());
+            }
+        }
+        if (binding.licenseStatus != null) {
+            if (activated && !TextUtils.isEmpty(saved)) {
+                binding.licenseStatus.setText("激活状态：已激活");
+            } else if (!TextUtils.isEmpty(saved)) {
+                binding.licenseStatus.setText("激活状态：已保存（未核验）");
+            } else {
+                binding.licenseStatus.setText("激活状态：未激活");
+            }
+        }
+    }
+
+    private void saveLicenseCode() {
+        if (binding == null || binding.licenseCode == null) return;
+        String code = binding.licenseCode.getText() == null ? "" : binding.licenseCode.getText().toString().trim();
+        Setting.putKami(code);
+        Setting.putKamiActivated(!TextUtils.isEmpty(code));
+        refreshLicenseUi();
+        Notify.show(TextUtils.isEmpty(code) ? "已清空激活码" : "激活码已保存");
     }
 
     @Override
@@ -92,31 +140,37 @@ public class UpdateDialog extends BaseAlertDialog {
     public void updateDesc(String text) {
         this.desc = text;
         if (binding != null) {
-            CharSequence debug = binding.debug != null ? binding.debug.getText() : "";
             binding.desc.setText(text != null ? text : "");
             binding.desc.setVisibility(text != null ? View.VISIBLE : View.GONE);
-            if (binding.debug != null && !TextUtils.isEmpty(debug) && TextUtils.isEmpty(binding.debug.getText())) {
-                binding.debug.setText(debug);
-                binding.debug.setVisibility(View.VISIBLE);
-            }
         }
     }
 
+    /** 兼容：旧代码调用 setDebugInfo 不再显示 debug，改为 fallback 填充「更新内容」（若还没设置）。 */
     public void setDebugInfo(String text) {
-        if (binding == null || binding.debug == null) return;
-        if (text == null || text.isEmpty()) {
-            binding.debug.setVisibility(View.GONE);
-            binding.debug.setText("");
-        } else {
-            binding.debug.setText(text);
-            binding.debug.setVisibility(View.VISIBLE);
+        if (text == null || text.isEmpty()) return;
+        if (binding == null || binding.changelogText == null) return;
+        CharSequence cur = binding.changelogText.getText();
+        if (cur == null || TextUtils.isEmpty(cur.toString().trim())) {
+            setChangelog(text);
         }
     }
 
     public CharSequence readDebugInfo() {
-        if (binding == null || binding.debug == null) return "";
-        CharSequence t = binding.debug.getText();
+        if (binding == null || binding.changelogText == null) return "";
+        CharSequence t = binding.changelogText.getText();
         return t == null ? "" : t;
+    }
+
+    /** 下部「更新内容」显示：空 = 隐藏 */
+    public void setChangelog(String text) {
+        if (binding == null || binding.changelogPanel == null || binding.changelogText == null) return;
+        if (text == null || text.isEmpty()) {
+            binding.changelogPanel.setVisibility(View.GONE);
+            binding.changelogText.setText("");
+        } else {
+            binding.changelogText.setText(text);
+            binding.changelogPanel.setVisibility(View.VISIBLE);
+        }
     }
 
     public void showProgress() {

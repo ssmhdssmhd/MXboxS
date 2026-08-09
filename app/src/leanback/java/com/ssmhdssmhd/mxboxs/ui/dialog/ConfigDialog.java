@@ -79,11 +79,33 @@ public class ConfigDialog extends BaseAlertDialog {
 
     @Override
     protected void initView() {
-        binding.text.setText(url = getUrl());
+        String raw = getRawUrlFromConfig();
+        // 壁纸：当 url 空/内置时，输入框不显示真实接口地址（显示空白）；
+        // 名字框默认「内置」，让用户看到「内置」状态；
+        // 保存时空 URL 仍会被视为内置，不影响实际加载。
+        if (type == 2 && WallConfig.isBuiltin(raw)) {
+            binding.text.setText("");
+            url = "";
+            String name = binding.name.getText() == null ? "" : binding.name.getText().toString().trim();
+            if (name.isEmpty()) binding.name.setText(WallConfig.BUILTIN_DISPLAY_NAME);
+        } else {
+            binding.text.setText(url = raw);
+        }
         binding.text.setSelection(TextUtils.isEmpty(url) ? 0 : url.length());
         binding.positive.setText(edit ? R.string.dialog_edit : R.string.dialog_positive);
         binding.code.setImageBitmap(QRCode.getBitmap(Server.get().getAddress(3), 200, 0));
         binding.info.setText(ResUtil.getString(R.string.push_info, Server.get().getAddress()).replace("\uff0c", "\n"));
+    }
+
+    /** 从 Config 里取原始 URL（空表示未配置，之后由 WallConfig 在加载时走内置） */
+    private String getRawUrlFromConfig() {
+        Config cfg = switch (type) {
+            case 0 -> VodConfig.get().getConfig();
+            case 1 -> LiveConfig.get().getConfig();
+            case 2 -> WallConfig.get().getConfig();
+            default -> null;
+        };
+        return cfg == null ? "" : cfg.getUrl();
     }
 
     @Override

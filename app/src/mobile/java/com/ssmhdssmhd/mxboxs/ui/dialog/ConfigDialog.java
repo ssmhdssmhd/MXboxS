@@ -72,8 +72,18 @@ public class ConfigDialog extends BaseAlertDialog {
 
     @Override
     protected void initView() {
-        binding.name.setText(getConfig().getName());
-        binding.url.setText(ori = getConfig().getUrl());
+        Config cfg = getConfig();
+        String cfgName = cfg == null ? "" : cfg.getName();
+        String cfgUrl = cfg == null ? "" : cfg.getUrl();
+        // 壁纸：当 url 空/内置，且用户没自己填 name 时，提示框里的 name 显示「内置」
+        if (type == 2 && WallConfig.isBuiltin(cfgUrl) && TextUtils.isEmpty(cfgName)) {
+            binding.name.setText(WallConfig.BUILTIN_DISPLAY_NAME);
+            binding.url.setText("");
+            ori = "";
+        } else {
+            binding.name.setText(cfgName);
+            binding.url.setText(ori = cfgUrl);
+        }
         binding.input.setVisibility(edit ? View.VISIBLE : View.GONE);
         binding.url.setSelection(TextUtils.isEmpty(ori) ? 0 : ori.length());
     }

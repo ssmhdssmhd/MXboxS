@@ -54,20 +54,118 @@
         tools:text="0%"
         tools:visibility="visible" />
 
+    <!-- 原「卷起来的 debug 面板」区域改造：
+         上部 = 授权激活码（输入框 + 保存）
+         下部 = 更新内容（changelog）
+         为了兼容旧代码对 binding.debug 的引用（不崩），仍保留一个 id=debug 的 TextView，
+         默认 gone（不显示），真正显示的是下面两个新区域。 -->
+
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/debug"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        tools:visibility="gone" />
+
+    <!-- 上部：授权激活码 -->
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/licensePanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:background="?attr/colorSurfaceVariant"
-        android:fontFamily="monospace"
-        android:letterSpacing="0.01"
-        android:lineSpacingExtra="4dp"
-        android:padding="8dp"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:textSize="11sp"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="visible"
+        tools:visibility="visible">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/licenseTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="授权激活码"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/licenseInputLayout"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="请输入或粘贴激活码"
+            app:boxStrokeWidth="1dp"
+            app:hintEnabled="true">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/licenseCode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:imeOptions="actionDone"
+                android:inputType="textNoSuggestions|textVisiblePassword"
+                android:textSize="13sp"
+                tools:text="MXBOXS-XXXX-XXXX-XXXX" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/licenseSave"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="保存激活码"
+                android:textSize="12sp" />
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/licenseStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text=""
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="11sp"
+            tools:text="激活状态：未激活" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
+
+    <!-- 下部：更新内容 -->
+    <androidx.appcompat.widget.LinearLayoutCompat
+        android:id="@+id/changelogPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="?attr/colorSurfaceVariant"
+        android:orientation="vertical"
+        android:padding="12dp"
         android:visibility="gone"
-        tools:text="本地：5.5.46 (595)&#10;远程：5.5.46 (来源：tag_name)&#10;比较：server &lt;= local，已是最新"
-        tools:visibility="visible" />
+        tools:visibility="visible">
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/changelogTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="更新内容"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/changelogText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:lineSpacingExtra="4dp"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="12sp"
+            tools:text="1. 内置小姐姐壁纸 API 兜底，未配置时自动使用内置接口；设置界面仅显示「内置」两字\n2. 更新对话框改造：上部显示授权激活码，下部显示更新内容\n3. 其它优化" />
+    </androidx.appcompat.widget.LinearLayoutCompat>
 
 </androidx.appcompat.widget.LinearLayoutCompat>

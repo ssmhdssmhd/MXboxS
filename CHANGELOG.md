@@ -2,6 +2,45 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.54] - 2026-08-08
+
+### 壁纸 API 未配置时自动使用内置接口 & 设置 UI 只显示「内置」不暴露具体接口
+
+用户反馈的问题：
+1. 当用户没有填任何壁纸 API，App 首页背景没有画面，也不会自动用官方默认接口。
+2. 设置页里即使是默认/内置，也会把真实 URL `https://www.hhlqilongzhu.cn/api/MP4_xiaojiejie.php` 完整显示出来，不够简洁。
+
+#### 解决方案
+- **WallConfig** 增加 `BUILTIN_WALLPAPER_URL` 与 `BUILTIN_DISPLAY_NAME = "内置"` 常量，提供 `useBuiltinIfEmpty()` / `isBuiltin()` 工具方法。
+- **WallConfig.getUrl()**：url 为空/未配置时，直接返回内置 URL，确保即使数据库里没记录，实际拉取壁纸也会走内置接口。
+- **WallConfig.getDesc()**：url 属于内置时 **只显示「内置」两个字**，不返回真实 URL；UI 里（SettingFragment/SettingActivity 的 `wallUrl.setText(WallConfig.getDesc())`）直接生效。
+- **load(Config config)**：url 空时先用 `useBuiltinIfEmpty()` 填默认再走 resolveRealUrl → 下载。
+- **ConfigDialog（mobile + leanback）**：壁纸对话框当 url 内置时，name 框默认填「内置」提示，url 框显示空白（用户不输 = 继续用内置），不会把具体接口地址回填给用户看。
+
+### 设置页（更新对话框）「卷起来的部分」改造为：上 = 授权激活码，下 = 更新内容
+
+用户要求把原更新对话框底部的 Debug 信息面板（截图里红圈的那一块，通常写着本地/远程/来源/比较等几行小字的区域）改造：
+- **上部**：显示「授权激活码」输入框 + 保存按钮 + 激活状态提示
+- **下部**：显示「更新内容」（release.body，即 GitHub Release 的 changelog 正文；若发生下载失败/连不上 GitHub，也用这里展示失败原因方便排错）
+
+#### 解决方案
+- **dialog_update.xml（mobile + leanback）**：
+  - 保留一个 `id=debug` 的零高 gone TextView，让旧代码 `binding.debug != null` 判空仍成立（不会崩）。
+  - 新增 `licensePanel`（上部）：`licenseTitle`「授权激活码」 + `licenseCode` 输入框 + `licenseSave` 保存按钮 + `licenseStatus` 激活状态。
+  - 新增 `changelogPanel`（下部）：`changelogTitle`「更新内容」 + `changelogText` 长文本。
+- **UpdateDialog（mobile + leanback）**：
+  - `initView()` 里回填 `Setting.getKami()` / `Setting.isKamiActivated()`；`licenseSave` 点击/`IME_ACTION_DONE` 即 `Setting.putKami(code)` + `Setting.putKamiActivated(!code.isEmpty())`，并 Toast「激活码已保存/已清空激活码」。
+  - 新增 `setChangelog(text)` 写下部更新内容；`setDebugInfo(text)` 保留兼容：仅当 changelog 还没填过时才作为 fallback 写进去，避免覆盖更正式的 release.body。
+- **Updater.java**：
+  - 取到 release.body（`desc`）后，对「已是最新」和「有新版本」两种分支，都调用 `dialog.setChangelog(desc)` 写入下部更新内容。
+  - 连不上 GitHub API / 抛异常 / 所有镜像下载失败等错误情况，也用下部更新内容区域显示错误详情 + 预测试总结，替代原 setDebugInfo 塞进 debug 面板的做法。
+
+### 版本号
+- versionCode 602 → **603**
+- versionName 5.5.53 → **5.5.54**
+
+---
+
 ## [v5.5.53] - 2026-08-08
 
 ### 修复 CI 编译失败：Github.java:163 `error: cannot find symbol App.post`
