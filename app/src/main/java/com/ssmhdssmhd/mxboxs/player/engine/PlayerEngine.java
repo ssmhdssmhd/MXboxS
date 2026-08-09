@@ -54,6 +54,11 @@ public interface PlayerEngine {
         SYSTEM,
         ALI,
         NOVA,
-        IJK
+        IJK,
+        VLC,
+        MX,
+        MPVEX,
+        MPVNOVA,
+        KMP
     }
 }

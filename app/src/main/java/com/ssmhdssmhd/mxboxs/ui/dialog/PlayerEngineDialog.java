@@ -67,6 +67,11 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
         if (binding.ali != null) binding.ali.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_ALI));
         if (binding.nova != null) binding.nova.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_NOVA));
         if (binding.ijk != null) binding.ijk.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_IJK));
+        if (binding.vlc != null) binding.vlc.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_VLC));
+        if (binding.mx != null) binding.mx.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_MX));
+        if (binding.mpvex != null) binding.mpvex.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_MPVEX));
+        if (binding.mpvnova != null) binding.mpvnova.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_MPVNOVA));
+        if (binding.kmp != null) binding.kmp.setOnClickListener(view -> selectEngine(PlayerSetting.ENGINE_KMP));
     }
 
     private void selectDebug(View view) {
@@ -102,6 +107,11 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
         if (binding.ali != null) binding.ali.setSelected(engine == PlayerSetting.ENGINE_ALI);
         if (binding.nova != null) binding.nova.setSelected(engine == PlayerSetting.ENGINE_NOVA);
         if (binding.ijk != null) binding.ijk.setSelected(engine == PlayerSetting.ENGINE_IJK);
+        if (binding.vlc != null) binding.vlc.setSelected(engine == PlayerSetting.ENGINE_VLC);
+        if (binding.mx != null) binding.mx.setSelected(engine == PlayerSetting.ENGINE_MX);
+        if (binding.mpvex != null) binding.mpvex.setSelected(engine == PlayerSetting.ENGINE_MPVEX);
+        if (binding.mpvnova != null) binding.mpvnova.setSelected(engine == PlayerSetting.ENGINE_MPVNOVA);
+        if (binding.kmp != null) binding.kmp.setSelected(engine == PlayerSetting.ENGINE_KMP);
         binding.debug.setSelected(activity != null && activity.isDebugViewVisible());
     }
 
@@ -112,6 +122,11 @@ public final class PlayerEngineDialog extends BaseBottomSheetDialog {
             case PlayerSetting.ENGINE_ALI -> binding.ali != null ? binding.ali : binding.exo;
             case PlayerSetting.ENGINE_NOVA -> binding.nova != null ? binding.nova : binding.exo;
             case PlayerSetting.ENGINE_IJK -> binding.ijk != null ? binding.ijk : binding.exo;
+            case PlayerSetting.ENGINE_VLC -> binding.vlc != null ? binding.vlc : binding.exo;
+            case PlayerSetting.ENGINE_MX -> binding.mx != null ? binding.mx : binding.exo;
+            case PlayerSetting.ENGINE_MPVEX -> binding.mpvex != null ? binding.mpvex : binding.exo;
+            case PlayerSetting.ENGINE_MPVNOVA -> binding.mpvnova != null ? binding.mpvnova : binding.exo;
+            case PlayerSetting.ENGINE_KMP -> binding.kmp != null ? binding.kmp : binding.exo;
             default -> binding.exo;
         };
     }

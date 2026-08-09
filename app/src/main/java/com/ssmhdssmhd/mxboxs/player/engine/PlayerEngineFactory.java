@@ -3,13 +3,19 @@ package com.ssmhdssmhd.mxboxs.player.engine;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.ALI;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.EXO;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.IJK;
+import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.KMP;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.MPV;
+import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.MPVEX;
+import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.MPVNOVA;
+import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.MX;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.NOVA;
 import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.SYSTEM;
+import static com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine.Type.VLC;
 
 import androidx.media3.common.Player;
 
 import com.ssmhdssmhd.mxboxs.player.exo.ExoPlayerEngine;
+import com.ssmhdssmhd.mxboxs.player.external.ExternalPlayerEngine;
 import com.ssmhdssmhd.mxboxs.player.media.PlaySpec;
 import com.ssmhdssmhd.mxboxs.player.mpv.MpvPlayerEngine;
 import com.ssmhdssmhd.mxboxs.player.system.SystemPlayerEngine;
@@ -62,6 +68,7 @@ public final class PlayerEngineFactory {
             case IJK -> new ExoPlayerEngine(decode, listener) {
                 @Override public PlayerEngine.Type getType() { return PlayerEngine.Type.IJK; }
             };
+            case VLC, MX, MPVEX, MPVNOVA, KMP -> new ExternalPlayerEngine(decode, type, listener);
         };
     }
 
@@ -90,6 +97,11 @@ public final class PlayerEngineFactory {
             case PlayerSetting.ENGINE_ALI -> ALI;
             case PlayerSetting.ENGINE_NOVA -> NOVA;
             case PlayerSetting.ENGINE_IJK -> IJK;
+            case PlayerSetting.ENGINE_VLC -> VLC;
+            case PlayerSetting.ENGINE_MX -> MX;
+            case PlayerSetting.ENGINE_MPVEX -> MPVEX;
+            case PlayerSetting.ENGINE_MPVNOVA -> MPVNOVA;
+            case PlayerSetting.ENGINE_KMP -> KMP;
             default -> EXO;
         };
     }

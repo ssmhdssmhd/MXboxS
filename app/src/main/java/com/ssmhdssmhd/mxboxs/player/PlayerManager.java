@@ -242,6 +242,11 @@ public class PlayerManager implements ParseCallback {
             case ALI -> PlayerSetting.ENGINE_ALI;
             case NOVA -> PlayerSetting.ENGINE_NOVA;
             case IJK -> PlayerSetting.ENGINE_IJK;
+            case VLC -> PlayerSetting.ENGINE_VLC;
+            case MX -> PlayerSetting.ENGINE_MX;
+            case MPVEX -> PlayerSetting.ENGINE_MPVEX;
+            case MPVNOVA -> PlayerSetting.ENGINE_MPVNOVA;
+            case KMP -> PlayerSetting.ENGINE_KMP;
             default -> PlayerSetting.ENGINE_EXO;
         };
     }

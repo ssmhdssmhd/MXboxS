@@ -35,6 +35,11 @@
     <string name="play_ali">Ali</string>
     <string name="play_nova">Nova</string>
     <string name="play_ijk">IJK</string>
+    <string name="play_vlc">VLC</string>
+    <string name="play_mx">MX Player</string>
+    <string name="play_mpvex">mpvExtended</string>
+    <string name="play_mpvnova">mpvNova</string>
+    <string name="play_kmp">KMPlayer</string>
     <string name="play_other">Other</string>
     <string name="play_next">Next</string>
     <string name="play_prev">Prev</string>
@@ -241,6 +246,7 @@
     <string name="update_retry">Retry</string>
     <string name="update_installing">Installing…</string>
     <string name="update_install_failed">Install failed: %s</string>
+    <string name="external_player_not_installed">请先安装 %s，再使用此播放器</string>
     <string name="setting_mirror">Update Source</string>
     <string name="mirror_direct">Direct GitHub</string>
     <string name="mirror_ghproxy">ghproxy.com (CN)</string>
@@ -289,12 +295,17 @@
     </string-array>
 
     <string-array name="select_engine">
-        <item>EXO</item>
-        <item>MPV</item>
-        <item>System</item>
-        <item>Ali</item>
-        <item>Nova</item>
-        <item>IJK</item>
+        <item>@string/play_exo</item>
+        <item>@string/play_mpv</item>
+        <item>@string/play_system</item>
+        <item>@string/play_ali</item>
+        <item>@string/play_nova</item>
+        <item>@string/play_ijk</item>
+        <item>@string/play_vlc</item>
+        <item>@string/play_mx</item>
+        <item>@string/play_mpvex</item>
+        <item>@string/play_mpvnova</item>
+        <item>@string/play_kmp</item>
     </string-array>
 
     <string-array name="select_render">

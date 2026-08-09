@@ -14,7 +14,12 @@ public class PlayerSetting {
     public static final int ENGINE_ALI = 3;
     public static final int ENGINE_NOVA = 4;
     public static final int ENGINE_IJK = 5;
-    public static final int ENGINE_MAX = ENGINE_IJK;
+    public static final int ENGINE_VLC = 6;
+    public static final int ENGINE_MX = 7;
+    public static final int ENGINE_MPVEX = 8;
+    public static final int ENGINE_MPVNOVA = 9;
+    public static final int ENGINE_KMP = 10;
+    public static final int ENGINE_MAX = ENGINE_KMP;
     public static final int RENDER_SURFACE = 0;
     public static final int RENDER_TEXTURE = 1;
     public static final int MIN_SCALE = 0;
@@ -32,7 +37,7 @@ public class PlayerSetting {
 
     public static void putEngine(int engine) {
         Prefers.put("player_engine", Math.clamp(engine, ENGINE_EXO, ENGINE_MAX));
-        if (!isMpv() && !isSystem() && isTunnel()) Prefers.put("render", RENDER_SURFACE);
+        if (!isMpv() && !isSystem() && !isExternal() && isTunnel()) Prefers.put("render", RENDER_SURFACE);
     }
 
     // ===== 直播播放器引擎（独立于点播，默认回退到点播引擎，保证老用户无感升级） =====
@@ -73,6 +78,32 @@ public class PlayerSetting {
         return getEngine() == ENGINE_IJK;
     }
 
+    public static boolean isVlc() {
+        return getEngine() == ENGINE_VLC;
+    }
+
+    public static boolean isMx() {
+        return getEngine() == ENGINE_MX;
+    }
+
+    public static boolean isMpvEx() {
+        return getEngine() == ENGINE_MPVEX;
+    }
+
+    public static boolean isMpvNova() {
+        return getEngine() == ENGINE_MPVNOVA;
+    }
+
+    public static boolean isKmp() {
+        return getEngine() == ENGINE_KMP;
+    }
+
+    /** 外部第三方播放器（VLC/MX/mpvEx/mpvNova/KMPlayer）均通过 Intent 调起外部 App，不使用内嵌渲染链路 */
+    public static boolean isExternal() {
+        int e = getEngine();
+        return e == ENGINE_VLC || e == ENGINE_MX || e == ENGINE_MPVEX || e == ENGINE_MPVNOVA || e == ENGINE_KMP;
+    }
+
     public static boolean isMpvGpuNext() {
         return Prefers.getBoolean("mpv_gpu_next");
     }
@@ -95,7 +126,7 @@ public class PlayerSetting {
 
     public static void putRender(int render) {
         Prefers.put("render", Math.clamp(render, RENDER_SURFACE, RENDER_TEXTURE));
-        if ((!isMpv() && !isSystem()) && isTunnel() && getRender() == RENDER_TEXTURE) Prefers.put("tunnel", false);
+        if ((!isMpv() && !isSystem() && !isExternal()) && isTunnel() && getRender() == RENDER_TEXTURE) Prefers.put("tunnel", false);
     }
 
     public static boolean isTunnel() {
@@ -104,7 +135,7 @@ public class PlayerSetting {
 
     public static void putTunnel(boolean tunnel) {
         Prefers.put("tunnel", tunnel);
-        if ((!isMpv() && !isSystem()) && tunnel) Prefers.put("render", RENDER_SURFACE);
+        if ((!isMpv() && !isSystem() && !isExternal()) && tunnel) Prefers.put("render", RENDER_SURFACE);
     }
 
     public static boolean isTunnelingEnabled() {
