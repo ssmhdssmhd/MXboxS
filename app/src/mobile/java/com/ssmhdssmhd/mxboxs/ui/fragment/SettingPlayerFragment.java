@@ -108,16 +108,30 @@ public class SettingPlayerFragment extends BaseFragment implements UaListener, S
     }
 
     private void setEngine(View view) {
-        int index = (PlayerSetting.getEngine() + 1) % engine.length;
-        PlayerSetting.putEngine(index);
-        setPlaybackModeText();
-        setVisible();
+        if (engine == null) engine = ResUtil.getStringArray(R.array.select_engine);
+        new MaterialAlertDialogBuilder(requireActivity())
+                .setTitle(R.string.player_engine)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setSingleChoiceItems(engine, PlayerSetting.getEngine(), (dialog, which) -> {
+                    PlayerSetting.putEngine(which);
+                    setPlaybackModeText();
+                    setVisible();
+                    dialog.dismiss();
+                })
+                .show();
     }
 
     private void setLiveEngine(View view) {
-        int index = (PlayerSetting.getLiveEngine() + 1) % engine.length;
-        PlayerSetting.putLiveEngine(index);
-        setPlaybackModeText();
+        if (engine == null) engine = ResUtil.getStringArray(R.array.select_engine);
+        new MaterialAlertDialogBuilder(requireActivity())
+                .setTitle(R.string.player_engine_live)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setSingleChoiceItems(engine, PlayerSetting.getLiveEngine(), (dialog, which) -> {
+                    PlayerSetting.putLiveEngine(which);
+                    setPlaybackModeText();
+                    dialog.dismiss();
+                })
+                .show();
     }
 
     private void onMpvConf(View view) {
