@@ -19,13 +19,18 @@ android {
         applicationId "com.ssmhdssmhd.mxboxs"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 604
-        versionName "5.5.55"
+        versionCode 605
+        versionName "5.5.56"
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.ssmhdssmhd.mxboxs.event.EventIndex"]
             }
         }
+    }
+
+    aaptOptions {
+        // ffmpeg / ffprobe 预编译二进制已在 assets，不希望被 aapt2 压缩，否则运行时读取会更慢且可能对齐问题。
+        noCompress 'ffmpeg', 'ffprobe', ''
     }
 
     flavorDimensions = ["mode", "abi"]
