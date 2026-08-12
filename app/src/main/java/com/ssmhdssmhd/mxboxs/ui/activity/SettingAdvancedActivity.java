@@ -14,6 +14,7 @@ import android.widget.LinearLayout;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
@@ -38,8 +39,8 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private static final int SOCIAL_TARGET_X = 1;
 
     private Toolbar toolbar;
-    private LinearLayout lockedHint;
-    private LinearLayout socialCard;
+    private MaterialTextView lockedHint;
+    private MaterialCardView socialCard;
     private MaterialTextView socialTgText;
     private MaterialTextView socialXText;
     private final Executor mSocialExec = Executors.newSingleThreadExecutor();
