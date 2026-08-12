@@ -37,7 +37,7 @@
                 android:layout_marginTop="24dp"
                 android:gravity="center"
                 android:text="@string/setting_advanced_locked"
-                android:textColor="@color/white_alpha_70"
+                android:textColor="@color/white_70"
                 android:textSize="15sp" />
 
             <com.google.android.material.card.MaterialCardView
@@ -48,7 +48,7 @@
                 android:visibility="gone"
                 app:cardBackgroundColor="?attr/colorSurface"
                 app:cardCornerRadius="12dp"
-                app:strokeColor="@color/white_alpha_10"
+                app:strokeColor="@color/white_10"
                 app:strokeWidth="1dp"
                 tools:ignore="PrivateResource"
                 tools:visibility="visible">
@@ -75,7 +75,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:text="@string/setting_social_subtitle"
-                        android:textColor="@color/white_alpha_70"
+                        android:textColor="@color/white_70"
                         android:textSize="13sp" />
 
                     <LinearLayout

@@ -552,7 +552,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:gravity="center"
-            android:textColor="@color/white_alpha_70"
+            android:textColor="@color/white_70"
             android:textSize="14sp"
             tools:text="v5.5.57" />
 
