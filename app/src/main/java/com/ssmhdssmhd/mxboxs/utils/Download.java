@@ -21,8 +21,10 @@ import okhttp3.ResponseBody;
 public class Download {
 
     public static final long DEFAULT_TIMEOUT_MS = 20_000L;
-    /** APK 下载专属「快速失败」短超时：让 5.5.46 客户端在 ghproxy.com 30s 超时前自动切源。 */
-    public static final long APK_DOWNLOAD_TIMEOUT_MS = 10_000L;
+    /** APK 下载专属超时：原 10s 对 114MB 大文件过短，国内移动网络 400KB/s 都要将近 5 分钟。
+     * v5.5.61 调大为 60_000ms（60s），配合 Github.probeUrls "先测后下载" 把假镜像在 6s 探针阶段就排除，
+     * 进入真下载的源已经是被三重校验（类型/长度/ZIP魔术）判过 OK 的，不会再白等。*/
+    public static final long APK_DOWNLOAD_TIMEOUT_MS = 60_000L;
 
     private final File file;
     private final String url;

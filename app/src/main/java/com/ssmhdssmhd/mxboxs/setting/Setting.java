@@ -149,34 +149,51 @@ public class Setting {
 
     public static final String PARSE_SERVER_DEFAULT = "http://114.134.184.91:9002";
 
-    // ===== 镜像模式枚举（与 Github.MIRROR_OPTIONS 的顺序严格一一对应，v5.5.47 起统一以 Github.MIRROR_OPTIONS 为准）=====
-    // 0: ghproxy.com（国内）
-    // 1: mirror.ghproxy.com（国内）
-    // 2: ghps.cambridgecs.co（国内）
-    // 3: gh.api.99988866.xyz（国内）
-    // 4: ghproxy.net（国内）
-    // 5: gh.mirai.org（国内）
-    // 6: jsdelivr CDN（海外）
-    // 7: GitHub 直连
-    // 注意：此顺序故意与 v5.5.42 及以前不同。v5.5.42 默认 mirror_mode=1，
-    //       升级后会被解析为 mirror.ghproxy.com，正好帮用户从今日宕机的 ghproxy.com (93.46.8.90) 自动切走。
-    public static final int MIRROR_GHPROXY = 0;
-    public static final int MIRROR_MIRROR_GHPROXY = 1;
-    public static final int MIRROR_GHPS_CAMBRIDGECS = 2;
-    public static final int MIRROR_GH_API_99988866 = 3;
-    public static final int MIRROR_GHPROXY_NET = 4;
-    public static final int MIRROR_GH_MIRAI = 5;
-    public static final int MIRROR_JSDELIVR = 6;
-    public static final int MIRROR_DIRECT = 7;
-    /** 默认索引：对中国大陆用户默认 mirror.ghproxy.com（v5.5.44 之后 ghproxy.com 经常宕机，mirror.ghproxy 更稳） */
-    public static final int MIRROR_DEFAULT_INDEX = MIRROR_MIRROR_GHPROXY;
+    // ===== 镜像模式枚举（与 Github.MIRROR_OPTIONS 的顺序严格一一对应，v5.5.61 起统一以 Github.MIRROR_OPTIONS 为准）=====
+    // 0: GitHub 直连（默认）
+    // 1: ghproxy.com（国内）
+    // 2: mirror.ghproxy.com（国内）
+    // 3: ghps.cambridgecs.com（国内，公益反代，偶发 HTTP 200 但返回 HTML 错误页 → 新探针会按 ZIP 魔术自动判失败）
+    // 4: gh.api.99988866.xyz（国内）
+    // 5: ghproxy.net（国内）
+    // 6: gh.mirai.org（国内）
+    // 7: gh.1ms.run（国内）
+    // 注意：v5.5.61 把 GitHub 直连调整为 index 0（默认）。
+    //       老用户 saved 值在 getMirrorMode 里会做迁移：
+    //         - 旧 7 (=DIRECT) 现在仍 = 旧 DIRECT=7 的含义没变，但 MIRROR_DIRECT_INDEX_NEW=0，所以 7→0 迁移在 getMirrorMode 里显式做
+    //         - 旧 0 (=ghproxy.com) 现在变成 1 → 迁移: 0→1
+    //         - 旧 1 (=mirror.ghproxy.com) 现在变成 2 → 迁移: 1→2
+    //         - 旧 2 (=ghps.cambridgecs) 现在变成 3 → 迁移: 2→3
+    //         - 旧 3 (=99988866) 现在变成 4 → 迁移: 3→4
+    //         - 旧 4 (=ghproxy.net) 现在变成 5 → 迁移: 4→5
+    //         - 旧 5 (=gh.mirai) 现在变成 6 → 迁移: 5→6
+    //         - 旧 6 (=jsdelivr) → 现在 jsdelivr 已从 MIRROR_OPTIONS 删除（实测必 404）→ 退回默认 0
+    public static final int MIRROR_DIRECT_NEW = 0;
+    public static final int MIRROR_GHPROXY = 1;
+    public static final int MIRROR_MIRROR_GHPROXY = 2;
+    public static final int MIRROR_GHPS_CAMBRIDGECS = 3;
+    public static final int MIRROR_GH_API_99988866 = 4;
+    public static final int MIRROR_GHPROXY_NET = 5;
+    public static final int MIRROR_GH_MIRAI = 6;
+    public static final int MIRROR_GH_1MS = 7;
+    /** v5.5.61 默认镜像：GitHub 直连（最快最稳，国内 4G/海外加速通道都能直连 github.com；ghproxy 公益反代 HTTP 200 但 body 是错误页太泛滥，让新探针在下载前自动筛掉它们）。*/
+    public static final int MIRROR_DEFAULT_INDEX = MIRROR_DIRECT_NEW;
 
     public static int getMirrorMode() {
         int saved = Prefers.getInt("mirror_mode", MIRROR_DEFAULT_INDEX);
-        // 防御：如果是 v5.5.46 及之前保存的 2 (=DIRECT)，现在 DIRECT=7，需显式做一次迁移映射。
-        // 其他老值 0/1 还能对得上，保留即可；超出范围用默认索引。
-        if (saved == 2 && MIRROR_DIRECT == 7) return MIRROR_DIRECT;
-        int totalMirrors = 8;
+        int totalMirrors = Github.MIRROR_OPTIONS.size();
+        // v5.5.61 迁移：老 index → 新 index（GitHub 直连提前到 0，ghproxy.com 各 +1，旧 jsdelivr=6 废弃）
+        switch (saved) {
+            case 0: saved = 1; break;          // 旧 0 ghproxy.com → 新 1
+            case 1: saved = 2; break;          // 旧 1 mirror.ghproxy.com → 新 2
+            case 2: saved = 3; break;          // 旧 2 ghps.cambridgecs → 新 3
+            case 3: saved = 4; break;          // 旧 3 99988866 → 新 4
+            case 4: saved = 5; break;          // 旧 4 ghproxy.net → 新 5
+            case 5: saved = 6; break;          // 旧 5 gh.mirai → 新 6
+            case 6: saved = MIRROR_DEFAULT_INDEX; break; // 旧 6 jsdelivr (已废弃) → 默认直连 0
+            case 7: saved = 0; break;          // 旧 7 DIRECT → 新 0 DIRECT
+            default: break;
+        }
         if (saved < 0 || saved >= totalMirrors) return MIRROR_DEFAULT_INDEX;
         return saved;
     }

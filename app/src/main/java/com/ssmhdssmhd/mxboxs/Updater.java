@@ -200,9 +200,11 @@ public class Updater implements Download.Callback, UpdateListener {
                 return;
             }
 
-            // 找到 APK 下载链接（多镜像候选列表，下载失败自动 fallback）
+            // 找到 APK 下载链接（多镜像候选列表，下载失败自动 fallback）。
+            // v5.5.61 起 Github.findApkUrls 内部已经做了：
+            //   - 去重（用户首选 + MIRROR_POOL 全部前缀 + objects.githubusercontent.com 原始直连 2 条版本）
+            //   - 因此不再调用旧的 ensureCandidates()（该方法已删除，jsdelivr 无效候选也一并移除）
             apkUrls = Github.findApkUrls(release);
-            apkUrls = Github.ensureCandidates(apkUrls, release, Github.getMirrorCandidates());
             apkCursor = 0;
             // 顺便拿到匹配到的 APK asset（含 size/name），下载完成做完整性校验用
             try { apkAsset = Github.pickDirectApkAsset(release); } catch (Throwable ignored) { apkAsset = null; }
@@ -398,20 +400,34 @@ public class Updater implements Download.Callback, UpdateListener {
 
     @Override
     public void error(String msg) {
-        // 下载失败自动切换下一个镜像（如果还有候选）
-        if (apkUrls != null && apkCursor + 1 < apkUrls.size()) {
-            apkCursor++;
-            // 下一轮 startDownload 会从 apkUrls[apkCursor] 继续
-            final int cur = apkCursor + 1;
-            final int total = apkUrls.size();
-            final String nextLabel = Github.getMirrorLabel(apkUrls.get(apkCursor));
-            if (dialog != null) {
-                dialog.setStatus("镜像 " + cur + "/" + total + "：切换到 " + nextLabel + " …（" + msg + "）");
-                // 切源过程中按钮保持禁用，文案仍显示 Downloading（因为我们会立刻 startDownload）
-                dialog.setConfirmEnabled(false);
+        // 下载失败自动切换下一个镜像（如果还有候选）。
+        // v5.5.61 新增：连续"同一 host（尤其 ghproxy 变体，10+ 条都是同反代）"会进入 Github.BAD_MIRROR_HOSTS 黑名单，
+        // 这一步直接跳过所有 host 命中黑名单的候选，避免用户 14 条镜像全是同源变体时白白等待 14×60s。
+        if (apkUrls != null) {
+            while (apkCursor + 1 < apkUrls.size()) {
+                apkCursor++;
+                String nextUrl = apkUrls.get(apkCursor);
+                // 黑名单命中：host 在上一轮 verifyApkIntegrity 失败里加过的直接跳
+                String host = "";
+                try {
+                    int s = nextUrl == null ? -1 : nextUrl.indexOf("://");
+                    if (s >= 0) {
+                        int e = nextUrl.indexOf('/', s + 3);
+                        host = (e < 0 ? nextUrl.substring(s + 3) : nextUrl.substring(s + 3, e));
+                    }
+                } catch (Throwable ignored) {}
+                if (!host.isEmpty() && Github.BAD_MIRROR_HOSTS.contains(host)) continue;
+                // 找到了一条未被拉黑的，跳出
+                final int cur = apkCursor + 1;
+                final int total = apkUrls.size();
+                final String nextLabel = Github.getMirrorLabel(nextUrl);
+                if (dialog != null) {
+                    dialog.setStatus("镜像 " + cur + "/" + total + "：切换到 " + nextLabel + " …（" + msg + "）");
+                    dialog.setConfirmEnabled(false);
+                }
+                App.post(this::startDownload);
+                return;
             }
-            App.post(this::startDownload);
-            return;
         }
         // 所有镜像都失败：才真正显示错误，并把「正在下载…」按钮改为「重试」可点击
         if (dialog != null) {
@@ -422,9 +438,14 @@ public class Updater implements Download.Callback, UpdateListener {
             if (lastProbeSummary != null && !lastProbeSummary.isEmpty()) {
                 more.append("============ 预测试总结 ============\n").append(lastProbeSummary).append("\n\n");
             }
+            if (!Github.BAD_MIRROR_HOSTS.isEmpty()) {
+                more.append("已加入黑名单的坏镜像 host（本次运行下的重试/重测将自动跳过）：\n");
+                for (String h : Github.BAD_MIRROR_HOSTS) more.append("  · ").append(h).append('\n');
+                more.append('\n');
+            }
             more.append("最后一次错误：").append(msg)
-                    .append("\n已尝试 ").append(apkUrls == null ? 0 : apkUrls.size()).append(" 条候选镜像（先测后下载：探针 1.5s 排除 DNS/连接超时，下载阶段 10s 自动切源）。")
-                    .append("\n可点击右下角『重试』再次从第一个镜像重新预测试并按连通性排序后下载；或到「设置 → 更新源」切换首选镜像（例如手动改成 GitHub 直连 / mirror.ghproxy / ghps 等）。");
+                    .append("\n已尝试 ").append(apkUrls == null ? 0 : apkUrls.size()).append(" 条候选镜像（先测后下载：探针 6s / 条读前 1KB 校验 ZIP 魔术，下载阶段 60s 未响应自动切源，同源坏 host 同轮被拉黑不再重复等待）。")
+                    .append("\n可点击右下角『重试』再次从第一个镜像重新预测试并按连通性排序后下载；或到「设置 → 更新源」切换首选镜像（建议默认选择『GitHub 直连』最快最稳；国内 ghproxy 公益反代经常出现 HTTP 200 但 body=错误页的假响应）。");
             CharSequence prev = dialog.readDebugInfo();
             dialog.setChangelog(prev == null || TextUtils.isEmpty(prev.toString()) ? more.toString() : (prev + "\n\n" + more.toString()));
         }
@@ -438,8 +459,26 @@ public class Updater implements Download.Callback, UpdateListener {
         // 或者被 CDN 缓存截断到一半字节数。App 仍当"下载成功"调 installApk，
         // 系统 PackageParser 读坏 zip 就弹用户"解析软件包时出现问题"，没任何有效信息。
         // 这里先自己校验，失败直接走 error()，会自动切换到下一个镜像重下。
+        // v5.5.61 新增：校验失败时同时把当前 URL 的 host 加入 Github.BAD_MIRROR_HOSTS，
+        // 同一进程内后续的 probeUrls / error() 都会直接跳过这些 host，避免 14 条同源 ghproxy 变体全部白等。
         String verifyFail = verifyApkIntegrity(file);
         if (verifyFail != null) {
+            // 0) 加入 host 黑名单（如果能拿到当前正在用的 URL）
+            try {
+                String currentUrl = null;
+                if (apkUrls != null && apkCursor >= 0 && apkCursor < apkUrls.size()) {
+                    currentUrl = apkUrls.get(apkCursor);
+                }
+                if (currentUrl != null && !currentUrl.isEmpty()) {
+                    int s = currentUrl.indexOf("://");
+                    if (s >= 0) {
+                        int e = currentUrl.indexOf('/', s + 3);
+                        String host = (e < 0 ? currentUrl.substring(s + 3) : currentUrl.substring(s + 3, e));
+                        if (host != null && !host.isEmpty()) Github.BAD_MIRROR_HOSTS.add(host);
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
             // 这个文件是坏的，先删掉（免得下次继续用同一个缓存文件）
             try { if (file != null && file.exists()) file.delete(); } catch (Throwable ignored) {}
             Notify.show("APK 校验失败，自动切换下一镜像：" + verifyFail);

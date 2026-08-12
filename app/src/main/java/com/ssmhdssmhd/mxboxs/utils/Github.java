@@ -8,6 +8,7 @@ import com.github.catvod.net.OkHttp;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,17 +43,15 @@ public class Github {
     /** 国内镜像补充：ghproxy.net（与 ghproxy.com 非同一服务）、gh.mirai.org（镜像 gh release）、gh-proxy.com（常见公益站） */
     public static final String MIRROR_GHPROXY_NET = "https://ghproxy.net";
     public static final String MIRROR_GH_MIRAI = "https://gh.mirai.org";
-    /** 海外镜像补充：objects.githubusercontent.com 直连 + JSDelivr（静态文件） + 欧洲 gh.123456789.xyz */
-    public static final String MIRROR_JSDELIVR_CN = "https://cdn.jsdelivr.net/gh";
-    public static final String MIRROR_JSDELIVR_FASTLY = "https://fastly.jsdelivr.net/gh";
     public static final String MIRROR_CF_CN = "https://gh.tmoe.me";
     /** 再补 2 条公益 ghproxy（避免前 10 条全挂） */
     public static final String MIRROR_GH_1MS = "https://gh.1ms.run";
     public static final String MIRROR_GH_DOG = "https://gh.dmirror.xyz";
 
-    /** 显示名 → 前缀，用户 UI 下拉选单选 */
+    /** 显示名 → 前缀，用户 UI 下拉选单选（v5.5.61 起把"GitHub 直连"默认放到第一位） */
     public static final LinkedHashMap<String, String> MIRROR_OPTIONS = new LinkedHashMap<>();
     static {
+        MIRROR_OPTIONS.put("GitHub 直连", MIRROR_DIRECT);
         MIRROR_OPTIONS.put("ghproxy.com（国内）", MIRROR_GHPROXY);
         MIRROR_OPTIONS.put("mirror.ghproxy.com（国内）", MIRROR_MIRROR_GHPROXY);
         MIRROR_OPTIONS.put("ghps.cambridgecs.com（国内）", MIRROR_GHPS_CAMBRIDGECS);
@@ -60,50 +59,41 @@ public class Github {
         MIRROR_OPTIONS.put("ghproxy.net（国内）", MIRROR_GHPROXY_NET);
         MIRROR_OPTIONS.put("gh.mirai.org（国内）", MIRROR_GH_MIRAI);
         MIRROR_OPTIONS.put("gh.1ms.run（国内）", MIRROR_GH_1MS);
-        MIRROR_OPTIONS.put("GitHub 直连", MIRROR_DIRECT);
     }
 
-    /** 国内常用镜像池（优先顺序可根据站点稳定性调整） */
-    private static final List<String> CN_MIRRORS = Arrays.asList(
-            MIRROR_MIRROR_GHPROXY,
-            MIRROR_GHPS_CAMBRIDGECS,
-            MIRROR_GHPROXY_NET,
-            MIRROR_GH_API_99988866,
-            MIRROR_GH_MIRAI,
-            MIRROR_GHPROXY,
-            MIRROR_CF_CN,
-            MIRROR_GH_1MS,
-            MIRROR_GH_DOG
-    );
+    /** 进程内 host 级别黑名单：上一轮 verifyApkIntegrity 失败的镜像，这轮直接跳过（避免 ghproxy 变体 14 条全白等）。
+     *  由 Updater.success() 校验失败后写入；Github.probeUrls 会读取并在探测前就 fail 掉这些 URL。*/
+    public static final java.util.Set<String> BAD_MIRROR_HOSTS =
+            java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
 
-    /** 海外常用镜像池（GitHub 直连通常对海外/加速通道最快，放前面） */
-    private static final List<String> OVERSEA_MIRRORS = Arrays.asList(
-            MIRROR_DIRECT,
-            MIRROR_JSDELIVR_FASTLY,
-            MIRROR_JSDELIVR_CN
-    );
-
-    /** 公共镜像池（含直连空串）。会被 getMirrorCandidates 去重。国内/海外会按 rankByConnectivity 重新排序。 */
+    /** 公共镜像池（含直连空串）。v5.5.61：GitHub 直连放最前（海外加速通、国内 4G 也能通 github.com 下载，比 ghproxy 假 200 HTML 页靠谱）；
+     *  去掉两条 jsdelivr（fastly/cdn.jsdelivr 实测必 404 Not Found：release asset 不在 git tree 上，jsdelivr 只能拿 git tree 里的文件）。 */
     private static final List<String> MIRROR_POOL = Arrays.asList(
-            MIRROR_GHPROXY,
+            MIRROR_DIRECT,
             MIRROR_MIRROR_GHPROXY,
-            MIRROR_GHPS_CAMBRIDGECS,
-            MIRROR_GH_API_99988866,
+            MIRROR_GHPROXY,
             MIRROR_GHPROXY_NET,
             MIRROR_GH_MIRAI,
-            MIRROR_JSDELIVR_FASTLY,
-            MIRROR_JSDELIVR_CN,
-            MIRROR_CF_CN,
             MIRROR_GH_1MS,
+            MIRROR_CF_CN,
             MIRROR_GH_DOG,
-            MIRROR_DIRECT
+            MIRROR_GH_API_99988866,
+            MIRROR_GHPS_CAMBRIDGECS
     );
 
-    /** 并行 HEAD 探测超时时长（毫秒）。给每个镜像最多 4s，超过就认为当前网络到这个镜像延迟过高。 */
-    private static final long PING_TIMEOUT_MS = 4000L;
+    /** 并行探测超时时长（毫秒）。探针现在会实际 GET 1KB 头校验 ZIP，超时拉长到 6s。 */
+    private static final long PING_TIMEOUT_MS = 6000L;
 
-    /** 「先测试再下载」阶段的超短探测：connect 1.5s / read 1.5s（不下载任何字节）。DNS 失败/超时直接快速排除。 */
-    public static final long PROBE_TIMEOUT_MS = 1500L;
+    /** 「先测试再下载」阶段探测：v5.5.61 起直接 GET bytes=0-1023 做"三重真校验"，不再依赖容易被反代欺骗的 HEAD/Range 0-0。
+     *  6s 以内必须完成连接+拿到 1KB 头，否则认为当前网络到这个镜像延迟过高或返回错误页。 */
+    public static final long PROBE_TIMEOUT_MS = 6000L;
+
+    /** ZIP 格式魔术头（所有 APK 都是 ZIP，前 4 字节一定是 0x50 0x4B 0x03 0x04 = ASCII "PK\x03\x04"）。
+     *  这条是终极判据：ghproxy 类哪怕 HTTP 200 + Content-Type application/octet-stream，只要 body 是错误页/404，都不可能过这关。 */
+    private static final byte[] ZIP_LOCAL_FILE_HEADER_MAGIC = new byte[]{0x50, 0x4B, 0x03, 0x04};
+
+    /** 正常 APK 至少 1MB（我们 release 里最小的也 100M+），Content-Length < 1MB 直接认为是错误页/404 短文本 */
+    private static final long MIN_REASONABLE_APK_BYTES = 1_000_000L;
 
     /** probe 结果（给 Updater 显示和排序用）。 */
     public static final class ProbeResult {
@@ -121,9 +111,35 @@ public class Github {
         void onProbeOne(int index, int total, ProbeResult result);
     }
 
+    /** 从 URL 里提取 host（用于 BAD_MIRROR_HOSTS 黑名单 match） */
+    private static String hostOf(String url) {
+        if (url == null || url.isEmpty()) return "";
+        try {
+            int s = url.indexOf("://");
+            if (s < 0) return "";
+            int e = url.indexOf('/', s + 3);
+            String host = (e < 0 ? url.substring(s + 3) : url.substring(s + 3, e));
+            int at = host.lastIndexOf('@');
+            if (at >= 0) host = host.substring(at + 1);
+            int colon = host.indexOf(':');
+            if (colon >= 0) host = host.substring(0, colon);
+            return host == null ? "" : host;
+        } catch (Throwable t) { return ""; }
+    }
+
     /**
-     * 先测试再下载：并行短超时探测每条 APK URL，返回「可用 URL 按 RTT 升序」的列表。
-     * 同时通过 listener 把「每完成一条的结果」回调到 UI，让对话框显示「探测 3/14：ghproxy.com ✅ 187ms」。
+     * 先测试再下载：并行 6s 超时探测每条 APK URL，返回「可用 URL 按 RTT 升序」的列表。
+     * v5.5.61 起不再用"HTTP 码判成功"的不可靠探针（ghproxy/mirror 反代 HTTP 200 但 body 是 43KB CookieYes HTML 的情况太常见），
+     * 改成实际 GET bytes=0-1023 拿 1KB 头，做【三重真校验】：
+     *   1) Content-Type 不能是 text/html / text/plain / application/json / application/xml
+     *   2) 响应头 Content-Length（或 Content-Range / total）必须 >= 1MB（否则是 404/500 短错误页）
+     *   3) body 头 4 字节必须是 ZIP_LOCAL_FILE_HEADER_MAGIC (50 4B 03 04)
+     * 三条全过才叫 ok=true。
+     *
+     * 同时通过 listener 把「每完成一条的结果」回调到 UI，让对话框显示「探测 3/10：ghproxy.com ✅ 187ms / ghps ❌ 内容不是 APK(ZIP 魔术不匹配)」。
+     *
+     * BAD_MIRROR_HOSTS 过滤：进程内已经被上一轮 verifyApkIntegrity 拉黑的 host，直接跳过探测（返回 ProbeResult(ok=false, error=host 已列入黑名单)），
+     * 避免 ghproxy 同源变体 10 条全白等。
      *
      * @param apkUrls 来自 findApkUrls(release) 的候选 URL 列表
      * @param listener UI 进度回调（可以为 null），回调在 UI 线程
@@ -145,11 +161,32 @@ public class Github {
                     results.add(new ProbeResult("", false, Long.MAX_VALUE, "URL is null"));
                     continue;
                 }
+                // 黑名单过滤：host 命中则直接 fail，不浪费 6s 再探测一次
+                final String host = hostOf(url);
+                if (host != null && !host.isEmpty() && BAD_MIRROR_HOSTS.contains(host)) {
+                    ProbeResult r = new ProbeResult(url, false, Long.MAX_VALUE, "host " + host + " 已在上轮列入黑名单（verify 失败）");
+                    synchronized (results) {
+                        while (results.size() <= idx) results.add(null);
+                        results.set(idx, r);
+                    }
+                    int n = doneCount.incrementAndGet();
+                    if (listener != null) {
+                        final int fi = idx;
+                        final ProbeResult fr = r;
+                        final int fn = n;
+                        try {
+                            App.post(new Runnable() {
+                                @Override
+                                public void run() { listener.onProbeOne(fi, total, fr); }
+                            });
+                        } catch (Throwable ignored) {}
+                    }
+                    continue;
+                }
                 futures.add(pool.submit(new Callable<Object>() {
                     @Override
                     public Object call() {
                         ProbeResult r = probeOne(url, PROBE_TIMEOUT_MS);
-                        // 先填占位：保证 results 顺序与输入一致
                         synchronized (results) {
                             while (results.size() <= idx) results.add(null);
                             results.set(idx, r);
@@ -157,15 +194,13 @@ public class Github {
                         int n = doneCount.incrementAndGet();
                         if (listener != null) {
                             final int fi = idx;
-                            final int ft = total;
                             final ProbeResult fr = r;
                             final int fn = n;
                             try {
                                 App.post(new Runnable() {
                                     @Override
                                     public void run() {
-                                        // 用 fn 表示当前完成的第 n 条，UI 展示 fn/total 更直观
-                                        listener.onProbeOne(fi, ft, fr);
+                                        listener.onProbeOne(fi, total, fr);
                                     }
                                 });
                             } catch (Throwable ignored) {
@@ -177,7 +212,7 @@ public class Github {
             }
             pool.shutdown();
             try {
-                pool.awaitTermination(PROBE_TIMEOUT_MS + 500L, TimeUnit.MILLISECONDS);
+                pool.awaitTermination(PROBE_TIMEOUT_MS + 1000L, TimeUnit.MILLISECONDS);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
             }
@@ -205,51 +240,127 @@ public class Github {
         return sorted;
     }
 
-    /** 从 ProbeResult 列表（排序后）中抽取「ok=true 的 URL 在前，ok=false 的 URL 在后」的纯 URL 列表，给下载阶段用。 */
-    public static List<String> extractUrls(List<ProbeResult> probes) {
-        List<String> out = new ArrayList<>();
-        if (probes == null) return out;
-        for (ProbeResult p : probes) if (p != null) out.add(p.url);
-        return out;
-    }
-
-    /** 单条探测：优先 HEAD（快），失败（例如服务器返回 405 Method Not Allowed）回退到 GET bytes=0-0 仅 1 字节探测。 */
+    /**
+     * v5.5.61 新探针：单条 URL 三重真校验。
+     *   ① 发 GET Range: bytes=0-1023，强制服务器回前 1KB（或整个 body 如果文件 <1KB；APK 114MB+ 肯定 >=1KB）
+     *   ② 读 HTTP code：206/200/302/301/307 允许；非 2xx/3xx 直接 fail=HTTP N
+     *   ③ Content-Type check：不能是 text/html / text/plain / application/json / application/xml（忽略大小写）
+     *   ④ Content-Length（或 Content-Range 的 total）合理性：必须 >= MIN_REASONABLE_APK_BYTES (1MB)
+     *   ⑤ body 头 4 字节 == ZIP_LOCAL_FILE_HEADER_MAGIC (PK\x03\x04)
+     * 全部通过才是 ProbeResult.ok=true。
+     */
     private static ProbeResult probeOne(String url, long timeoutMs) {
         OkHttpClient client = OkHttp.client(false, timeoutMs);
-        // 1) 试 HEAD
         okhttp3.Call call = null;
         Response res = null;
+        ResponseBody body = null;
         long start = System.currentTimeMillis();
         try {
-            Request req = new Request.Builder().url(url).head().build();
+            Request req = new Request.Builder()
+                    .url(url)
+                    .header("Range", "bytes=0-1023")
+                    .build();
             call = client.newCall(req);
             res = call.execute();
-            long rtt = System.currentTimeMillis() - start;
             int code = res.code();
-            if (code >= 200 && code < 400) {
-                return new ProbeResult(url, true, rtt, null);
+            String codeErr = null;
+            if (code == 206 || (code >= 200 && code < 300) || code == 302 || code == 301 || code == 307 || code == 308) {
+                // OK，继续校验
+            } else {
+                codeErr = "HTTP " + code;
+                // 这里不直接返回，后面会把 codeErr 作为错误原因，但仍尝试 body 读 ZIP 魔术（尤其 500 也可能返回 HTML 头）
             }
-            // 405/5xx/4xx 回退 GET 0-1 字节再试
-        } catch (Throwable e) {
-            // HEAD 抛异常（例如 UnknownHost、ConnectTimeout）再试 GET
-        } finally {
-            if (res != null) try { res.close(); } catch (Throwable ignored) {}
-            if (call != null) try { call.cancel(); } catch (Throwable ignored) {}
-            res = null; call = null;
-        }
-        // 2) 回退 GET Range: bytes=0-0
-        start = System.currentTimeMillis();
-        try {
-            Request req = new Request.Builder().url(url).header("Range", "bytes=0-0").build();
-            call = client.newCall(req);
-            res = call.execute();
             long rtt = System.currentTimeMillis() - start;
-            int code = res.code();
-            if (code == 206 || (code >= 200 && code < 300) || code == 302 || code == 301 || code == 307) {
-                return new ProbeResult(url, true, rtt, null);
+
+            // ③ Content-Type 检查（对 301/302 跳转允许，真实下 APK 的服务器必然是非 text/*）
+            String ct = res.header("Content-Type");
+            if (ct != null) {
+                String lower = ct.toLowerCase(java.util.Locale.ROOT);
+                if (lower.contains("text/html") || lower.contains("text/plain")
+                        || lower.contains("application/json") || lower.contains("application/xml")) {
+                    // 404 Not Found / 500 Server Error 常见 Content-Type: text/html → 直接失败
+                    return new ProbeResult(url, false, Long.MAX_VALUE,
+                            "Content-Type 为 " + ct + "（非 APK：服务器返回了 HTML/JSON 错误页）");
+                }
             }
-            String msg = "HTTP " + code;
-            return new ProbeResult(url, false, Long.MAX_VALUE, msg);
+
+            // ④ Content-Length / Content-Range 合理性（>= 1MB）。对 3xx 跳转还没 body，这一步跳过；
+            //    对 2xx 响应（200/206）才检查，能直接把返回 100 字节错误页的镜像干掉。
+            if (code == 200 || code == 206) {
+                long declaredLen = -1L;
+                try {
+                    // 206 时解析 Content-Range: bytes 0-1023/TOTAL，TOTAL 就是 APK 总大小（>=1MB）
+                    String cr = res.header("Content-Range");
+                    if (cr != null && !cr.isEmpty()) {
+                        int slash = cr.lastIndexOf('/');
+                        if (slash >= 0) {
+                            String total = cr.substring(slash + 1).trim();
+                            if (!"*".equals(total)) declaredLen = Long.parseLong(total);
+                        }
+                    }
+                    if (declaredLen < MIN_REASONABLE_APK_BYTES) {
+                        String cl = res.header("Content-Length");
+                        if (cl != null && !cl.isEmpty()) declaredLen = Long.parseLong(cl.trim());
+                    }
+                } catch (Throwable ignored) {
+                    // declaredLen 保持 -1
+                }
+                if (declaredLen > 0 && declaredLen < MIN_REASONABLE_APK_BYTES) {
+                    return new ProbeResult(url, false, Long.MAX_VALUE,
+                            "响应长度仅 " + declaredLen + "B（<1MB，服务器返回了错误页或 404 短响应，不是真实 APK）");
+                }
+            }
+
+            // ⑤ 最关键：读 body 头 4 字节，必须是 ZIP 魔术 (PK\x03\x04)
+            //    对 3xx 跳转（Location 指向下一条），body 通常为 0 字节，这一步 body == null 会报 "跳转 body 空" → 判失败？
+            //    答：对 3xx 我们先跟着 OkHttp 默认自动 followRedirects 再执行的话，拿到的已经是最终响应，不会是 3xx。
+            //    OkHttp 默认 followRedirects=true，所以 code 里应该不会出现 302/301。为兼容更怪的情况，我们允许重定向但 body 为空时仍"暂时认为可用"（靠后续真实下载 + verifyApkIntegrity 兜底）。
+            byte[] head4 = null;
+            int bodyBytesRead = 0;
+            try {
+                body = res.body();
+                if (body != null) {
+                    InputStream is = body.byteStream();
+                    byte[] buf = new byte[4];
+                    int off = 0;
+                    while (off < buf.length) {
+                        int n = is.read(buf, off, buf.length - off);
+                        if (n < 0) break;
+                        off += n;
+                    }
+                    bodyBytesRead = off;
+                    if (off >= 4) head4 = buf;
+                }
+            } catch (Throwable ignored) {
+                // 读失败也没关系，当成 head4=null
+            } finally {
+                if (body != null) try { body.close(); } catch (Throwable ignored) {}
+            }
+
+            // 如果响应是 2xx（已经走到真实 APK），那我们必须能读到 4 字节且是 ZIP 魔术
+            if (code == 200 || code == 206) {
+                if (bodyBytesRead < 4) {
+                    return new ProbeResult(url, false, Long.MAX_VALUE,
+                            "真实响应只读到 " + bodyBytesRead + " 字节（未读到 ZIP 头，非真实 APK，极可能 404/错误页）");
+                }
+                boolean zipOk = (head4[0] == ZIP_LOCAL_FILE_HEADER_MAGIC[0])
+                        && (head4[1] == ZIP_LOCAL_FILE_HEADER_MAGIC[1])
+                        && (head4[2] == ZIP_LOCAL_FILE_HEADER_MAGIC[2])
+                        && (head4[3] == ZIP_LOCAL_FILE_HEADER_MAGIC[3]);
+                if (!zipOk) {
+                    String previewHex = String.format(java.util.Locale.ROOT, "%02X %02X %02X %02X",
+                            head4[0] & 0xFF, head4[1] & 0xFF, head4[2] & 0xFF, head4[3] & 0xFF);
+                    return new ProbeResult(url, false, Long.MAX_VALUE,
+                            "内容不是 APK（ZIP 魔术不匹配，头4字节=" + previewHex + "，服务器返回了 HTML/错误页）");
+                }
+            } else {
+                // 3xx：OkHttp 没自动 follow 的特殊跳转，ZIP 头还读不到，只能"放行到下载阶段 + verifyApkIntegrity 兜底"
+                // 但至少 codeErr 如果存在的话，还是要优先失败
+                if (codeErr != null) {
+                    return new ProbeResult(url, false, Long.MAX_VALUE, codeErr);
+                }
+            }
+            return new ProbeResult(url, true, rtt, null);
         } catch (Throwable e) {
             long rtt = System.currentTimeMillis() - start;
             String msg = e.getMessage();
@@ -262,6 +373,7 @@ public class Github {
             else if (msg.length() > 40) msg = msg.substring(0, 37) + "…";
             return new ProbeResult(url, false, Long.MAX_VALUE, msg);
         } finally {
+            if (body != null) try { body.close(); } catch (Throwable ignored) {}
             if (res != null) try { res.close(); } catch (Throwable ignored) {}
             if (call != null) try { call.cancel(); } catch (Throwable ignored) {}
         }
@@ -564,21 +676,40 @@ public class Github {
     /**
      * 新版 API：按「用户首选 → 公共镜像池 → 直连 GitHub」的去重候选顺序，返回多个可下载 APK URL。
      * Updater 下载第一个失败时自动切换下一个，避免 ghproxy 单镜像宕机就进度条 0% 卡死、30s 后失败。
+     *
+     * v5.5.61 变化：
+     *  - 不再拼接 jsdelivr（fastly/cdn.jsdelivr 实测：release asset 不在 git tree 上，必 404 Not Found）
+     *  - 追加「objects.githubusercontent.com 原始直连」候选：比 github.com/releases/download 少一次 302 跳转，
+     *    海外/加速通道更快更稳。实现方式：对 browser_download_url 发一次 GET（不 followRedirect=false），
+     *    从最终 Location 里提取对象存储 URL，成功则加为候选第 2 顺位（仅次于 DIRECT）。
      */
     public static List<String> findApkUrls(JSONObject release) {
         List<String> out = new ArrayList<>();
         try {
             String direct = pickDirectApkUrl(release);
             if (direct == null || direct.isEmpty()) return Collections.emptyList();
-            // 1) 常规前缀镜像拼接
+            // 1) 常规前缀镜像拼接（已按 getMirrorCandidates() 去重+首选放在第一）
             for (String mirror : getMirrorCandidates()) {
                 String u = (mirror == null || mirror.isEmpty()) ? direct : mirror + "/" + direct;
                 if (u != null && !u.isEmpty() && !out.contains(u)) out.add(u);
             }
-            // 2) JSDelivr @tag 专用候选（jsdelivr 能直接从 Release 资产拉，但需要形如 @tag + 文件名的路径）
+            // 2) objects.githubusercontent.com 原始直连（比 github.com 多级 302 跳少，更快）
             try {
-                List<String> js = buildJsDelivrCandidates(release, direct);
-                for (String u : js) if (u != null && !out.contains(u)) out.add(u);
+                String objUrl = resolveObjectsUrl(direct, PROBE_TIMEOUT_MS);
+                if (objUrl != null && !objUrl.isEmpty() && !out.contains(objUrl)) {
+                    // 插到所有镜像前缀前面（仅次于 DIRECT），作为 DIRECT 之外的备用"原始直连版本"
+                    int insertAt = 0;
+                    for (int i = 0; i < out.size(); i++) {
+                        String c = out.get(i);
+                        if (c != null && (c.startsWith("http://github.com/") || c.startsWith("https://github.com/")
+                                || c.equals(direct))) {
+                            insertAt = i + 1;
+                            break;
+                        }
+                        if (c != null && !c.isEmpty() && c.startsWith("https://") && c.contains("ghproxy")) break;
+                    }
+                    out.add(Math.min(insertAt, out.size()), objUrl);
+                }
             } catch (Throwable ignored) {
             }
         } catch (Exception e) {
@@ -587,55 +718,38 @@ public class Github {
         return out;
     }
 
-    private static List<String> buildJsDelivrCandidates(JSONObject release, String directApkUrl) {
-        List<String> out = new ArrayList<>();
-        if (release == null || directApkUrl == null) return out;
-        // directApkUrl 形如：https://github.com/{owner}/{repo}/releases/download/{tag}/{filename}.apk
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
-                "https?://github\\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/(.+\\.apk)",
-                java.util.regex.Pattern.CASE_INSENSITIVE
-        ).matcher(directApkUrl);
-        if (!m.matches()) return out;
-        String owner = m.group(1);
-        String repo = m.group(2);
-        String tag = m.group(3);
-        String file = m.group(4);
-        if (owner == null || repo == null || tag == null || file == null) return out;
-        // jsdelivr /gh/owner/repo@tag/path/to/file  →  path 用 releases/download/tag/file.apk 有时不稳定，换用 release asset 的 CDN 格式：
-        // https://fastly.jsdelivr.net/gh/owner/repo@tag/  只能从 repo 文件系统取，无法直接读 release asset (上传到 GitHub release 的文件不在 git tree)
-        // → 但我们能把 fastly/jsdelivr 的前缀，直接当成普通镜像用（走反代回 releases/download 路径），这样即便 jsdelivr 不能从 @tag 读 asset，也会回源到 GitHub。
-        // 同时保留 @tag 备用版本，作为「额外候选」丢给 rankByConnectivity 做 HEAD，能通就用。
-        String basePath = "/releases/download/" + tag + "/" + file;
-        out.add(MIRROR_JSDELIVR_FASTLY + basePath);
-        out.add(MIRROR_JSDELIVR_CN + basePath);
-        return out;
-    }
-
     /**
-     * 兜底增强：若 findApkUrls 返回的候选数不足（v5.5.46 客户端只有 5 条前缀时常见），
-     * 这里再用 getMirrorCandidates() 对 direct URL 重拼一遍，保证候选数达到 mirrorCandidates.size() 以上 + jsdelivr 额外 2 条。
+     * 把 https://github.com/owner/repo/releases/download/tag/file.apk 解析为最终 objects.githubusercontent.com 的对象存储 URL。
+     * 实现：跟随一次 302 跳转（OkHttp 默认 followRedirects=true，最终停在 objects 节点），
+     * 直接返回最终请求的 URL。超时使用 PROBE_TIMEOUT_MS（6s），失败返回 null（不阻塞原流程）。
      */
-    public static List<String> ensureCandidates(List<String> existing, JSONObject release, List<String> mirrorCandidates) {
-        LinkedHashSet<String> set = new LinkedHashSet<>();
-        if (existing != null) set.addAll(existing);
+    private static String resolveObjectsUrl(String browserDownloadUrl, long timeoutMs) {
+        if (browserDownloadUrl == null || browserDownloadUrl.isEmpty()) return null;
+        OkHttpClient client = OkHttp.client(false, timeoutMs);
+        okhttp3.Call call = null;
+        Response res = null;
         try {
-            String direct = pickDirectApkUrl(release);
-            if (direct != null && !direct.isEmpty()) {
-                if (mirrorCandidates != null) {
-                    for (String mirror : mirrorCandidates) {
-                        String u = (mirror == null || mirror.isEmpty()) ? direct : mirror + "/" + direct;
-                        if (u != null && !u.isEmpty()) set.add(u);
-                    }
-                }
-                try {
-                    List<String> js = buildJsDelivrCandidates(release, direct);
-                    set.addAll(js);
-                } catch (Throwable ignored) {
+            Request req = new Request.Builder()
+                    .url(browserDownloadUrl)
+                    .header("Range", "bytes=0-0")
+                    .build();
+            call = client.newCall(req);
+            res = call.execute();
+            // OkHttp 已经 followRedirects 到最终请求，拿到最终 URL
+            okhttp3.Request finalReq = res.request();
+            if (finalReq != null && finalReq.url() != null) {
+                String finalUrl = finalReq.url().toString();
+                if (finalUrl != null && (finalUrl.contains("objects.githubusercontent.com") || finalUrl.contains("github-production-release-asset"))) {
+                    return finalUrl;
                 }
             }
+            return null;
         } catch (Throwable ignored) {
+            return null;
+        } finally {
+            if (res != null) try { res.close(); } catch (Throwable ignored) {}
+            if (call != null) try { call.cancel(); } catch (Throwable ignored) {}
         }
-        return new ArrayList<>(set);
     }
 
     /**
