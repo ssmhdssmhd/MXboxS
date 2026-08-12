@@ -158,6 +158,12 @@
     <string name="setting_choose">Choose</string>
     <string name="setting_off">Off</string>
     <string name="setting_on">On</string>
+    <string name="setting_advanced">高级设置</string>
+    <string name="setting_advanced_title">高级设置</string>
+    <string name="setting_advanced_locked">暂无可用的高级设置</string>
+    <string name="setting_advanced_unlock_hint">再点击 %d 次版本号解锁社交搜索</string>
+    <string name="setting_advanced_unlocked">社交搜索已解锁</string>
+    <string name="setting_version_label">版本号</string>
 
     <!-- Social search: TG / X login & search -->
     <string name="setting_social_title">社交搜索（TG / X）</string>

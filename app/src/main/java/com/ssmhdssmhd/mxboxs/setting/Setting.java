@@ -279,4 +279,15 @@ public class Setting {
     public static void putXEndpointPrefix(String prefix) {
         Prefers.put("x_endpoint_prefix", prefix == null ? "" : prefix.trim());
     }
+
+    // ---------------- 高级设置：社交搜索解锁 ----------------
+
+    /** 社交搜索是否已解锁（点击版本号 20 次后解锁） */
+    public static boolean isSocialSearchUnlocked() {
+        return Prefers.getBoolean("social_search_unlocked", false);
+    }
+
+    public static void putSocialSearchUnlocked(boolean unlocked) {
+        Prefers.put("social_search_unlocked", unlocked);
+    }
 }
