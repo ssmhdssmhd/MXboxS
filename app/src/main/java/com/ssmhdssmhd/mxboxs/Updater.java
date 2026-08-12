@@ -310,7 +310,7 @@ public class Updater implements Download.Callback, UpdateListener {
         if (apkCursor > 0 && dialog != null) {
             dialog.setStatus("镜像 " + (apkCursor + 1) + "/" + apkUrls.size() + "：" + mirrorTag + " 下载中…（前一镜像失败，自动切换）");
         } else if (dialog != null) {
-            dialog.setStatus("下载中（" + mirrorTag + "，候选镜像共 " + apkUrls.size() + " 条 · 10s 超时快速切源）…");
+            dialog.setStatus("下载中（" + mirrorTag + "，候选镜像共 " + apkUrls.size() + " 条 · 60s 超时快速切源）…");
         }
         if (dialog != null) {
             dialog.showProgress();

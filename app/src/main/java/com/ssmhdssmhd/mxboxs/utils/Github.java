@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 public class Github {
 
@@ -238,6 +239,21 @@ public class Github {
             }
         });
         return sorted;
+    }
+
+    /** 把 probeUrls 返回的 List<ProbeResult>（已按 ok↑+rtt↑ 排序）抽取为纯 URL 列表（给 Updater 作为 apkUrls 新序）。 */
+    public static List<String> extractUrls(List<ProbeResult> results) {
+        if (results == null) return null;
+        List<String> okUrls = new ArrayList<>(results.size());
+        List<String> failUrls = new ArrayList<>(results.size());
+        for (ProbeResult r : results) {
+            if (r == null) continue;
+            if (r.ok) okUrls.add(r.url); else failUrls.add(r.url);
+        }
+        List<String> merged = new ArrayList<>(okUrls.size() + failUrls.size());
+        merged.addAll(okUrls);
+        merged.addAll(failUrls);
+        return merged;
     }
 
     /**

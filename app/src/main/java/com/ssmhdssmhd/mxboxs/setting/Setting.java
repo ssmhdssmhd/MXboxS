@@ -1,6 +1,7 @@
 package com.ssmhdssmhd.mxboxs.setting;
 
 import com.ssmhdssmhd.mxboxs.R;
+import com.ssmhdssmhd.mxboxs.utils.Github;
 import com.ssmhdssmhd.mxboxs.utils.ResUtil;
 import com.github.catvod.utils.Prefers;
 
