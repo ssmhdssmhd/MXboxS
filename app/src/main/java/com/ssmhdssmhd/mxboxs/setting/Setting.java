@@ -241,6 +241,53 @@ public class Setting {
     public static final String SOCIAL_PURPOSE_TG = "tg_bot_token";
     public static final String SOCIAL_PURPOSE_X  = "x_bearer_token";
 
+    // ===== 社交搜索「限速配置」：避免被 TG/X 官方封号 =====
+    /** 每次发往 TG 的搜索请求之间最少间隔（毫秒）。TG 公开预览页 t.me/s/* 对单 IP 并发较敏感，保守默认 1200ms。 */
+    public static final long SOCIAL_TG_MIN_INTERVAL_MS_DEFAULT = 1200L;
+    /** 每次发往 X API 的搜索 / verify 请求之间最少间隔（毫秒）。X v2 免费 tier 严格限 900 req/15min ≈ 1 req/sec，这里默认留余量 1500ms。 */
+    public static final long SOCIAL_X_MIN_INTERVAL_MS_DEFAULT  = 1500L;
+    /** 单轮「合并搜索」最多允许命中多少条（TG 每频道 max + X max 之和不得超过此值）。默认 20。 */
+    public static final int  SOCIAL_MAX_HITS_PER_SEARCH_DEFAULT = 20;
+
+    /** 社交搜索总开关（关闭后：即使用户配置了 TG/X Token，点播搜索合并页 / 测试按钮 都会跳过）。 */
+    public static boolean isSocialSearchEnabled() {
+        return Prefers.getBoolean("social_search_enabled", true);
+    }
+    public static void putSocialSearchEnabled(boolean v) { Prefers.put("social_search_enabled", v); }
+
+    /** TG 请求最小间隔（ms）；用户可在高级设置里调大，调小会被 clamp 到 500ms（下限保护，防误配导致封号）。 */
+    public static long getSocialTgMinIntervalMs() {
+        long v = Prefers.getLong("social_tg_min_interval_ms", SOCIAL_TG_MIN_INTERVAL_MS_DEFAULT);
+        return Math.max(500L, v);
+    }
+    public static void putSocialTgMinIntervalMs(long ms) {
+        Prefers.put("social_tg_min_interval_ms", Math.max(500L, ms));
+    }
+    /** X 请求最小间隔（ms）；下限 800ms（≈ 1.25/s，X 免费 tier 1/s 多一点安全边际）。 */
+    public static long getSocialXMinIntervalMs() {
+        long v = Prefers.getLong("social_x_min_interval_ms", SOCIAL_X_MIN_INTERVAL_MS_DEFAULT);
+        return Math.max(800L, v);
+    }
+    public static void putSocialXMinIntervalMs(long ms) {
+        Prefers.put("social_x_min_interval_ms", Math.max(800L, ms));
+    }
+    /** 单轮合并搜索最多命中条数上限；范围 [1, 100]。 */
+    public static int getSocialMaxHitsPerSearch() {
+        int v = Prefers.getInt("social_max_hits_per_search", SOCIAL_MAX_HITS_PER_SEARCH_DEFAULT);
+        return Math.max(1, Math.min(100, v));
+    }
+    public static void putSocialMaxHitsPerSearch(int n) {
+        Prefers.put("social_max_hits_per_search", Math.max(1, Math.min(100, n)));
+    }
+
+    // ===== TG/X 账号名缓存（测试连接成功后写入，显示在 UI 上，避免每次打开高级设置都要联网）=====
+    /** TG 连接后缓存的 bot 显示名（@xxx 或昵称），纯本地显示用。 */
+    public static String getTgAccountLabel() { return Prefers.getString("tg_account_label", ""); }
+    public static void putTgAccountLabel(String s) { Prefers.put("tg_account_label", s == null ? "" : s.trim()); }
+    /** X 连接后缓存的 account @xxx 显示名。 */
+    public static String getXAccountLabel()  { return Prefers.getString("x_account_label", ""); }
+    public static void putXAccountLabel(String s)  { Prefers.put("x_account_label", s == null ? "" : s.trim()); }
+
     /** TG Bot Token（形如 123456:ABC...），由扫码或手动粘贴填入，纯本地保存 */
     public static String getTgBotToken() {
         return Prefers.getString("tg_bot_token", "");

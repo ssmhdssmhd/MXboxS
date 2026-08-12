@@ -9,6 +9,20 @@
 
 ## 最新更新
 
+### v5.5.62 · 2026-08-13 · 高级设置默认隐藏（点击版本号 20 次解锁）+ 社交搜索增强（TG/X 跳转 App / 限速防封 / 总开关）+ 下载 ZIP 魔术头校验
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **高级设置入口隐藏** | mobile `SettingFragment` + leanback `SettingActivity` 里「高级设置」默认 GONE；版本号 `onClick` 计数 20 次 → `Setting.putSocialSearchUnlocked(true)` 后置 VISIBLE | [mobile SettingFragment](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/fragment/SettingFragment.java) / [leanback SettingActivity](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingActivity.java) |
+| 2 | **SettingAdvancedActivity** | TG Bot Token / X Bearer Token 粘贴、TG 频道列表、X 自定义代理前缀；连接测试成功后缓存 bot 账号 / @xxx 显示；lockedHint + socialCard 类型修复（MaterialTextView / MaterialCardView） | [SettingAdvancedActivity.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java) |
+| 3 | **自动跳转到对应 App** | `onJumpToApp(TG)` 打开 `https://t.me/BotFather`；`onJumpToApp(X)` 打开 `https://developer.x.com/`（已装官方 App 会优先跳转） | [SettingAdvancedActivity.java#L233-L253](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java#L233-L253) |
+| 4 | **总开关 + 限速三档** | `isSocialSearchEnabled()`（总开关）；`getSocialTgMinIntervalMs ≥ 500ms`；`getSocialXMinIntervalMs ≥ 800ms`；`getSocialMaxHitsPerSearch ∈ [1,100]` | [Setting.java#L252-L281](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L252-L281) |
+| 5 | **SocialApi 限速 sleep + 门控** | `preflightTg / preflightX` 先判 `isSocialSearchEnabled()`，再按 `minIntervalMs` 做 `Thread.sleep` 节流；`testTgBot / searchTg / testX / searchX` 入口都先调 preflight | [SocialApi.java#L52-L83](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/SocialApi.java#L52-L83) / 4 个入口方法 |
+| 6 | **下载稳定性修复** | `probeOne` 三重校验（Content-Type 非 html / Content-Length 合理 / ZIP 魔术头 PK）；`BAD_MIRROR_HOSTS` 黑名单；默认镜像切 GitHub 直连；下载超时 60s | [Github.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java) / [Updater.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java) |
+| 7 | 版本号 | versionCode 610 → **611** / versionName 5.5.61 → **5.5.62** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.54 · 2026-08-08 · 壁纸未配置自动走内置接口（设置UI只显示「内置」） + 更新对话框改造（上=激活码 / 下=更新内容）
 
 | # | 模块 | 行为 | 代码位置 |

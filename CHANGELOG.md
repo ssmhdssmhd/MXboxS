@@ -2,6 +2,85 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.62] - 2026-08-13
+
+### 高级设置默认隐藏 + 点击版本号 20 次解锁 + 社交搜索增强（TG/X 跳转 App / 限速防封 / 总开关）
+
+用户需求：
+1. 设置页新增「高级设置」入口，**默认不显示**；用户连续点击底部**版本号 20 次**后自动显示。
+2. 高级设置里新增 TG / X 社交搜索配置：
+   - 总开关「合并社交搜索到点播」：关闭后即使已填 token 也不发请求。
+   - 一键跳转到**官方 App**：TG → `t.me/BotFather`；X → `developer.x.com` 拿 Bearer Token。
+   - 连接测试成功后**自动拉取并缓存账号名**（@xxx / id=xxx），UI 直接显示，不用每次重刷。
+   - **限速三档可调**（TG 最小间隔 / X 最小间隔 / 单轮命中上限），全部下限保护：TG ≥ 500ms，X ≥ 800ms，单轮命中 [1, 100]。
+   - `SocialApi` 内部已加 sleep 节流 + 开关门控：**不要搜索太快，避免被封账号**。
+
+### 下载稳定性修复：多镜像探针 + ZIP 魔术头校验 + host 黑名单
+
+问题：之前使用公益反代（ghps.cambridgecs / ghproxy 等）下载时，偶发返回 HTTP 200 但 body 是 HTML 错误页 → 下载完成「文件损坏」（长度不匹配）。
+
+修复：
+- `Github.probeOne` 做**三重校验**：① Content-Type 非 `text/html`；② Content-Length 合理（>10MB 且 <1GB）；③ 读取前 4 字节校验 `PK\x03\x04` ZIP 魔术头。
+- 新增 `BAD_MIRROR_HOSTS` 黑名单：下载失败的 host 自动拉黑，本轮重试不再选它。
+- 默认镜像从 ghproxy.com 切到 **GitHub 直连**（最快最稳，CI 能直连）；jsdelivr 已删除（实测必 404）；新增 `objects.githubusercontent.com` 直连源。
+- `Updater` 下载超时从 10s → 60s；错误提示显示黑名单信息 + 重试建议。
+
+### SettingAdvancedActivity ClassCastException 修复
+
+`lockedHint` 和 `socialCard` 在 XML 中是 `MaterialTextView` / `MaterialCardView`，但 Java 里声明为 `LinearLayout` → 启动时崩溃。修复为正确类型。
+
+### 版本号
+- versionCode 610 → **611**
+- versionName 5.5.61 → **5.5.62**
+
+---
+
+## [v5.5.61] - 2026-08-13
+
+### 高级设置（SettingAdvancedActivity）初版：社交搜索配置 UI + 版本号点击 20 次解锁
+
+- 参考 `SettingPlayerActivity` 风格创建 `SettingAdvancedActivity`，内含 TG Bot Token / X Bearer Token 粘贴、TG 频道列表、X 自定义代理前缀等入口。
+- 手机端 `SettingFragment` + TV 端 `SettingActivity` 同步新增：
+  - 「高级设置」按钮默认 `GONE`，解锁后置 `VISIBLE`；
+  - 底部版本号 `onClick` → 计数器累计 20 次 → 写入 `Setting.putSocialSearchUnlocked(true)` 并 Toast。
+- `Setting` 新增 `isSocialSearchUnlocked / putSocialSearchUnlocked`（SharedPreferences 持久化）。
+- 镜像模式迁移：`Setting.getMirrorMode` 里显式迁移老用户 index（旧 7=DIRECT → 新 0；旧 jsdelivr=6 → 回退默认 0）。
+
+### 修复颜色资源引用错误（white_alpha_70/10 → white_70/10）
+
+`activity_setting_advanced.xml` 引用了不存在的 `@color/white_alpha_70` 和 `@color/white_alpha_10`，导致 CI 失败，release 停留在旧版本。替换为项目已有的 `white_70` / `white_10`。
+
+### 版本号
+- versionCode 607 → **610**
+- versionName 5.5.58 → **5.5.61**
+
+---
+
+## [v5.5.58] - 2026-08-13
+
+### 下载优化初版：Updater 下载重试 + Github 多镜像
+
+- `Github` 构建多条 APK 下载候选（直连 + ghproxy 系列反代）。
+- `Updater` 下载失败时自动切下一条镜像。
+
+### 版本号
+- versionCode 605 → **607**
+- versionName 5.5.56 → **5.5.58**
+
+---
+
+## [v5.5.56] - 2026-08-12
+
+### APK 版本号 bump（v605 / 5.5.56）
+
+修复早期 build 资产版本不匹配问题，触发 CI 重新打包。
+
+### 版本号
+- versionCode 603 → **605**
+- versionName 5.5.54 → **5.5.56**
+
+---
+
 ## [v5.5.54] - 2026-08-08
 
 ### 壁纸 API 未配置时自动使用内置接口 & 设置 UI 只显示「内置」不暴露具体接口

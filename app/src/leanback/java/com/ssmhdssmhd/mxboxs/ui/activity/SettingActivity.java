@@ -94,6 +94,20 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
         mBinding.versionLabel.setText("v" + BuildConfig.VERSION_NAME);
         setCacheText();
         setOtherText();
+        refreshAdvancedVisibility();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshAdvancedVisibility();
+    }
+
+    /** 高级设置入口默认隐藏（TV 端同移动端逻辑：仅在点击版本号 20 次解锁后可见）。*/
+    private void refreshAdvancedVisibility() {
+        if (mBinding == null) return;
+        boolean unlocked = Setting.isSocialSearchUnlocked();
+        mBinding.advanced.setVisibility(unlocked ? View.VISIBLE : View.GONE);
     }
 
     private void setOtherText() {
@@ -262,11 +276,12 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     }
 
     private void onVersionLabelClick(View view) {
-        if (Setting.isSocialSearchUnlocked()) return;
+        if (Setting.isSocialSearchUnlocked()) { refreshAdvancedVisibility(); return; }
         mVersionClickCount++;
         int remaining = 20 - mVersionClickCount;
         if (remaining <= 0) {
             Setting.putSocialSearchUnlocked(true);
+            refreshAdvancedVisibility();
             Notify.show(R.string.setting_advanced_unlocked);
         } else if (remaining <= 5) {
             Notify.show(getString(R.string.setting_advanced_unlock_hint, remaining));

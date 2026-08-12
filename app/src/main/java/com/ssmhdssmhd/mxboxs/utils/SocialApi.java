@@ -31,6 +31,57 @@ import okhttp3.Response;
  */
 public final class SocialApi {
 
+    // ==================== 限速 + 开关门控（用户需求：不要搜索太快，避免被封账号）====================
+
+    /** 最近一次发起 TG HTTP 请求的墙上时钟时间戳（ms）；配合 getSocialTgMinIntervalMs 做节流。 */
+    private static volatile long sLastTgAtMs = 0L;
+    /** 最近一次发起 X HTTP 请求的墙上时钟时间戳。 */
+    private static volatile long sLastXAtMs  = 0L;
+    /** X 的 testX / searchX 虽然是两个方法，但用户仍可能在同一秒内两次点测试 → 仍然按同一把锁 sleep。*/
+    private static final Object X_LOCK = new Object();
+    /** TG 同理。*/
+    private static final Object TG_LOCK = new Object();
+
+    /** 所有对外 public 方法统一先过门控：
+     *  ① isSocialSearchEnabled() == false → 直接返回明确的 fail 结果（UI 也会告知用户开关关了）；
+     *  ② 然后按目标走一次 sleep 节流（节流失败时不抛异常，continue 保证请求仍能发出去，避免用户调了过大的值反而卡死）。
+     *
+     * <p>注：testTgBot/testX 虽然不是搜索，但 X Bearer Token 一旦短时间大量调用 /users/me 同样会被 tier limit 打 429，
+     * 所以同样纳入限速范围（更保守更安全）。
+     */
+    private static Result preflightTg() {
+        if (!Setting.isSocialSearchEnabled()) return Result.fail("社交搜索总开关已关闭，跳过 TG 请求。");
+        long want = Setting.getSocialTgMinIntervalMs();
+        if (want > 0L) rateLimitSleep(TG_LOCK, want, new long[]{0}, TAG_TG);
+        return null;
+    }
+    private static Result preflightX() {
+        if (!Setting.isSocialSearchEnabled()) return Result.fail("社交搜索总开关已关闭，跳过 X 请求。");
+        long want = Setting.getSocialXMinIntervalMs();
+        if (want > 0L) rateLimitSleep(X_LOCK, want, new long[]{0}, TAG_X);
+        return null;
+    }
+    private static final boolean TAG_TG = true;
+    private static final boolean TAG_X  = false;
+
+    /** 让当前调用线程 sleep 足够时间，保证当前距上次实际发起请求的间隔 >= minIntervalMs。
+     *  若中途 InterruptedException → 清标记并提前返回，避免吞掉 interrupt。*/
+    private static void rateLimitSleep(Object lock, long minIntervalMs, long[] unused0, boolean isTg) {
+        // 给 TG/X 各保留独立的 lastAt
+        synchronized (lock) {
+            long now = System.currentTimeMillis();
+            long last = isTg ? sLastTgAtMs : sLastXAtMs;
+            long waitMs = last == 0L ? 0L : (minIntervalMs - (now - last));
+            if (waitMs > 0L) {
+                try { Thread.sleep(waitMs); }
+                catch (InterruptedException ie) { Thread.currentThread().interrupt(); /* caller 若支持会随后退出 */ }
+            }
+            // 修正后的「now」（睡完之后）
+            long stamped = System.currentTimeMillis();
+            if (isTg) sLastTgAtMs = stamped; else sLastXAtMs = stamped;
+        }
+    }
+
     public static final class Result {
         public final boolean ok;
         public final String message;
@@ -78,6 +129,8 @@ public final class SocialApi {
      * @return ok=true 时 message 形如 "@BotFatherBot id=123456"
      */
     public static Result testTgBot() {
+        Result pf = preflightTg();
+        if (pf != null) return pf;
         String token = Setting.getTgBotToken();
         if (TextUtils.isEmpty(token)) return Result.fail("请先扫码或粘贴 TG Bot Token");
         try {
@@ -109,6 +162,8 @@ public final class SocialApi {
      * 返回命中帖子列表（按频道顺序，每频道最多 5 条）。
      */
     public static Result searchTg(String keyword, int maxPerChannel) {
+        Result pf = preflightTg();
+        if (pf != null) return pf;
         if (TextUtils.isEmpty(keyword)) return Result.fail("关键词为空");
         String list = Setting.getTgChannelList();
         if (TextUtils.isEmpty(list)) return Result.fail("请先在设置里配置 TG 搜索频道列表（逗号分隔）");
@@ -187,6 +242,8 @@ public final class SocialApi {
 
     /** 验证 X Bearer Token：GET /2/users/me。 */
     public static Result testX() {
+        Result pf = preflightX();
+        if (pf != null) return pf;
         String token = Setting.getXBearerToken();
         if (TextUtils.isEmpty(token)) return Result.fail("请先扫码或粘贴 X Bearer Token");
         try {
@@ -229,6 +286,8 @@ public final class SocialApi {
 
     /** X v2 最近 7 天搜索。maxResults 合法范围 [10,100]，超限会被服务端 400。 */
     public static Result searchX(String keyword, int maxResults) {
+        Result pf = preflightX();
+        if (pf != null) return pf;
         if (TextUtils.isEmpty(keyword)) return Result.fail("关键词为空");
         String token = Setting.getXBearerToken();
         if (TextUtils.isEmpty(token)) return Result.fail("请先扫码或粘贴 X Bearer Token");

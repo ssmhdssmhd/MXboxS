@@ -168,6 +168,8 @@
     <!-- Social search: TG / X login & search -->
     <string name="setting_social_title">社交搜索（TG / X）</string>
     <string name="setting_social_subtitle">扫码或粘贴 Token 配置；返回的搜索结果可后续合并到点播搜索</string>
+    <string name="setting_social_enabled">合并社交搜索到点播</string>
+    <string name="setting_social_enabled_sub">关闭后即使已配置 TG/X，点播搜索页也不会请求它们（避免被封号/省流量）</string>
     <string name="setting_social_tg">Telegram Bot</string>
     <string name="setting_social_tg_hint">TG Bot Token（形如 123456:ABC…）；或用手机浏览器访问 https://t.me/BotFather 创建</string>
     <string name="setting_social_x">X (Twitter)</string>
@@ -177,11 +179,26 @@
     <string name="setting_social_test">立即测试连接并搜索示例</string>
     <string name="setting_social_unconnected">未连接</string>
     <string name="setting_social_connected_len">已连接（%d 位）</string>
+    <string name="setting_social_connected_account">已连接 · %s</string>
     <string name="setting_social_paste">粘贴</string>
     <string name="setting_social_scan">扫码</string>
     <string name="setting_social_channels">频道列表</string>
     <string name="setting_social_endpoint">X 端点前缀</string>
     <string name="setting_social_clear">清空 Token</string>
+    <!-- 跳转 App（用户需求：随后增加，支持自动跳转到对应 app）-->
+    <string name="setting_social_jump_tg">打开 Telegram</string>
+    <string name="setting_social_jump_x">打开 X</string>
+    <!-- 搜索限速（用户需求：不要搜索太快，避免被封账号）-->
+    <string name="setting_social_rate_title">搜索节流（防封号）</string>
+    <string name="setting_social_rate_sub">值越大越安全；不要压到官方限制以下，否则可能会被临时限流或封号。</string>
+    <string name="setting_social_rate_tg">TG 两次请求间隔</string>
+    <string name="setting_social_rate_x">X  两次请求间隔</string>
+    <string name="setting_social_rate_hits">单轮合并命中上限</string>
+    <string name="setting_social_rate_value">%.1f 秒/次</string>
+    <string name="setting_social_rate_hits_value">%d 条</string>
+    <string name="setting_social_rate_hint_tg">TG 每次请求最少间隔 500ms（默认 1.2s）</string>
+    <string name="setting_social_rate_hint_x">X 每次请求最少间隔 800ms（默认 1.5s，对应官方免费 tier ~1 req/s）</string>
+    <string name="setting_social_rate_hint_hits">单轮合并搜索最多返回多少条命中（1~100，默认 20）</string>
 
     <!-- Backup & Restore -->
     <string name="restore_select">Select backup</string>
