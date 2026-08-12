@@ -4,6 +4,8 @@ import com.ssmhdssmhd.mxboxs.R;
 import com.ssmhdssmhd.mxboxs.utils.ResUtil;
 import com.github.catvod.utils.Prefers;
 
+import android.text.TextUtils;
+
 public class Setting {
 
     private static final int MIN_WALL = 0;
@@ -213,5 +215,68 @@ public class Setting {
 
     public static void putKami(String kami) {
         Prefers.put("kami", kami == null ? "" : kami.trim());
+    }
+
+    // ---------------- TG / X 社交搜索配置 ----------------
+
+    /** 扫描保存的用途标记，内部常量 */
+    public static final String SOCIAL_PURPOSE_TG = "tg_bot_token";
+    public static final String SOCIAL_PURPOSE_X  = "x_bearer_token";
+
+    /** TG Bot Token（形如 123456:ABC...），由扫码或手动粘贴填入，纯本地保存 */
+    public static String getTgBotToken() {
+        return Prefers.getString("tg_bot_token", "");
+    }
+
+    public static void putTgBotToken(String token) {
+        Prefers.put("tg_bot_token", token == null ? "" : token.trim());
+    }
+
+    public static boolean isTgConnected() {
+        String t = getTgBotToken();
+        return !TextUtils.isEmpty(t) && t.contains(":") && t.length() > 10;
+    }
+
+    /**
+     * TG 搜索来源频道用户名列表，逗号分隔。
+     * 例如 "subsplease_movies,nyaa_updates,xxx_resource"
+     *
+     * <p>真实搜索会调 public 预览页 t.me/s/{channel} 做关键词匹配（Bot API 本身不提供全局搜索，
+     * 但公开频道列表可直接 HTML 解析出标题/磁链/帖子文本，结果可再合并进 App 搜索）。
+     */
+    public static String getTgChannelList() {
+        return Prefers.getString("tg_channels", "");
+    }
+
+    public static void putTgChannelList(String s) {
+        Prefers.put("tg_channels", s == null ? "" : s.trim());
+    }
+
+    /** X Bearer Token（以 "AAAAAAAAAAAAAAAAAAAA..." 或 "xoxb-" 开头都行，由扫码或粘贴填入） */
+    public static String getXBearerToken() {
+        return Prefers.getString("x_bearer_token", "");
+    }
+
+    public static void putXBearerToken(String token) {
+        Prefers.put("x_bearer_token", token == null ? "" : token.trim());
+    }
+
+    public static boolean isXConnected() {
+        String t = getXBearerToken();
+        return !TextUtils.isEmpty(t) && t.length() > 20;
+    }
+
+    /** X 搜索请求前可选自定义前缀（自建 X API 代理用；空 = 直连 api.x.com） */
+    public static String getXEndpointPrefix() {
+        String v = Prefers.getString("x_endpoint_prefix", "");
+        if (v == null) return "";
+        String t = v.trim();
+        if (t.isEmpty()) return "";
+        if (t.endsWith("/")) return t.substring(0, t.length() - 1);
+        return t;
+    }
+
+    public static void putXEndpointPrefix(String prefix) {
+        Prefers.put("x_endpoint_prefix", prefix == null ? "" : prefix.trim());
     }
 }

@@ -159,6 +159,24 @@
     <string name="setting_off">Off</string>
     <string name="setting_on">On</string>
 
+    <!-- Social search: TG / X login & search -->
+    <string name="setting_social_title">社交搜索（TG / X）</string>
+    <string name="setting_social_subtitle">扫码或粘贴 Token 配置；返回的搜索结果可后续合并到点播搜索</string>
+    <string name="setting_social_tg">Telegram Bot</string>
+    <string name="setting_social_tg_hint">TG Bot Token（形如 123456:ABC…）；或用手机浏览器访问 https://t.me/BotFather 创建</string>
+    <string name="setting_social_x">X (Twitter)</string>
+    <string name="setting_social_x_hint">X Bearer Token（从 X Developer Portal 获取）</string>
+    <string name="setting_social_channels_hint">TG 搜索来源：公开频道用户名，逗号分隔（例 subsplease_movies,xxx_resource）</string>
+    <string name="setting_social_prefix_hint">X API 端点前缀（留空直连 api.x.com；自建代理可填 https://your-proxy ）</string>
+    <string name="setting_social_test">立即测试连接并搜索示例</string>
+    <string name="setting_social_unconnected">未连接</string>
+    <string name="setting_social_connected_len">已连接（%d 位）</string>
+    <string name="setting_social_paste">粘贴</string>
+    <string name="setting_social_scan">扫码</string>
+    <string name="setting_social_channels">频道列表</string>
+    <string name="setting_social_endpoint">X 端点前缀</string>
+    <string name="setting_social_clear">清空 Token</string>
+
     <!-- Backup & Restore -->
     <string name="restore_select">Select backup</string>
     <string name="restore_success">Restore successful</string>
