@@ -106,4 +106,11 @@ public interface VodPlaybackHost {
     void showNoPrev(boolean reversed);
 
     void finishVod();
+
+    /**
+     * AI 预解析下一集：进度到 85% 且用户有快速切集习惯时触发。
+     * Host 实现可 override 此方法做真正的后台预缓存（调 API 拿 result → ParseJob 预解析）。
+     * 默认空实现，不影响现有代码。
+     */
+    default void preparseNext(Flag flag, Episode episode) {}
 }

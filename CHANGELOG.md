@@ -2,6 +2,57 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.70] - 2026-08-13
+
+### AI 深度优化第二轮：磁盘缓存 / 自学习阈值 / LLM 嗅探 / 源质量评分 / 预解析下一集 / AB 分桶
+
+#### P0-2: 解析缓存磁盘持久化（L2 层）
+
+新增 [ParseDiskCache](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseDiskCache.java)：
+- L1 内存 LRU（200 条 / 30 分钟）→ L2 磁盘 JSON（1000 条 / 12 小时）
+- [ParseJob.getCache](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L98)：L1 未命中查 L2，L2 命中回填 L1
+- [ParseJob.putCache](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L117)：写 L1 + 异步写 L2
+- 冷启动 / 杀进程后重播同集仍秒开，跳过 HTTP + WebView
+
+#### P0-3: PlaybackAdvisor 自学习阈值
+
+[PlaybackAdvisor](app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlaybackAdvisor.java) 从硬编码 2/8 Mbps 改为可变：
+- `weakNetBps` / `fastNetBps` 从 Prefers 加载，卡顿事件自整定后回写
+- PlayerManager STATE_BUFFERING→READY 时调 `onBufferingStarted/Ended`，缓冲 >3s 算一次卡顿
+- 连续 2 次卡顿：弱网档提高 weakNetBps +0.2Mbps（更保守判定弱网），高速档降低 fastNetBps -0.5Mbps
+- 阈值有上下限保护（weakMax=4Mbps, fastMin=4Mbps），不会交叉
+
+#### P0-1: AI 预解析下一集
+
+- [VodPlaybackController.onTimeChanged](app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L236)：进度 >=85% 且 `shouldPreparseNext()` 时触发 `host.preparseNext(flag, episode)`
+- [VodPlaybackController.nextEpisode](app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L198)：播放 >6 分钟切集时调 `noteQuickSkipNext()` 记录习惯
+- [VodPlaybackHost.preparseNext](app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackHost.java#L115)：default 空实现，Host 可 override 做真正后台预缓存
+- 习惯阈值：累计 3 次"播放 6 分钟就切下一集"才启用预解析
+
+#### P1-4: LLM 嗅探接口骨架
+
+新增 [LlmSniffer](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/LlmSniffer.java)：
+- 常规正则嗅探全失败后，把页面 HTML/JS 4KB 片段喂给 LLM 提取候选 URL
+- 兼容 OpenAI Chat Completions（`/v1/chat/completions`）和自定义 endpoint 两种格式
+- [ParseJob.aiSmartParseFallbackFrom](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L951)：concurrentProbeCandidates 返回 null 后调 LLM，LLM 候选再走并发 probe 验证
+- [PlayerSetting](app/src/main/java/com/ssmhdssmhd/mxboxs/setting/PlayerSetting.java#L403)：getLlmEndpoint/getLlmKey/getLlmModel 配置项；不配则跳过（isAvailable()=false）
+
+#### P1-5: AI 源质量评分
+
+新增 [SourceQualityStore](app/src/main/java/com/ssmhdssmhd/mxboxs/player/SourceQualityStore.java)：
+- 按 siteKey 记录解析成功率、平均起播耗时（EWMA）、切源率
+- [ParseJob.onParseSuccess/onParseError](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L897)：记录解析结果 + 耗时
+- 评分模型：`50 + 30*successRate - 15*(avgMs/8000) - 20*switchAwayRate`，0-100 分
+- 数据持久化在 SharedPreferences（JSON），滑动窗口 50 次
+
+#### Z-10: FeatureFlag / AB 分桶骨架
+
+新增 [FeatureFlags](app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FeatureFlags.java)：
+- 基于设备唯一标识尾号稳定分桶（同一设备每次一致）
+- `isEnabled(flag, rollout)`：总开关 + flag 开关 + 灰度比例三重判断
+- 预置 flag：LLM_SNIFFER / SOURCE_QUALITY / PREPARSE_NEXT / AI_SUPER_RES
+- 总灰度开关 + 逐 flag 手动开关，高级设置可接
+
 ## [v5.5.69] - 2026-08-13
 
 ### 解析加速（三件套）

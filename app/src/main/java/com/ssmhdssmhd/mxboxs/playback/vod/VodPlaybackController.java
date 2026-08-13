@@ -9,6 +9,7 @@ import com.ssmhdssmhd.mxboxs.bean.History;
 import com.ssmhdssmhd.mxboxs.bean.Parse;
 import com.ssmhdssmhd.mxboxs.bean.Result;
 import com.ssmhdssmhd.mxboxs.bean.Vod;
+import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
 
 import java.util.Collections;
 import java.util.List;
@@ -20,6 +21,7 @@ public class VodPlaybackController {
     private final VodPlaybackState state;
     private final VodPlaybackHost host;
     private History lastHistory;
+    private boolean preparseTriggered;
 
     public VodPlaybackController(VodPlaybackHost host, VodPlaybackState state) {
         this.historyPolicy = new VodHistoryPolicy();
@@ -110,6 +112,7 @@ public class VodPlaybackController {
         historyPolicy.updateEpisode(state.getHistory(), state.getFlag(), item);
         host.renderEpisodeSelection(item);
         if (host.isFullscreenForPlayback()) host.showEpisodeReady(item);
+        preparseTriggered = false;
         refresh();
     }
 
@@ -195,6 +198,10 @@ public class VodPlaybackController {
 
     private void nextEpisode(boolean notify, boolean reversed) {
         if (!state.hasEpisode()) return;
+        // AI 习惯学习：播放超过 6 分钟就切下一集，记录习惯用于智能预解析
+        if (host.getPlayerPosition() >= 6 * 60 * 1000L) {
+            PlayerSetting.noteQuickSkipNext();
+        }
         Episode item = getRelativeEpisode(1);
         if (!item.isSelected()) selectEpisode(item);
         else if (notify) host.showNoNext(reversed);
@@ -231,6 +238,15 @@ public class VodPlaybackController {
         History history = currentHistory();
         historyPolicy.updateTime(history, time, position, duration);
         if (history != null && history.getEnding() > 0 && history.getEnding() + position >= duration) nextEpisode(false);
+        // AI 预解析下一集：进度 >= 85% 且习惯已成型时，后台预缓存下一集直链
+        if (!preparseTriggered && duration > 0 && position * 100 >= duration * 85
+                && PlayerSetting.shouldPreparseNext() && state.hasEpisode()) {
+            Episode next = getRelativeEpisode(1);
+            if (!next.isSelected()) {
+                preparseTriggered = true;
+                host.preparseNext(state.getFlag(), next);
+            }
+        }
     }
 
     public long startPositionMs() {

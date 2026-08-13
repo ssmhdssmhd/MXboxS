@@ -96,12 +96,22 @@ public class ParseJob implements ParseCallback {
     }
 
     static CacheEntry getCache(String k) {
+        // L1 内存 LRU
         synchronized (CACHE_LOCK) {
             CacheEntry e = PARSE_CACHE.get(k);
-            if (e == null) return null;
-            if (e.expired()) { PARSE_CACHE.remove(k); return null; }
-            return e;
+            if (e != null) {
+                if (e.expired()) { PARSE_CACHE.remove(k); }
+                else return e;
+            }
         }
+        // L2 磁盘持久化缓存（冷启动/杀进程后仍可命中）
+        CacheEntry disk = ParseDiskCache.get(k);
+        if (disk != null) {
+            // 回填 L1，下次直接内存命中
+            synchronized (CACHE_LOCK) { PARSE_CACHE.put(k, disk); }
+            return disk;
+        }
+        return null;
     }
 
     static void putCache(String k, Map<String, String> headers, String url, String from) {
@@ -109,20 +119,23 @@ public class ParseJob implements ParseCallback {
         synchronized (CACHE_LOCK) {
             PARSE_CACHE.put(k, new CacheEntry(headers == null ? null : new HashMap<>(headers), url, from));
         }
+        // 异步写磁盘（不阻塞回调线程）
+        ParseDiskCache.put(k, headers, url, from);
     }
 
-    /** 返回当前解析缓存条目数（用于高级设置展示）。 */
+    /** 返回当前解析缓存条目数（内存 + 磁盘，用于高级设置展示）。 */
     public static int cacheSize() {
-        synchronized (CACHE_LOCK) { return PARSE_CACHE.size(); }
+        int mem;
+        synchronized (CACHE_LOCK) { mem = PARSE_CACHE.size(); }
+        return mem + ParseDiskCache.size();
     }
 
-    /** 清空解析缓存，返回被清空的条目数。 */
+    /** 清空解析缓存（内存 + 磁盘），返回被清空的条目数。 */
     public static int clearCache() {
-        synchronized (CACHE_LOCK) {
-            int n = PARSE_CACHE.size();
-            PARSE_CACHE.clear();
-            return n;
-        }
+        int n;
+        synchronized (CACHE_LOCK) { n = PARSE_CACHE.size(); PARSE_CACHE.clear(); }
+        n += ParseDiskCache.clear();
+        return n;
     }
 
     private final AtomicBoolean done = new AtomicBoolean();
@@ -130,6 +143,8 @@ public class ParseJob implements ParseCallback {
     private final List<Future<?>> futures;
     private ParseCallback callback;
     private Parse parse;
+    private String siteKey;           // 用于 SourceQualityStore 记录
+    private long parseStartMs;        // 解析开始时间，用于算起播耗时
 
     private ParseJob(ParseCallback callback) {
         this.webViews = new ArrayList<>();
@@ -143,6 +158,8 @@ public class ParseJob implements ParseCallback {
 
     public ParseJob start(Result result, boolean useParse) {
         setParse(result, useParse);
+        this.siteKey = result.getKey();
+        this.parseStartMs = System.currentTimeMillis();
         // 解析结果 LRU 优先：命中 → 直接回调 onParseSuccess，跳过网络。
         String cacheKey = cacheKey(result.getKey(), result.getFlag(), result.getUrl().v());
         CacheEntry hit = getCache(cacheKey);
@@ -876,6 +893,10 @@ public class ParseJob implements ParseCallback {
         if (!TextUtils.isEmpty(ck) && !TextUtils.isEmpty(url)) {
             putCache(ck, headers, url, from);
         }
+        // AI 源质量评分：记录解析成功 + 耗时
+        if (siteKey != null) {
+            com.ssmhdssmhd.mxboxs.player.SourceQualityStore.recordParse(siteKey, true, System.currentTimeMillis() - parseStartMs);
+        }
         App.post(() -> {
             if (callback != null) callback.onParseSuccess(headers, url, from);
             stop();
@@ -927,6 +948,23 @@ public class ParseJob implements ParseCallback {
                         return true;
                     }
                 }
+                // LLM 嗅探 fallback：正则候选全没命中，试 LLM 提取候选 URL
+                if (LlmSniffer.isAvailable()) {
+                    java.util.List<String> llmCandidates = LlmSniffer.sniff(body);
+                    if (llmCandidates != null && !llmCandidates.isEmpty()) {
+                        String matched = concurrentProbeCandidates(llmCandidates, baseHeaders);
+                        if (matched != null && !done.get()) {
+                            Map<String, String> candHeaders = UrlUtil.mergeDefaultHeaders(baseHeaders, matched);
+                            if (done.compareAndSet(false, true)) {
+                                App.post(() -> {
+                                    if (callback != null) callback.onParseSuccess(candHeaders, matched, fromTag + "+llm");
+                                    stop();
+                                });
+                            }
+                            return true;
+                        }
+                    }
+                }
             }
             if (!isDirectVideo && probeVideoUrl(webUrl, merged)) {
                 if (done.compareAndSet(false, true)) {
@@ -946,6 +984,10 @@ public class ParseJob implements ParseCallback {
     @Override
     public void onParseError() {
         if (!done.compareAndSet(false, true)) return;
+        // AI 源质量评分：记录解析失败
+        if (siteKey != null) {
+            com.ssmhdssmhd.mxboxs.player.SourceQualityStore.recordParse(siteKey, false, System.currentTimeMillis() - parseStartMs);
+        }
         App.post(() -> {
             if (callback != null) callback.onParseError();
             stop();

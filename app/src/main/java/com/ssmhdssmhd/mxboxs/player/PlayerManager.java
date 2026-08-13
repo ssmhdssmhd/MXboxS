@@ -612,7 +612,11 @@ public class PlayerManager implements ParseCallback {
         public void onPlaybackStateChanged(int state) {
             if (state == Player.STATE_READY || state == Player.STATE_ENDED) {
                 App.removeCallbacks(runnable);
+                // AI 自学习：缓冲结束，记录卡顿时长用于阈值自整定
+                PlaybackAdvisor.get().onBufferingEnded();
             } else if (state == Player.STATE_BUFFERING) {
+                // AI 自学习：缓冲开始
+                PlaybackAdvisor.get().onBufferingStarted();
                 // 缓冲中：说明播放器正在拉数据（真在干活），重置起播超时倒计时，
                 // 避免"弱网一直在缓冲却被判超时"。超时仍保留上限以免真挂死。
                 if (spec != null && spec.getUrl() != null) {

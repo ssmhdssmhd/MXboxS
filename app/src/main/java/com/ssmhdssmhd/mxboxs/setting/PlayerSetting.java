@@ -399,4 +399,29 @@ public class PlayerSetting {
     public static boolean shouldPreparseNext() {
         return Prefers.getInt("ai_quick_skip_count", 0) >= 3;
     }
+
+    // ===== LLM 嗅探配置（可选云端 endpoint，不配则跳过）=====
+    public static String getLlmEndpoint() {
+        return Prefers.getString("llm_endpoint");
+    }
+
+    public static void putLlmEndpoint(String endpoint) {
+        Prefers.put("llm_endpoint", endpoint == null ? "" : endpoint);
+    }
+
+    public static String getLlmKey() {
+        return Prefers.getString("llm_key");
+    }
+
+    public static void putLlmKey(String key) {
+        Prefers.put("llm_key", key == null ? "" : key);
+    }
+
+    public static String getLlmModel() {
+        return Prefers.getString("llm_model", "");
+    }
+
+    public static void putLlmModel(String model) {
+        Prefers.put("llm_model", model == null ? "" : model);
+    }
 }
