@@ -113,4 +113,31 @@ public interface VodPlaybackHost {
      * 默认空实现，不影响现有代码。
      */
     default void preparseNext(Flag flag, Episode episode) {}
+
+    /**
+     * AI 预加载下一集弹幕：进度到 85% 时和 preparseNext 一起触发。
+     * Host 可 override 为真正的后台下载（不渲染到 UI，只下载到临时对象池）。
+     * 默认空实现。
+     */
+    default void preloadNextDanmaku(Result result, History history, Episode episode) {}
+
+    /**
+     * 构造最小 Result，用于 "解析缓存命中时直接起播" 跳过 HTTP requestPlayer 回环。
+     * 字段只填 ParseJob 需要的 key/flag/url，其他留空。
+     */
+    default Result buildMinimalResultFor(String siteKey, Flag flag, Episode episode) {
+        Result r = Result.empty();
+        r.setKey(siteKey);
+        r.setFlag(flag == null ? "" : flag.getFlag());
+        r.setUrl(episode == null ? "" : episode.getUrl());
+        return r;
+    }
+
+    /** 生成解析缓存 key（与 ParseJob.cacheKey 规则严格一致：key|flag|urlLower）。 */
+    default String parseCacheKey(String siteKey, Flag flag, Episode episode) {
+        return com.ssmhdssmhd.mxboxs.player.parse.ParseJob.cacheKey(
+                siteKey,
+                flag == null ? "" : flag.getFlag(),
+                episode == null ? "" : episode.getUrl());
+    }
 }

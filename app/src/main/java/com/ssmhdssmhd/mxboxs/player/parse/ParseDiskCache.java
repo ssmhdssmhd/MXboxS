@@ -28,10 +28,11 @@ import java.util.concurrent.TimeUnit;
  * 杀进程 / 冷启动后仍能命中，跳过 HTTP + WebView 解析。
  * 写入异步，不阻塞解析回调线程；读取同步（文件小，<2KB，够快）。
  */
-final class ParseDiskCache {
+public final class ParseDiskCache {
 
     private static final int MAX_ENTRIES = 1000;
     private static final long TTL_MS = 12L * 60L * 60L * 1000L;  // 12 小时
+    private static final int TRIM_INTERVAL = 50;  // 每 50 次 put 才 trim 一次（惰性化）
     private static final File DIR = new File(App.get().getCacheDir(), "parse_disk_cache");
 
     // 单线程异步写盘，不抢解析/播放资源
@@ -39,9 +40,14 @@ final class ParseDiskCache {
             0, 1, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), r -> {
         Thread t = new Thread(r, "parse-disk-write"); t.setDaemon(true); return t;
     }, new ThreadPoolExecutor.DiscardPolicy());
+    // put 计数：TRIM_INTERVAL 次触发一次 trim（惰性化，避免每次 put 都 listFiles+sort）
+    private static final java.util.concurrent.atomic.AtomicInteger PUT_COUNT =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+
+    private ParseDiskCache() {}
 
     /** 读取磁盘缓存；过期或不存在返回 null。 */
-    static ParseJob.CacheEntry get(String cacheKey) {
+    public static ParseJob.CacheEntry get(String cacheKey) {
         if (TextUtils.isEmpty(cacheKey)) return null;
         File f = file(cacheKey);
         if (!f.exists()) return null;
@@ -70,7 +76,7 @@ final class ParseDiskCache {
     }
 
     /** 异步写入磁盘缓存。 */
-    static void put(String cacheKey, Map<String, String> headers, String url, String from) {
+    public static void put(String cacheKey, Map<String, String> headers, String url, String from) {
         if (TextUtils.isEmpty(cacheKey) || TextUtils.isEmpty(url)) return;
         WRITE_EXEC.execute(() -> {
             try {
@@ -83,13 +89,14 @@ final class ParseDiskCache {
                 obj.addProperty("from", from == null ? "" : from);
                 obj.addProperty("createAt", System.currentTimeMillis());
                 writeFile(file(cacheKey), obj.toString());
-                trimIfNeeded();
+                // 惰性化：每 TRIM_INTERVAL 次 put 才 trim 一次，避免频繁 listFiles+sort
+                if (PUT_COUNT.incrementAndGet() % TRIM_INTERVAL == 0) trimIfNeeded();
             } catch (Throwable ignored) {}
         });
     }
 
     /** 清空磁盘缓存，返回被清空的条目数。 */
-    static int clear() {
+    public static int clear() {
         File[] files = DIR.listFiles();
         if (files == null) return 0;
         int n = 0;
@@ -98,7 +105,7 @@ final class ParseDiskCache {
     }
 
     /** 返回磁盘缓存条目数。 */
-    static int size() {
+    public static int size() {
         File[] files = DIR.listFiles();
         return files == null ? 0 : files.length;
     }

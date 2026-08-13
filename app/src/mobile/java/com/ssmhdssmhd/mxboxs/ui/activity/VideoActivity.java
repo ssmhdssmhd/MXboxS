@@ -561,6 +561,54 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         }
     }
 
+    /**
+     * A2 AI 预解析下一集（真正实现）：Wi-Fi 且电量≥30% 时后台启动 ParseJob 仅做预缓存。
+     * 不渲染 UI、不 startPlayer，ParseJob 成功时自动 putCache 到 L1+L2，
+     * 后续 selectEpisode(A3) 命中 ParseJob.hitCache() → 切集秒开。
+     */
+    @Override
+    public void preparseNext(Flag flag, Episode episode) {
+        if (!com.ssmhdssmhd.mxboxs.utils.FeatureFlags.isEnabled(
+                com.ssmhdssmhd.mxboxs.utils.FeatureFlags.PREPARSE_NEXT, 100)) return;
+        if (!com.ssmhdssmhd.mxboxs.utils.DeviceUtil.allowBackgroundPreload()) return;
+        String siteKey = getVodKey();
+        if (siteKey == null || siteKey.isEmpty() || flag == null || episode == null) return;
+        // 已在缓存则不需要重新解析
+        String cacheKey = com.ssmhdssmhd.mxboxs.player.parse.ParseJob.cacheKey(siteKey, flag.getFlag(), episode.getUrl());
+        if (com.ssmhdssmhd.mxboxs.player.parse.ParseJob.hitCache(cacheKey) != null) return;
+        Result minimal = buildMinimalResultFor(siteKey, flag, episode);
+        boolean useParse = stateIsUseParse(minimal);
+        // NOP 回调：只写缓存不打扰 UI
+        com.ssmhdssmhd.mxboxs.impl.ParseCallback nop = new com.ssmhdssmhd.mxboxs.impl.ParseCallback() {
+            @Override public void onParseSuccess(java.util.Map<String, String> h, String u, String f) {}
+            @Override public void onParseError() {}
+        };
+        com.ssmhdssmhd.mxboxs.player.parse.ParseJob.create(nop).start(minimal, useParse);
+        // B7 弹幕预加载：后台下载下一集弹幕，不渲染到播放器
+        if (mVod != null && mVod.getHistoryForHost() != null) {
+            preloadNextDanmaku(minimal, mVod.getHistoryForHost(), episode);
+        }
+    }
+
+    /** B7 弹幕预加载：后台下载弹幕不渲染（download only）。 */
+    @Override
+    public void preloadNextDanmaku(Result result, History history, Episode episode) {
+        if (!com.ssmhdssmhd.mxboxs.utils.DeviceUtil.allowBackgroundPreload()) return;
+        VodPlaybackMedia.searchDanmaku(result, history, episode,
+                // 不 setDanmaku（那是播放器用），只走 addDanmaku 做下载占位；失败也无所谓
+                danmakus -> {},
+                danmaku -> {});
+    }
+
+    private boolean stateIsUseParse(Result minimal) {
+        // 参考 PlayerSetting.isUseParse() / Result.isUseParse()：按当前站点状态取默认
+        try {
+            return minimal != null && minimal.isUseParse();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     private void loadDanmakuToEngine(String name, String episode) {
         if (!DanmakuApi.canSearch()) return;
         DanmakuParser.loadDanmakuList(name, episode, new DanmakuParser.OnDanmakuLoadedListener() {

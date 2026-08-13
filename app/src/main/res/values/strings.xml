@@ -182,9 +182,36 @@
     <string name="setting_ai_opt_auto">AI 自动调节缓冲与画质</string>
     <string name="setting_ai_opt_auto_sub">弱网自动降档防卡顿，高速网秒开+最高清（2 分钟生效一次，避免抖动）</string>
     <string name="setting_ai_parse_cache">解析缓存</string>
-    <string name="setting_ai_parse_cache_sub">同集回看秒开，容量 200 条 / 30 分钟自动失效</string>
+    <string name="setting_ai_parse_cache_sub">同集回看秒开，内存 200 条 + 磁盘 1000 条，自动失效</string>
     <string name="setting_ai_parse_cache_clear">已清空解析缓存（%d 条）</string>
     <string name="setting_ai_parse_cache_empty">解析缓存为空</string>
+
+    <!-- AI 实验项 / AB 分桶 -->
+    <string name="setting_ai_exp_title">AI 实验项 · AB 分桶</string>
+    <string name="setting_ai_exp_subtitle">以下为 AI 优化灰度开关，关闭即退出对应实验</string>
+    <string name="setting_ai_exp_master">AI 实验总开关</string>
+    <string name="setting_ai_exp_master_sub">关闭后下方所有 AI 实验项一并停用</string>
+    <string name="setting_ai_exp_bucket">当前 AB 分桶号</string>
+    <string name="setting_ai_exp_bucket_fmt">%d / 100</string>
+    <string name="setting_ai_exp_llm">LLM 嗅探候选 URL</string>
+    <string name="setting_ai_exp_llm_sub">正则嗅探失败后调 LLM 提取候选（需先配置 LLM API）</string>
+    <string name="setting_ai_exp_sq">AI 源质量评分</string>
+    <string name="setting_ai_exp_sq_sub">搜索结果按历史成功率/起播耗时/切源率自动排序</string>
+    <string name="setting_ai_exp_ppn">AI 预解析下一集</string>
+    <string name="setting_ai_exp_ppn_sub">进度到 85% 后台预缓存下一集直链（仅 Wi-Fi+电量充足）</string>
+    <string name="setting_ai_exp_sr">AI 超分增强（占位）</string>
+    <string name="setting_ai_exp_sr_sub">后续接入 NCNN+模型后生效</string>
+
+    <!-- LLM 嗅探配置 -->
+    <string name="setting_llm_title">LLM 嗅探配置（可选）</string>
+    <string name="setting_llm_subtitle">不配则跳过 LLM 嗅探，不影响现有解析</string>
+    <string name="setting_llm_endpoint">API Endpoint</string>
+    <string name="setting_llm_endpoint_hint">https://.../v1/chat/completions</string>
+    <string name="setting_llm_key">API Key</string>
+    <string name="setting_llm_key_hint">sk-xxxx</string>
+    <string name="setting_llm_model">模型名（可空）</string>
+    <string name="setting_llm_model_hint">gpt-4o-mini / deepseek-chat 等</string>
+    <string name="setting_llm_saved">已保存 LLM 配置</string>
 
     <!-- Backup & Restore -->
     <string name="restore_select">Select backup</string>

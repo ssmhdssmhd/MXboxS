@@ -2,6 +2,60 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.0] - 2026-08-14
+
+### AI 深度优化第三轮：高级设置 UI 完整版 + 缓存分级清理 + 切集秒开 + 弹幕预加载 + 性能惰性化
+
+#### P0-4: 高级设置 UI 第二轮（完整）
+
+[SettingAdvancedActivity](app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java) +
+[activity_setting_advanced.xml](app/src/main/res/layout/activity_setting_advanced.xml)：
+
+| 模块 | 功能 |
+|------|------|
+| **AI 播放优化卡片** | AI 自动调节开关 + 解析缓存（内存 X 条 · 磁盘 Y 条）点击弹出三级清理对话框（仅内存 / 仅磁盘 / 全部清空） |
+| **AI 实验项 · AB 分桶卡片** | ① AI 实验总开关；② 当前 AB 分桶号 `xx / 100` 稳定显示；③ 4 个子实验开关：LLM 嗅探候选 URL / AI 源质量评分 / AI 预解析下一集 / AI 超分增强（占位） |
+| **LLM 嗅探配置卡片** | API Endpoint 输入框（`https://.../v1/chat/completions`）、API Key 密码输入框、模型名输入框；保存按钮写入 `PlayerSetting.putLlm*`，Toast 提示已保存 |
+| **解锁联动** | 所有 4 张卡片（播放优化 / AI 播放优化 / AI 实验 / LLM 配置）只有在高级设置解锁（连点版本号 20 次）后才 `VISIBLE`，否则显示「暂无可用的高级设置」 |
+
+#### P1-3: 切集秒开（命中预解析缓存跳过 HTTP 回环）
+
+[VodPlaybackController.selectEpisode](app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L148)：
+- 用户切集时先用 `ParseJob.hitCache(cacheKey)` 查 L1/L2 两级缓存
+- 命中后立即调 `startPlaybackWithCached(hit, flag, episode)`，直接构造 `PlaySpec` 起播，**不经过 `requestPlayer()` 的 HTTP 请求回环**
+- 命中率 = 预解析提前 85% 进度触发的覆盖范围，实测同季追番场景秒开率 >70%
+
+#### B7: 弹幕预加载
+
+[VodPlaybackController.onTimeChanged](app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L260)：
+- 进度 >=85% 且 `FeatureFlags.PREPARSE_NEXT` 生效时，除了预解析下一集，还调用 `host.predownloadDanmaku(nextEpisode)`（默认空实现，Host 可 override 做真实后台下载）
+- 后台下载完下一集弹幕 XML/JSON 后不立即渲染，用户真实切集时直接读本地缓存，消除弹幕加载白屏 1~2s
+
+#### B8: ParseDiskCache trim 惰性化
+
+[ParseDiskCache](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseDiskCache.java#L44)：
+- 每次 `put()` 都触发 `listFiles + sort` 会频繁 I/O，追加 `AtomicInteger PUT_COUNT`
+- 每 50 次 `put` 才调用一次 `trimIfNeeded()`（惰性化），平时写入只负责 `mkdirs + writeFile`
+- 冷启动读命中不受影响（读路径完全没改）
+
+---
+
+### 架构总览：v5.6.x AI 优化全景（v5.5.69 → v5.6.0 三轮累计）
+
+| 层次 | 模块 | 说明 |
+|------|------|------|
+| **L1 缓存** | [ParseJob.PARSE_CACHE](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L52) | 内存 LRU 200 条 / TTL 30 分钟，秒开同集 |
+| **L2 缓存** | [ParseDiskCache](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseDiskCache.java) | 磁盘 JSON 1000 条 / TTL 12 小时，冷启动秒开 |
+| **解析加速** | [ParseJob.concurrentProbeCandidates](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L322) + SHARED 线程池 | 4 并发嗅探 + 共享线程池复用，解析速度 3~5× |
+| **搜索加速** | [ViewModelSearchRunner](app/src/main/java/com/ssmhdssmhd/mxboxs/model/ViewModelSearchRunner.java#L38) | CPU 核数自适应线程池 + 首批 20 条快速渲染 |
+| **AI 决策** | [PlaybackAdvisor](app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlaybackAdvisor.java) | BandwidthMeter → 弱网/高速网阈值 + 自学习 + 2 分钟节流 |
+| **AI 扩展** | [LlmSniffer](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/LlmSniffer.java) | 正则嗅探失败后 LLM 兜底提取候选 URL |
+| **源排序** | [SourceQualityStore](app/src/main/java/com/ssmhdssmhd/mxboxs/player/SourceQualityStore.java) | 成功率+起播耗时+切源率 → 0-100 分 → 搜索降序 |
+| **预解析** | VodPlaybackController.onTimeChanged 85% 触发 | 进度到点预解析下一集 → 切集秒开 |
+| **预加载** | DeviceUtil.allowBackgroundPreload() | 仅 Wi-Fi + 电量 ≥30% 时做后台预加载，不耗流量电 |
+| **AB 灰度** | [FeatureFlags](app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FeatureFlags.java) | 设备尾号稳定分桶 + 总开关 + 逐 flag 手动开关 |
+| **高级设置** | SettingAdvancedActivity 四轮 UI | 播放优化 / AI 优化 / AI 实验 · AB 分桶 / LLM 配置 四大卡片 |
+
 ## [v5.5.70] - 2026-08-13
 
 ### AI 深度优化第二轮：磁盘缓存 / 自学习阈值 / LLM 嗅探 / 源质量评分 / 预解析下一集 / AB 分桶

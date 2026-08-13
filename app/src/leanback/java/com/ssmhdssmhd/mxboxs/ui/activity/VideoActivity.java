@@ -511,6 +511,38 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         VodPlaybackMedia.searchDanmaku(result, history, episode, player()::setDanmaku, player()::addDanmaku);
     }
 
+    /** A2 AI 预解析下一集真正实现（Leanback 版）。 */
+    @Override
+    public void preparseNext(Flag flag, Episode episode) {
+        if (!com.ssmhdssmhd.mxboxs.utils.FeatureFlags.isEnabled(
+                com.ssmhdssmhd.mxboxs.utils.FeatureFlags.PREPARSE_NEXT, 100)) return;
+        if (!com.ssmhdssmhd.mxboxs.utils.DeviceUtil.allowBackgroundPreload()) return;
+        String siteKey = getVodKey();
+        if (siteKey == null || siteKey.isEmpty() || flag == null || episode == null) return;
+        String cacheKey = com.ssmhdssmhd.mxboxs.player.parse.ParseJob.cacheKey(siteKey, flag.getFlag(), episode.getUrl());
+        if (com.ssmhdssmhd.mxboxs.player.parse.ParseJob.hitCache(cacheKey) != null) return;
+        Result minimal = buildMinimalResultFor(siteKey, flag, episode);
+        boolean useParse;
+        try { useParse = minimal.isUseParse(); } catch (Throwable ignored) { useParse = false; }
+        com.ssmhdssmhd.mxboxs.impl.ParseCallback nop = new com.ssmhdssmhd.mxboxs.impl.ParseCallback() {
+            @Override public void onParseSuccess(java.util.Map<String, String> h, String u, String f) {}
+            @Override public void onParseError() {}
+        };
+        com.ssmhdssmhd.mxboxs.player.parse.ParseJob.create(nop).start(minimal, useParse);
+        // B7 弹幕预加载
+        if (mVod != null && mVod.getHistoryForHost() != null) {
+            preloadNextDanmaku(minimal, mVod.getHistoryForHost(), episode);
+        }
+    }
+
+    /** B7 弹幕预加载（Leanback）：后台下载不渲染。 */
+    @Override
+    public void preloadNextDanmaku(Result result, History history, Episode episode) {
+        if (!com.ssmhdssmhd.mxboxs.utils.DeviceUtil.allowBackgroundPreload()) return;
+        VodPlaybackMedia.searchDanmaku(result, history, episode,
+                danmakus -> {}, danmaku -> {});
+    }
+
     @Override
     public void renderDetail(Vod item, History history) {
         mHistory = history;

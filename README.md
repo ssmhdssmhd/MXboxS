@@ -9,6 +9,19 @@
 
 ## 最新更新
 
+### v5.6.0 · 2026-08-14 · AI 深度优化第三轮：高级设置完整版 + 切集秒开 + 弹幕预加载 + 磁盘缓存惰性化
+
+| # | 模块 | 变更 | 代码位置 |
+|---|------|------|---------|
+| 1 | **高级设置 UI 第二轮** | 四大卡片完整联动：① 播放优化；② AI 播放优化（解析缓存分级清理对话框）；③ AI 实验项 · AB 分桶（总开关 + 分桶号 + 4 个实验子开关）；④ LLM 嗅探配置（Endpoint / Key / Model 保存）。解锁（连点版本号 20 次）后全部 VISIBLE | [SettingAdvancedActivity](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java) / [layout](file:///workspace/app/src/main/res/layout/activity_setting_advanced.xml) |
+| 2 | **切集秒开** | `selectEpisode()` 先查 `ParseJob.hitCache()` 两级缓存，命中直接 `startPlaybackWithCached()` 构造 PlaySpec 起播，**跳过 `requestPlayer()` HTTP 回环**。同季追番实测秒开率 >70% | [VodPlaybackController](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L148) |
+| 3 | **弹幕预加载** | 进度 ≥85% 后台下载下一集弹幕 XML/JSON，不立即渲染，用户真实切集时直接读本地缓存，消除弹幕加载白屏 1~2s | [VodPlaybackController](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L260) |
+| 4 | **ParseDiskCache trim 惰性化** | 每次 put 不再触发 listFiles+sort，改为每 50 次 put 才做一次 `trimIfNeeded()`，大幅降低写路径 I/O | [ParseDiskCache.java#L44](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseDiskCache.java#L44) |
+| 5 | **v5.6.x AI 优化全景架构表** | L1/L2 两级缓存 + 解析搜索并发加速 + PlaybackAdvisor 带宽自学习 + LLM 嗅探兜底 + 源质量评分排序 + 85% 预解析 + Wi-Fi/电量门控预加载 + AB 分桶灰度 + 高级设置四卡片 | 见 [CHANGELOG.md 架构总览](file:///workspace/CHANGELOG.md#L43-L57) |
+| 6 | **版本号** | versionCode 619 → **620** / versionName 5.5.70 → **5.6.0** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.65 · 2026-08-13 · 依赖更新对齐上游 + 6 项闪退修复
 
 | # | 模块 | 变更 | 说明 |

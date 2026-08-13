@@ -79,15 +79,17 @@ public class ParseJob implements ParseCallback {
         }, new ThreadPoolExecutor.CallerRunsPolicy());
     }
 
-    static final class CacheEntry {
-        final Map<String, String> headers;
-        final String url;
-        final String from;
+    /** 公开可被 VodPlaybackController / Host 访问的解析缓存条目。 */
+    public static final class CacheEntry {
+        public final Map<String, String> headers;
+        public final String url;
+        public final String from;
         final long createAt;
         CacheEntry(Map<String, String> h, String u, String f) {
             headers = h; url = u; from = f; createAt = System.currentTimeMillis();
         }
-        boolean expired() { return System.currentTimeMillis() - createAt > CACHE_TTL_MS; }
+        public boolean isExpired() { return System.currentTimeMillis() - createAt > CACHE_TTL_MS; }
+        boolean expired() { return isExpired(); }
     }
 
     static String cacheKey(String key, String flag, String url) {
@@ -121,6 +123,11 @@ public class ParseJob implements ParseCallback {
         }
         // 异步写磁盘（不阻塞回调线程）
         ParseDiskCache.put(k, headers, url, from);
+    }
+
+    /** 公开 API：根据缓存 key 命中条目（用于 Controller 切集秒开等跨包场景）。 */
+    public static CacheEntry hitCache(String cacheKey) {
+        return getCache(cacheKey);
     }
 
     /** 返回当前解析缓存条目数（内存 + 磁盘，用于高级设置展示）。 */

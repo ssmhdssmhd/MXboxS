@@ -5,6 +5,7 @@ import com.ssmhdssmhd.mxboxs.bean.Flag;
 import com.ssmhdssmhd.mxboxs.bean.Result;
 import com.ssmhdssmhd.mxboxs.bean.Site;
 import com.ssmhdssmhd.mxboxs.bean.Vod;
+import com.ssmhdssmhd.mxboxs.player.SourceQualityStore;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +49,14 @@ public class VodFallbackPolicy {
     public void onSearchResult(Result result) {
         List<Vod> items = new ArrayList<>(result.getList());
         items.removeIf(this::mismatch);
+        // AI 源质量评分降序：质量高（解析成功率高/起播快/用户少换源）的源排前面。
+        // 同分保留相对顺序（稳定性）。
+        if (com.ssmhdssmhd.mxboxs.utils.FeatureFlags.isEnabled(
+                com.ssmhdssmhd.mxboxs.utils.FeatureFlags.SOURCE_QUALITY, 100)) {
+            items.sort((a, b) -> Integer.compare(
+                    SourceQualityStore.getScore(b.getKey()),
+                    SourceQualityStore.getScore(a.getKey())));
+        }
         state.setSources(items);
         host.renderSources(state.getSources());
         if (state.isSelectFirstSource()) nextSource();
@@ -78,6 +87,8 @@ public class VodFallbackPolicy {
     private void nextSource() {
         if (!state.hasSources()) return;
         Vod item = state.removeFirstSource();
+        // AI 源质量评分：记录"用户/AI 切走了这个源"，提高 switchAwayRate 用于后续评分降权
+        SourceQualityStore.recordSwitchAway(host.getVodKey());
         host.renderSources(state.getSources());
         host.showSwitchSource(item);
         state.addFailedId(host.getVodId());

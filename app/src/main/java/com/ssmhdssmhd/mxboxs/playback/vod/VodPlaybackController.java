@@ -111,9 +111,42 @@ public class VodPlaybackController {
         for (Flag flag : state.getFlags()) flag.toggle(flag == selected, item);
         historyPolicy.updateEpisode(state.getHistory(), state.getFlag(), item);
         host.renderEpisodeSelection(item);
-        if (host.isFullscreenForPlayback()) host.showEpisodeReady(item);
         preparseTriggered = false;
+        // A3 切集秒开：如果目标集的解析结果已经在缓存里，直接起播真实 URL，跳过 HTTP requestPlayer 回环
+        if (com.ssmhdssmhd.mxboxs.utils.FeatureFlags.isEnabled(
+                com.ssmhdssmhd.mxboxs.utils.FeatureFlags.PREPARSE_NEXT, 100)) {
+            String cacheKey = host.parseCacheKey(host.getVodKey(), selected, item);
+            com.ssmhdssmhd.mxboxs.player.parse.ParseJob.CacheEntry hit =
+                    com.ssmhdssmhd.mxboxs.player.parse.ParseJob.hitCache(cacheKey);
+            if (hit != null) {
+                startPlaybackWithCached(hit, selected, item);
+                if (host.isFullscreenForPlayback()) host.showEpisodeReady(item);
+                return;
+            }
+        }
+        if (host.isFullscreenForPlayback()) host.showEpisodeReady(item);
         refresh();
+    }
+
+    /** A3 命中解析缓存直接起播：拿 CacheEntry 的 (headers + url) 当直链起播。 */
+    private void startPlaybackWithCached(
+            com.ssmhdssmhd.mxboxs.player.parse.ParseJob.CacheEntry hit,
+            Flag flag, Episode episode) {
+        Result minimal = host.buildMinimalResultFor(host.getVodKey(), flag, episode);
+        state.setUseParse(false);
+        state.setPlayingRequest(VodPlayRequest.create(host.getVodKey(), flag, episode));
+        // 缓存直链：直接以真实 URL + headers 构造 PlaySpec 起播（不走 ParseJob → HTTP API → 回环）
+        androidx.media3.common.MediaMetadata metadata =
+                com.ssmhdssmhd.mxboxs.playback.vod.VodPlaybackMedia.metadata(state.getHistory(), episode);
+        com.ssmhdssmhd.mxboxs.player.media.PlaySpec spec = com.ssmhdssmhd.mxboxs.player.media.PlaySpec.from(
+                host.getVodKey(), hit.url, hit.headers, metadata);
+        // 把 url/header 也回填到 state.getQuality()，用于重播/画质切换能读到
+        state.setQuality(minimal);
+        minimal.setUrl(hit.url);
+        minimal.setHeader(hit.headers);
+        minimal.setParse(0);
+        host.renderQuality(state.getQuality(), false);
+        host.startPlayback(state.getQuality(), false, 0L, state.getHistory(), episode);
     }
 
     public void selectQuality(Result result) {
@@ -286,6 +319,11 @@ public class VodPlaybackController {
 
     public void setRevPlay(boolean revPlay) {
         if (state.getHistory() != null) state.getHistory().setRevPlay(revPlay);
+    }
+
+    /** 给 Host 层（VideoActivity）访问 history 用：preparseNext / 弹幕预加载都要它。 */
+    public History getHistoryForHost() {
+        return state.getHistory();
     }
 
     private void detailEmpty(boolean finish) {
