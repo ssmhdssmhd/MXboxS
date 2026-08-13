@@ -2,6 +2,27 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.1] - 2026-08-14
+
+### P0 紧急修复：0 KB/s 一直转圈不能播放（Referer / User-Agent 丢失 → CDN 403）
+
+用户反馈 v5.6.0 点播页面「缓冲进度圈一直转，显示 0 KB/s」，根因是 v5.5.42 引入的 `UrlUtil.mergeDefaultHeaders(headers, url)` 只在 **fake-local-proxy 回环分支**调用，其余 3 处真实播放出口没有兜底补 Referer/User-Agent：部分源（特别是射手 XT 嗅探、内置解析、站点直链）CDN 会严格校验这两个 header，缺失直接 403，ExoPlayer 进 retry 循环表现为 0 KB/s 永久转圈。
+
+#### 3 处出口统一加双保险（unwrapFakeLocalProxy + mergeDefaultHeaders）
+
+| # | 出口 | 修复点 | 代码位置 |
+|---|------|--------|---------|
+| 1 | **直链起播（PlaybackActivity L260 else 分支）** | `needParse=false / useParse=false` 时直接构造 `PlaySpec.from(result,...)` 走 `player().start`，之前只做了 fake URL unwrap，**没有补 Referer/UA**。修复：`mergeDefaultHeaders(result.getHeader(), realUrl)` 写回 `result.setHeader()` 再传给 PlaySpec | [PlaybackActivity.startPlayer](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L260-L269) |
+| 2 | **解析成功回调（PlayerManager.onParseSuccess）** | 正常 parse 完成后 `spec.setHeaders(headers)` 的出口（fakeLocalProxy 没命中的场景），之前同样**没做 Referer/UA 兜底**。修复：先 `mergeDefaultHeaders(headers, url)` → `safeHeaders` 再 `spec.setHeaders()`。这一路覆盖了绝大多数 EXO 播放场景 | [PlayerManager.onParseSuccess](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L572-L580) |
+| 3 | **切集秒开 shortcut（VodPlaybackController.startPlaybackWithCached）** | v5.6.0 新增的捷径：命中 L1/L2 解析缓存直接构造 PlaySpec 起播，**跳过了原本 onParseSuccess 的所有校验**。问题：(a) 缓存可能是旧版 fake-local-proxy 的 URL（127.0.0.1 非 9978）→ shortcut 会一直连不存在的端口；(b) headers 可能是旧版写入、缺 Referer/UA。修复：(a) 开头调 `unwrapFakeLocalProxy(hit.url)`，命中直接 `refresh()` 回正常链路；(b) `mergeDefaultHeaders(hit.headers, hit.url)` 得 safeHeaders 再回填 PlaySpec + minimal Result.header | [VodPlaybackController.startPlaybackWithCached](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L131-L162) |
+
+#### 版本号
+
+- versionCode 620 → **621**
+- versionName 5.6.0 → **5.6.1**
+
+---
+
 ## [v5.6.0] - 2026-08-14
 
 ### AI 深度优化第三轮：高级设置 UI 完整版 + 缓存分级清理 + 切集秒开 + 弹幕预加载 + 性能惰性化

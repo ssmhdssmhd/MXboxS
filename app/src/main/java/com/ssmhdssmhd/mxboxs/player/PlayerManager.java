@@ -571,7 +571,10 @@ public class PlayerManager implements ParseCallback {
         }
         if (!TextUtils.isEmpty(from)) Notify.show(ResUtil.getString(R.string.parse_from, from));
         if (headers != null) headers.remove(HttpHeaders.RANGE);
-        if (spec != null) spec.setHeaders(headers);
+        // 修复 v5.6.1：解析成功出口统一 mergeDefaultHeaders（补 Referer/UA 兜底）
+        // 否则部分内置嗅探/第三方解析返回的 headers 不完整，CDN 返回 403 导致 0 KB/s 一直缓冲。
+        Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(headers, url);
+        if (spec != null) spec.setHeaders(safeHeaders);
         if (spec != null) spec.setUrl(url);
         startCurrent(pendingStartPositionMs);
         pendingStartPositionMs = C.TIME_UNSET;

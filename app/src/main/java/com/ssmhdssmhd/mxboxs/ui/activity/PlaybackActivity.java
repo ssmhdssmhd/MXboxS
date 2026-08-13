@@ -259,6 +259,12 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             player().parse(key, result, useParse, metadata, startPositionMs);
         } else {
             attachSurface();
+            // 修复 v5.6.1：直链出口必须补 UA / Referer 兜底，否则 m3u8 源常见 403 → 0 KB/s 一直转圈。
+            // 之前只有 fakeLocalProxy 分支做了 mergeDefaultHeaders，这里补上其余直链场景。
+            String realForHeaders = !android.text.TextUtils.isEmpty(realUrl) ? realUrl : result.getRealUrl();
+            java.util.Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(
+                    result.getHeader(), realForHeaders);
+            result.setHeader(safeHeaders);
             player().start(PlaySpec.from(result, key, metadata), timeout, startPositionMs);
         }
     }

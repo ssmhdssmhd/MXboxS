@@ -9,6 +9,17 @@
 
 ## 最新更新
 
+### v5.6.1 · 2026-08-14 · P0 紧急修复：0 KB/s 一直转圈不能播放（Referer / User-Agent 丢失 → CDN 403）
+
+| # | 模块 | 变更 | 代码位置 |
+|---|------|------|---------|
+| 1 | **直链起播出口** | `needParse=false` 场景之前只做了 fake-local-proxy 还原，缺 Referer/UA 兜底。修复：`mergeDefaultHeaders(result.getHeader(), realUrl)` 写回 Result 再构造 PlaySpec | [PlaybackActivity.java#L260-L269](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L260-L269) |
+| 2 | **解析成功回调出口** | `onParseSuccess` 在 fakeLocalProxy 没命中的出口只 `remove(RANGE)` 没补 Referer/UA，部分内置嗅探/第三方解析源 headers 不完整 → CDN 403 → 0 KB/s 永久转圈。修复：先 `mergeDefaultHeaders(headers, url)` 再 `spec.setHeaders()` | [PlayerManager.java#L572-L580](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L572-L580) |
+| 3 | **切集秒开 shortcut** | v5.6.0 新增捷径会 (a) 命中旧版 fake-local-proxy 缓存（127.0.0.1 不存在端口）→ 永久 0 KB/s；(b) 缓存 headers 缺 Referer/UA。修复：(a) 先 `unwrapFakeLocalProxy(hit.url)`，命中直接 `refresh()` 回正常链路；(b) `mergeDefaultHeaders(hit.headers, hit.url)` 双保险 | [VodPlaybackController.java#L131-L162](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L131-L162) |
+| 4 | **版本号** | versionCode 620 → **621** / versionName 5.6.0 → **5.6.1** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.6.0 · 2026-08-14 · AI 深度优化第三轮：高级设置完整版 + 切集秒开 + 弹幕预加载 + 磁盘缓存惰性化
 
 | # | 模块 | 变更 | 代码位置 |

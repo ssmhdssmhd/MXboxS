@@ -132,18 +132,30 @@ public class VodPlaybackController {
     private void startPlaybackWithCached(
             com.ssmhdssmhd.mxboxs.player.parse.ParseJob.CacheEntry hit,
             Flag flag, Episode episode) {
+        // 修复 v5.6.1：缓存也可能命中的是旧版伪造本地代理 URL（127.0.0.1 非 9978 端口）
+        // 这种情况 shortcut 会直连一个根本不存在的端口 → 永久 0 KB/s；
+        // 检测到直接走正常 refresh() 回环，交由 PlayerManager 重新解析还原真实 m3u8。
+        String unwrapped = com.ssmhdssmhd.mxboxs.utils.UrlUtil.unwrapFakeLocalProxy(hit.url);
+        if (!android.text.TextUtils.isEmpty(unwrapped)) {
+            refresh();
+            return;
+        }
         Result minimal = host.buildMinimalResultFor(host.getVodKey(), flag, episode);
         state.setUseParse(false);
         state.setPlayingRequest(VodPlayRequest.create(host.getVodKey(), flag, episode));
+        // 修复 v5.6.1：缓存 headers 必须过 mergeDefaultHeaders 补 UA/Referer 兜底。
+        // 部分源（尤其是升级后新跑的解析）写缓存时没有把 Referer/UA 全量写入，shortcut 会缺失 → CDN 403 → 0 KB/s。
+        java.util.Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(
+                hit.headers, hit.url);
         // 缓存直链：直接以真实 URL + headers 构造 PlaySpec 起播（不走 ParseJob → HTTP API → 回环）
         androidx.media3.common.MediaMetadata metadata =
                 com.ssmhdssmhd.mxboxs.playback.vod.VodPlaybackMedia.metadata(state.getHistory(), episode);
         com.ssmhdssmhd.mxboxs.player.media.PlaySpec spec = com.ssmhdssmhd.mxboxs.player.media.PlaySpec.from(
-                host.getVodKey(), hit.url, hit.headers, metadata);
+                host.getVodKey(), hit.url, safeHeaders, metadata);
         // 把 url/header 也回填到 state.getQuality()，用于重播/画质切换能读到
         state.setQuality(minimal);
         minimal.setUrl(hit.url);
-        minimal.setHeader(hit.headers);
+        minimal.setHeader(safeHeaders);
         minimal.setParse(0);
         host.renderQuality(state.getQuality(), false);
         host.startPlayback(state.getQuality(), false, 0L, state.getHistory(), episode);
