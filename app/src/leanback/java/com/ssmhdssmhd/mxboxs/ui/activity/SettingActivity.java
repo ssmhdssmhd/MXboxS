@@ -106,7 +106,7 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     /** 高级设置入口默认隐藏（TV 端同移动端逻辑：仅在点击版本号 20 次解锁后可见）。*/
     private void refreshAdvancedVisibility() {
         if (mBinding == null) return;
-        boolean unlocked = Setting.isSocialSearchUnlocked();
+        boolean unlocked = Setting.isAdvancedUnlocked();
         mBinding.advanced.setVisibility(unlocked ? View.VISIBLE : View.GONE);
     }
 
@@ -276,11 +276,11 @@ public class SettingActivity extends BaseActivity implements ConfigListener, Sit
     }
 
     private void onVersionLabelClick(View view) {
-        if (Setting.isSocialSearchUnlocked()) { refreshAdvancedVisibility(); return; }
+        if (Setting.isAdvancedUnlocked()) { refreshAdvancedVisibility(); return; }
         mVersionClickCount++;
         int remaining = 20 - mVersionClickCount;
         if (remaining <= 0) {
-            Setting.putSocialSearchUnlocked(true);
+            Setting.putAdvancedUnlocked(true);
             refreshAdvancedVisibility();
             Notify.show(R.string.setting_advanced_unlocked);
         } else if (remaining <= 5) {

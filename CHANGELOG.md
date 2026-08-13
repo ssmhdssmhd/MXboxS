@@ -2,6 +2,33 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.67] - 2026-08-13
+
+### 移除高级设置中的社交搜索
+
+按需求清理高级设置页面里的 TG / X 社交搜索功能，仅保留高级设置页面骨架与解锁机制。
+
+| # | 清理点 | 说明 |
+|---|--------|------|
+| 1 | **删除 SocialApi.java** | 移除 TG/X 搜索、Token 校验、限速节流等全部核心逻辑 |
+| 2 | **Setting.java** | 删除 `isSocialSearchEnabled`、`getTgBotToken`、`getXBearerToken`、`getTgChannelList`、`getSocialTgMinIntervalMs`、`getSocialMaxHitsPerSearch` 等 30+ 个社交搜索配置方法；`isSocialSearchUnlocked/putSocialSearchUnlocked` 重命名为通用的 `isAdvancedUnlocked/putAdvancedUnlocked`（偏好键仍沿用 `social_search_unlocked`，老用户已解锁状态在升级后保持有效）|
+| 3 | **SettingAdvancedActivity** | 重写为纯骨架页面，仅保留 Toolbar + 锁定提示；移除全部社交搜索 UI 元素、点击事件、对话框 |
+| 4 | **SettingFragment / SettingActivity(leanback)** | 解锁逻辑改用 `Setting.isAdvancedUnlocked()` / `putAdvancedUnlocked()` |
+| 5 | **activity_setting_advanced.xml** | 删除 `socialCard` 及其下全部子控件（总开关、TG/X 行、限速卡、跳转按钮、测试按钮），仅保留 `lockedHint` |
+| 6 | **strings.xml** | 删除 33 条 `setting_social_*` 字符串；`setting_advanced_unlock_hint` / `setting_advanced_unlocked` 文案由「社交搜索」改为「高级设置」 |
+
+## [v5.5.66] - 2026-08-13
+
+### 修复播放失败（回退依赖版本）
+
+v5.5.65 升级 AGP 9.3.1 + compileSdk 37 + Glide 5.0.9 后出现兼容性问题导致无法播放，回退到 v5.5.64 的依赖配置恢复播放。
+
+| 依赖 | 回退前 | 回退后 |
+|------|--------|--------|
+| AGP | 9.3.1 | **9.1.0** |
+| compileSdk | 37 | **36** |
+| Glide | 5.0.9 | **5.0.7** |
+
 ## [v5.5.65] - 2026-08-13
 
 ### 依赖更新（对齐上游 FongMi/TV）

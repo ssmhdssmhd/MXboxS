@@ -117,7 +117,7 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
     /** 高级设置入口默认隐藏（用户需求：只有点击版本号 20 次解锁后才显示）。*/
     private void refreshAdvancedVisibility() {
         if (mBinding == null) return;
-        boolean unlocked = Setting.isSocialSearchUnlocked();
+        boolean unlocked = Setting.isAdvancedUnlocked();
         mBinding.advanced.setVisibility(unlocked ? View.VISIBLE : View.GONE);
     }
 
@@ -438,11 +438,11 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
     }
 
     private void onVersionLabelClick(View view) {
-        if (Setting.isSocialSearchUnlocked()) { refreshAdvancedVisibility(); return; }
+        if (Setting.isAdvancedUnlocked()) { refreshAdvancedVisibility(); return; }
         mVersionClickCount++;
         int remaining = 20 - mVersionClickCount;
         if (remaining <= 0) {
-            Setting.putSocialSearchUnlocked(true);
+            Setting.putAdvancedUnlocked(true);
             refreshAdvancedVisibility();
             Notify.show(R.string.setting_advanced_unlocked);
         } else if (remaining <= 5) {

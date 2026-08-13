@@ -5,8 +5,6 @@ import com.ssmhdssmhd.mxboxs.utils.Github;
 import com.ssmhdssmhd.mxboxs.utils.ResUtil;
 import com.github.catvod.utils.Prefers;
 
-import android.text.TextUtils;
-
 public class Setting {
 
     private static final int MIN_WALL = 0;
@@ -235,144 +233,15 @@ public class Setting {
         Prefers.put("kami", kami == null ? "" : kami.trim());
     }
 
-    // ---------------- TG / X 社交搜索配置 ----------------
+    // ---------------- 高级设置：解锁状态 ----------------
+    // 注意：偏好键仍沿用历史名 "social_search_unlocked"，以保证老用户已解锁的状态在升级后仍然有效。
 
-    /** 扫描保存的用途标记，内部常量 */
-    public static final String SOCIAL_PURPOSE_TG = "tg_bot_token";
-    public static final String SOCIAL_PURPOSE_X  = "x_bearer_token";
-
-    // ===== 社交搜索「限速配置」：避免被 TG/X 官方封号 =====
-    /** 每次发往 TG 的搜索请求之间最少间隔（毫秒）。TG 公开预览页 t.me/s/* 对单 IP 并发较敏感，保守默认 1200ms。 */
-    public static final long SOCIAL_TG_MIN_INTERVAL_MS_DEFAULT = 1200L;
-    /** 每次发往 X API 的搜索 / verify 请求之间最少间隔（毫秒）。X v2 免费 tier 严格限 900 req/15min ≈ 1 req/sec，这里默认留余量 1500ms。 */
-    public static final long SOCIAL_X_MIN_INTERVAL_MS_DEFAULT  = 1500L;
-    /** 单轮「合并搜索」最多允许命中多少条（TG 每频道 max + X max 之和不得超过此值）。默认 20。 */
-    public static final int  SOCIAL_MAX_HITS_PER_SEARCH_DEFAULT = 20;
-
-    /** 社交搜索总开关（关闭后：即使用户配置了 TG/X Token，点播搜索合并页 / 测试按钮 都会跳过）。 */
-    public static boolean isSocialSearchEnabled() {
-        return Prefers.getBoolean("social_search_enabled", true);
-    }
-    public static void putSocialSearchEnabled(boolean v) { Prefers.put("social_search_enabled", v); }
-
-    /** TG 请求最小间隔（ms）；用户可在高级设置里调大，调小会被 clamp 到 500ms（下限保护，防误配导致封号）。 */
-    public static long getSocialTgMinIntervalMs() {
-        long v = Prefers.getLong("social_tg_min_interval_ms", SOCIAL_TG_MIN_INTERVAL_MS_DEFAULT);
-        return Math.max(500L, v);
-    }
-    public static void putSocialTgMinIntervalMs(long ms) {
-        Prefers.put("social_tg_min_interval_ms", Math.max(500L, ms));
-    }
-    /** X 请求最小间隔（ms）；下限 800ms（≈ 1.25/s，X 免费 tier 1/s 多一点安全边际）。 */
-    public static long getSocialXMinIntervalMs() {
-        long v = Prefers.getLong("social_x_min_interval_ms", SOCIAL_X_MIN_INTERVAL_MS_DEFAULT);
-        return Math.max(800L, v);
-    }
-    public static void putSocialXMinIntervalMs(long ms) {
-        Prefers.put("social_x_min_interval_ms", Math.max(800L, ms));
-    }
-    /** 单轮合并搜索最多命中条数上限；范围 [1, 100]。 */
-    public static int getSocialMaxHitsPerSearch() {
-        int v = Prefers.getInt("social_max_hits_per_search", SOCIAL_MAX_HITS_PER_SEARCH_DEFAULT);
-        return Math.max(1, Math.min(100, v));
-    }
-    public static void putSocialMaxHitsPerSearch(int n) {
-        Prefers.put("social_max_hits_per_search", Math.max(1, Math.min(100, n)));
-    }
-
-    // ===== TG/X 账号名缓存（测试连接成功后写入，显示在 UI 上，避免每次打开高级设置都要联网）=====
-    /** TG 连接后缓存的 bot 显示名（@xxx 或昵称），纯本地显示用。 */
-    public static String getTgAccountLabel() { return Prefers.getString("tg_account_label", ""); }
-    public static void putTgAccountLabel(String s) { Prefers.put("tg_account_label", s == null ? "" : s.trim()); }
-    /** X 连接后缓存的 account @xxx 显示名。 */
-    public static String getXAccountLabel()  { return Prefers.getString("x_account_label", ""); }
-    public static void putXAccountLabel(String s)  { Prefers.put("x_account_label", s == null ? "" : s.trim()); }
-
-    /** TG Bot Token（形如 123456:ABC...），由扫码或手动粘贴填入，纯本地保存 */
-    public static String getTgBotToken() {
-        return Prefers.getString("tg_bot_token", "");
-    }
-
-    public static void putTgBotToken(String token) {
-        Prefers.put("tg_bot_token", token == null ? "" : token.trim());
-    }
-
-    public static boolean isTgConnected() {
-        String t = getTgBotToken();
-        return !TextUtils.isEmpty(t) && t.contains(":") && t.length() > 10;
-    }
-
-    /**
-     * TG 搜索来源频道用户名列表，逗号分隔。
-     * 例如 "subsplease_movies,nyaa_updates,xxx_resource"
-     *
-     * <p>真实搜索会调 public 预览页 t.me/s/{channel} 做关键词匹配（Bot API 本身不提供全局搜索，
-     * 但公开频道列表可直接 HTML 解析出标题/磁链/帖子文本，结果可再合并进 App 搜索）。
-     *
-     * <p>v5.5.63：用户未手动配置时，默认返回一组网络公开资源频道（覆盖中英文影视/动漫/剧集分享）。
-     */
-    public static final String TG_CHANNELS_DEFAULT =
-            "subsplease_movies," +         // SubsPlease 官方（英文字幕影视、动漫）
-            "subsplease," +                // SubsPlease 主频道（动漫）
-            "nxupdates," +                 // Nyaa 资源更新（动漫、影视）
-            "YHYS_01," +                   // 银河影视（中文字幕影视、剧集）
-            "ysjzyd," +                    // 影视资源站（综合影视资源）
-            "dianyingjie123," +            // 电影界（电影、剧集分享）
-            "movieheavenx," +              // 电影天堂（综合影视）
-            "dytt123";                     // 电影分享频道（电影、电视剧、综艺）
-
-    public static String getTgChannelList() {
-        String saved = Prefers.getString("tg_channels", "");
-        if (saved == null || saved.trim().isEmpty()) return TG_CHANNELS_DEFAULT;
-        return saved;
-    }
-
-    public static void putTgChannelList(String s) {
-        Prefers.put("tg_channels", s == null ? "" : s.trim());
-    }
-
-    /** 用户是否手动修改过频道列表（即本地存储的不是空字符串）。 */
-    public static boolean isTgChannelListUserDefined() {
-        String saved = Prefers.getString("tg_channels", "");
-        return !(saved == null || saved.trim().isEmpty());
-    }
-
-    /** X Bearer Token（以 "AAAAAAAAAAAAAAAAAAAA..." 或 "xoxb-" 开头都行，由扫码或粘贴填入） */
-    public static String getXBearerToken() {
-        return Prefers.getString("x_bearer_token", "");
-    }
-
-    public static void putXBearerToken(String token) {
-        Prefers.put("x_bearer_token", token == null ? "" : token.trim());
-    }
-
-    public static boolean isXConnected() {
-        String t = getXBearerToken();
-        return !TextUtils.isEmpty(t) && t.length() > 20;
-    }
-
-    /** X 搜索请求前可选自定义前缀（自建 X API 代理用；空 = 直连 api.x.com） */
-    public static String getXEndpointPrefix() {
-        String v = Prefers.getString("x_endpoint_prefix", "");
-        if (v == null) return "";
-        String t = v.trim();
-        if (t.isEmpty()) return "";
-        if (t.endsWith("/")) return t.substring(0, t.length() - 1);
-        return t;
-    }
-
-    public static void putXEndpointPrefix(String prefix) {
-        Prefers.put("x_endpoint_prefix", prefix == null ? "" : prefix.trim());
-    }
-
-    // ---------------- 高级设置：社交搜索解锁 ----------------
-
-    /** 社交搜索是否已解锁（点击版本号 20 次后解锁） */
-    public static boolean isSocialSearchUnlocked() {
+    /** 高级设置是否已解锁（在主设置页点击版本号 20 次后解锁） */
+    public static boolean isAdvancedUnlocked() {
         return Prefers.getBoolean("social_search_unlocked", false);
     }
 
-    public static void putSocialSearchUnlocked(boolean unlocked) {
+    public static void putAdvancedUnlocked(boolean unlocked) {
         Prefers.put("social_search_unlocked", unlocked);
     }
 }
