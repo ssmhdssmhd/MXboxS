@@ -54,8 +54,8 @@ public class VodFallbackPolicy {
         if (com.ssmhdssmhd.mxboxs.utils.FeatureFlags.isEnabled(
                 com.ssmhdssmhd.mxboxs.utils.FeatureFlags.SOURCE_QUALITY, 100)) {
             items.sort((a, b) -> Integer.compare(
-                    SourceQualityStore.getScore(b.getKey()),
-                    SourceQualityStore.getScore(a.getKey())));
+                    SourceQualityStore.getScore(b.getSiteKey()),
+                    SourceQualityStore.getScore(a.getSiteKey())));
         }
         state.setSources(items);
         host.renderSources(state.getSources());

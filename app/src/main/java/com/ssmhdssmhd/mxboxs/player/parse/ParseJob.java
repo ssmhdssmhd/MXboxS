@@ -92,7 +92,8 @@ public class ParseJob implements ParseCallback {
         boolean expired() { return isExpired(); }
     }
 
-    static String cacheKey(String key, String flag, String url) {
+    /** 公开 API：跨包（VodPlaybackHost / VideoActivity 等）构造缓存 key 用，格式：siteKey|flag|url小写。 */
+    public static String cacheKey(String key, String flag, String url) {
         String u = url == null ? "" : url;
         return (key == null ? "" : key) + "|" + (flag == null ? "" : flag) + "|" + u.toLowerCase();
     }
