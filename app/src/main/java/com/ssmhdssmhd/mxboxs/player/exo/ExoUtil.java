@@ -44,12 +44,8 @@ public class ExoUtil {
         if (BuildConfig.DEBUG) player.addAnalyticsListener(new EventLogger());
         // AI 播放优化：把 BandwidthMeter 的带宽估算喂给 PlaybackAdvisor。
         // 总开关打开时，Advisor 会根据估算带宽自动调缓冲模式和画质偏好。
-        if (player.getBandwidthMeter() != null) {
-            try {
-                player.getBandwidthMeter().addEventListener(Executors.newSingleThreadExecutor(),
-                        PlaybackAdvisor.get());
-            } catch (Throwable ignored) {}
-        }
+        // 注意：media3 不同子版本 getBandwidthMeter() 返回值/签名偶尔变，这里反射注册更稳妥。
+        registerBandwidthAdvisor(player);
         player.setAudioAttributes(AudioAttributes.DEFAULT, true);
         player.setHandleAudioBecomingNoisy(true);
         player.setPlayWhenReady(true);
@@ -93,6 +89,50 @@ public class ExoUtil {
      */
     @Deprecated
     public static void applyQualitySettings(ExoPlayer player) {}
+
+    /**
+     * 把 PlaybackAdvisor 挂到 BandwidthMeter 上，反射注册以兼容不同 media3 子版本的 API 差异。
+     * 只要 getBandwidthMeter() 存在、且有 addEventListener(Executor, EventListener) /
+     * addListener(Executor, BandwidthMeter.EventListener) 两种之一就接上。
+     */
+    private static void registerBandwidthAdvisor(ExoPlayer player) {
+        try {
+            java.lang.reflect.Method getBw = ExoPlayer.class.getMethod("getBandwidthMeter");
+            Object bwMeter = getBw.invoke(player);
+            if (bwMeter == null) return;
+            Object advisor = PlaybackAdvisor.get();
+            java.util.concurrent.Executor exec = Executors.newSingleThreadExecutor();
+            // 先尝试 2 参数：(Executor, BandwidthMeter.EventListener) 旧签名
+            try {
+                Class<?> listenerClass = Class.forName("androidx.media3.exoplayer.upstream.BandwidthMeter$EventListener");
+                java.lang.reflect.Method add = bwMeter.getClass().getMethod("addEventListener",
+                        java.util.concurrent.Executor.class, listenerClass);
+                add.invoke(bwMeter, exec, advisor);
+                return;
+            } catch (NoSuchMethodException ignored) {}
+            // 再尝试：addListener(Executor, BandwidthMeter.EventListener)
+            try {
+                Class<?> listenerClass = Class.forName("androidx.media3.exoplayer.upstream.BandwidthMeter$EventListener");
+                java.lang.reflect.Method add = bwMeter.getClass().getMethod("addListener",
+                        java.util.concurrent.Executor.class, listenerClass);
+                add.invoke(bwMeter, exec, advisor);
+                return;
+            } catch (NoSuchMethodException ignored) {}
+            // 再尝试：EventListener 在 common 包名
+            try {
+                Class<?> listenerClass = Class.forName("androidx.media3.common.BandwidthMeter$EventListener");
+                java.lang.reflect.Method add;
+                try {
+                    add = bwMeter.getClass().getMethod("addEventListener",
+                            java.util.concurrent.Executor.class, listenerClass);
+                } catch (NoSuchMethodException e) {
+                    add = bwMeter.getClass().getMethod("addListener",
+                            java.util.concurrent.Executor.class, listenerClass);
+                }
+                add.invoke(bwMeter, exec, advisor);
+            } catch (NoSuchMethodException ignored) {}
+        } catch (Throwable ignored) {}
+    }
 
     public static Map<String, String> extractHeaders(MediaItem item) {
         Bundle extras = item.requestMetadata.extras;

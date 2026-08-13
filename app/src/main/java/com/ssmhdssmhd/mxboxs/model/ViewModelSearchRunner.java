@@ -5,6 +5,8 @@ import com.ssmhdssmhd.mxboxs.bean.Result;
 import com.ssmhdssmhd.mxboxs.bean.Site;
 import com.ssmhdssmhd.mxboxs.utils.Task;
 import com.google.common.util.concurrent.FluentFuture;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 
 import java.util.List;
@@ -31,16 +33,20 @@ final class ViewModelSearchRunner {
     private static final int FAST_STOP_COUNT = 20;
     /** 剩余未完成站点延迟多少毫秒后继续追结果（不抢占 UI 渲染）。 */
     private static final long TAIL_DELAY_MS = 250L;
-    /** 共享搜索线程池：CPU 核数自适应。类加载时单例初始化。 */
-    private static final ThreadPoolExecutor SHARED_SEARCH_POOL;
+    /**
+     * 共享搜索线程池：CPU 核数自适应。用 MoreExecutors.listeningDecorator 包装，
+     * submit() 返回 ListenableFuture<T> 以便 FluentFuture.from 直接吃。
+     */
+    private static final ListeningExecutorService SHARED_SEARCH_POOL;
     static {
         int cores = Math.max(2, Runtime.getRuntime().availableProcessors());
         int size = Math.min(8, cores * 2);
-        SHARED_SEARCH_POOL = new ThreadPoolExecutor(size, size, 60L, TimeUnit.SECONDS,
+        ThreadPoolExecutor delegate = new ThreadPoolExecutor(size, size, 60L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(), r -> {
             Thread t = new Thread(r, "search-worker"); t.setDaemon(true); return t;
         }, new ThreadPoolExecutor.CallerRunsPolicy());
-        SHARED_SEARCH_POOL.allowCoreThreadTimeOut(true);
+        delegate.allowCoreThreadTimeOut(true);
+        SHARED_SEARCH_POOL = MoreExecutors.listeningDecorator(delegate);
     }
 
     private final List<Future<?>> futures;
