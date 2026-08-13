@@ -378,13 +378,18 @@ public class SettingAdvancedActivity extends AppCompatActivity {
             sb.append("\n合计命中：").append(totalHits).append(" 条（单轮合并上限 ").append(Setting.getSocialMaxHitsPerSearch()).append(" 条）");
         }
         String msg = sb.toString();
-        boolean finalAnyOk = anyOk;
+        // 必须转 final / effectively final：方法签名入参 keyword 在 IDE 上看起来只传进来没变，
+        // 但 javac 会严格检查外层变量是否被其他 lambda 捕获/修改；totalHits 更明显被反复 += 自增，
+        // 所以把 App.post(…) lambda 里要用的三个值在 lambda 外先拷贝到显式 final 局部变量里。
+        final boolean finalAnyOk = anyOk;
+        final String finalKeyword = keyword;
+        final int finalTotalHits = totalHits;
         App.post(() -> {
             Notify.dismiss();
             refreshSocialStatus();
             new MaterialAlertDialogBuilder(SettingAdvancedActivity.this)
                     .setTitle((Setting.isTgConnected() || Setting.isXConnected())
-                            ? ("社交搜索结果 · \"" + keyword + "\"（命中 " + totalHits + " 条）")
+                            ? ("社交搜索结果 · \"" + finalKeyword + "\"（命中 " + finalTotalHits + " 条）")
                             : "未完成 Token 配置")
                     .setMessage(msg)
                     .setPositiveButton(R.string.dialog_positive, null)
