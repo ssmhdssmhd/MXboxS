@@ -326,4 +326,50 @@ public class PlayerSetting {
     public static void putAiDialogEnhance(boolean dialog) {
         Prefers.put("ai_dialog_enhance", dialog);
     }
+
+    // ===== 播放优化（高级设置）=====
+    // 缓冲模式：0=快起播（minBuffer=15s/maxBuffer=30s/forPlayback=0.5s），1=流畅（30s/120s/2s）
+    public static final int BUFFER_FAST = 0;
+    public static final int BUFFER_SMOOTH = 1;
+
+    /** 缓存写入开关：开启后播放过的视频会落盘，回看/续播不重新下载。默认开启。 */
+    public static boolean isCacheWriteEnabled() {
+        return Prefers.getBoolean("play_cache_write", true);
+    }
+
+    public static void putCacheWriteEnabled(boolean enabled) {
+        Prefers.put("play_cache_write", enabled);
+    }
+
+    /** 自适应码率开关：开启后多码率 m3u8 按带宽自动降档（流畅）；关闭则强制最高画质（易卡顿）。默认开启。 */
+    public static boolean isAdaptiveBitrateEnabled() {
+        return Prefers.getBoolean("play_adaptive_bitrate", true);
+    }
+
+    public static void putAdaptiveBitrateEnabled(boolean enabled) {
+        Prefers.put("play_adaptive_bitrate", enabled);
+    }
+
+    /** 缓冲模式：0=快起播（起播快，弱网易卡顿），1=流畅（起播慢，几乎不卡顿）。默认快起播。 */
+    public static int getBufferMode() {
+        return Math.clamp(Prefers.getInt("play_buffer_mode", BUFFER_FAST), BUFFER_FAST, BUFFER_SMOOTH);
+    }
+
+    public static void putBufferMode(int mode) {
+        Prefers.put("play_buffer_mode", Math.clamp(mode, BUFFER_FAST, BUFFER_SMOOTH));
+    }
+
+    /** 画质偏好：0=自适应（跟随带宽），1=最高，2=720P，3=480P。默认自适应。 */
+    public static final int QUALITY_AUTO = 0;
+    public static final int QUALITY_MAX = 1;
+    public static final int QUALITY_720 = 2;
+    public static final int QUALITY_480 = 3;
+
+    public static int getQualityPref() {
+        return Math.clamp(Prefers.getInt("play_quality_pref", QUALITY_AUTO), QUALITY_AUTO, QUALITY_480);
+    }
+
+    public static void putQualityPref(int pref) {
+        Prefers.put("play_quality_pref", Math.clamp(pref, QUALITY_AUTO, QUALITY_480));
+    }
 }

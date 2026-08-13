@@ -23,6 +23,7 @@ import androidx.media3.extractor.ExtractorsFactory;
 import androidx.media3.extractor.ts.TsExtractor;
 
 import com.ssmhdssmhd.mxboxs.App;
+import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
 import com.ssmhdssmhd.mxboxs.setting.PreloadSetting;
 import com.ssmhdssmhd.mxboxs.utils.FileUtil;
 import com.github.catvod.net.OkHttp;
@@ -118,7 +119,15 @@ public class MediaSourceFactory implements MediaSource.Factory {
     }
 
     private CacheDataSource.Factory getCacheDataSource(DataSource.Factory upstreamFactory) {
-        return new CacheDataSource.Factory().setCache(getCache()).setUpstreamDataSourceFactory(upstreamFactory).setCacheWriteDataSinkFactory(null).setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+        CacheDataSource.Factory factory = new CacheDataSource.Factory()
+                .setCache(getCache())
+                .setUpstreamDataSourceFactory(upstreamFactory)
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+        // 缓存写入受高级设置「缓存视频到本地」开关控制：关闭时不落盘（仅读缓存），开启时正常写入。
+        if (!PlayerSetting.isCacheWriteEnabled()) {
+            factory.setCacheWriteDataSinkFactory(null);
+        }
+        return factory;
     }
 
     private HttpDataSource.Factory getHttpDataSourceFactory() {

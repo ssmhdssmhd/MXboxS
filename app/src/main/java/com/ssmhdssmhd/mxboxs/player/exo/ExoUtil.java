@@ -32,13 +32,35 @@ import java.util.stream.Collectors;
 public class ExoUtil {
 
     public static ExoPlayer buildPlayer(int decode, Player.Listener listener) {
-        ExoPlayer player = new ExoPlayer.Builder(App.get()).setTrackSelector(buildTrackSelector()).setRenderersFactory(buildPlaybackRenderersFactory(decode)).setMediaSourceFactory(buildMediaSourceFactory()).build();
+        ExoPlayer player = new ExoPlayer.Builder(App.get())
+                .setTrackSelector(buildTrackSelector())
+                .setRenderersFactory(buildPlaybackRenderersFactory(decode))
+                .setMediaSourceFactory(buildMediaSourceFactory())
+                .setLoadControl(buildLoadControl())
+                .build();
         if (BuildConfig.DEBUG) player.addAnalyticsListener(new EventLogger());
         player.setAudioAttributes(AudioAttributes.DEFAULT, true);
         player.setHandleAudioBecomingNoisy(true);
         player.setPlayWhenReady(true);
         player.addListener(listener);
         return player;
+    }
+
+    /**
+     * 根据高级设置「缓冲模式」构建 LoadControl：
+     * - 快起播：minBuffer=15s / maxBuffer=30s / forPlayback=0.5s（起播快，弱网易卡顿）
+     * - 流畅：minBuffer=30s / maxBuffer=120s / forPlayback=2s（起播慢，几乎不卡顿）
+     */
+    private static androidx.media3.exoplayer.DefaultLoadControl buildLoadControl() {
+        boolean smooth = PlayerSetting.getBufferMode() == PlayerSetting.BUFFER_SMOOTH;
+        int minBufferMs = smooth ? 30_000 : 15_000;
+        int maxBufferMs = smooth ? 120_000 : 30_000;
+        int bufferForPlaybackMs = smooth ? 2_000 : 500;
+        int bufferForPlaybackAfterRebufferMs = smooth ? 3_000 : 1_000;
+        return new androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                .setBufferDurationsMs(minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build();
     }
 
     public static String getMimeType(int errorCode) {
@@ -132,14 +154,29 @@ public class ExoUtil {
         trySet(builder, "setTunnelingEnabled", new Class<?>[]{boolean.class},
             PlayerSetting.isTunnelingEnabled(), true);
 
-        // AI quality optimization: force highest bitrate for best quality
+        // 画质与码率策略（受高级设置「自适应码率」「画质偏好」控制）：
+        // - 自适应开启：forceHighest=false，让 ExoPlayer 按带宽在多码率间自动切换；
+        //   画质偏好提供上限（720P/480P 时 setMaxVideoSize 限制分辨率+码率）。
+        // - 自适应关闭：forceHighest=true，锁最高画质（弱网易卡顿，仅供用户主动选择）。
+        boolean adaptive = PlayerSetting.isAdaptiveBitrateEnabled();
+        int qualityPref = PlayerSetting.getQualityPref();
         trySet(builder, "setForceHighestSupportedBitrate",
-            new Class<?>[]{boolean.class}, true, true);
-        trySetMany(builder, "setMaxVideoSize",
-            new Class<?>[]{int.class, int.class},
-            new Object[]{Integer.MAX_VALUE, Integer.MAX_VALUE}, true);
-        trySet(builder, "setMaxVideoBitrate",
-            new Class<?>[]{int.class}, Integer.MAX_VALUE, true);
+            new Class<?>[]{boolean.class}, !adaptive, true);
+
+        if (qualityPref == PlayerSetting.QUALITY_720) {
+            trySetMany(builder, "setMaxVideoSize", new Class<?>[]{int.class, int.class},
+                new Object[]{1280, 720}, true);
+            trySet(builder, "setMaxVideoBitrate", new Class<?>[]{int.class}, 5_000_000, true);
+        } else if (qualityPref == PlayerSetting.QUALITY_480) {
+            trySetMany(builder, "setMaxVideoSize", new Class<?>[]{int.class, int.class},
+                new Object[]{854, 480}, true);
+            trySet(builder, "setMaxVideoBitrate", new Class<?>[]{int.class}, 2_000_000, true);
+        } else {
+            // 自适应 / 最高：不设分辨率与码率上限
+            trySetMany(builder, "setMaxVideoSize", new Class<?>[]{int.class, int.class},
+                new Object[]{Integer.MAX_VALUE, Integer.MAX_VALUE}, true);
+            trySet(builder, "setMaxVideoBitrate", new Class<?>[]{int.class}, Integer.MAX_VALUE, true);
+        }
         trySet(builder, "setMaxVideoFrameRate",
             new Class<?>[]{int.class}, Integer.MAX_VALUE, true);
 

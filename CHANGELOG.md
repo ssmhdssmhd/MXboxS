@@ -2,6 +2,23 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.68] - 2026-08-13
+
+### 高级设置：播放优化卡片
+
+在高级设置页（解锁后）新增「播放优化」卡片，4 项可调，下次播放生效，方便切换试效果。
+
+| 设置项 | 默认 | 作用 |
+|--------|------|------|
+| **缓存视频到本地** | 开 | 开启后播放过的视频落盘，回看/续播不重新下载（[MediaSourceFactory](app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java#L120) 不再 `setCacheWriteDataSinkFactory(null)`）|
+| **自适应码率** | 开 | 开启后多码率 m3u8 按带宽自动降档（更流畅）；关闭则 `setForceHighestSupportedBitrate(true)` 锁最高画质（易卡顿）|
+| **缓冲模式** | 快起播 | 快起播：15s/30s/0.5s（起播快、易卡顿）；流畅：30s/120s/2s（起播慢、几乎不卡）。对应 `DefaultLoadControl`（[ExoUtil.buildLoadControl](app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/ExoUtil.java#L54)），此前播放器未设 LoadControl 用默认值 |
+| **画质偏好** | 自适应 | 自适应/最高/720P/480P，映射 `setMaxVideoSize` + `setMaxVideoBitrate` |
+
+### 播放器网络层优化
+
+- [catvod OkHttp.player()](catvod/src/main/java/com/github/catvod/net/OkHttp.java#L83) 此前与爬虫 `client()` 完全相同（连接超时 30s、共用连接池）。现在改为：连接超时 8s（慢源起播更快报错）、独立 `ConnectionPool` + `Dispatcher`，避免与搜索/爬虫的高并发请求互相抢连接。
+
 ## [v5.5.67] - 2026-08-13
 
 ### 移除高级设置中的社交搜索

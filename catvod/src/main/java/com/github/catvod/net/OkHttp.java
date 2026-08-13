@@ -82,7 +82,16 @@ public class OkHttp {
 
     public static synchronized OkHttpClient player() {
         if (get().player != null) return get().player;
-        return get().player = getBuilder().build();
+        // 播放器独立连接池 + 更短连接超时：
+        // - 独立 ConnectionPool / Dispatcher，避免与爬虫搜索的高并发请求互相抢连接；
+        // - 连接超时 8s（默认 30s 偏长，慢源起播会等很久才报错），读超时保留 30s 保证大文件可读。
+        return get().player = getBuilder()
+                .connectTimeout(8, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .connectionPool(new okhttp3.ConnectionPool(8, 5, TimeUnit.MINUTES))
+                .dispatcher(new okhttp3.Dispatcher())
+                .build();
     }
 
     public static OkHttpClient client(long timeout) {

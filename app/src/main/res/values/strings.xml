@@ -165,6 +165,19 @@
     <string name="setting_advanced_unlocked">高级设置已解锁</string>
     <string name="setting_version_label">版本号</string>
 
+    <!-- 播放优化（高级设置）-->
+    <string name="setting_playopt_title">播放优化</string>
+    <string name="setting_playopt_subtitle">调整加载速度、流畅度与画质（下次播放生效）</string>
+    <string name="setting_playopt_cache_write">缓存视频到本地</string>
+    <string name="setting_playopt_cache_write_sub">开启后播放过的内容会落盘，回看/续播不重复下载（占存储空间）</string>
+    <string name="setting_playopt_adaptive">自适应码率</string>
+    <string name="setting_playopt_adaptive_sub">开启后多码率源按带宽自动降档（更流畅）；关闭则强制最高画质（易卡顿）</string>
+    <string name="setting_playopt_buffer">缓冲模式</string>
+    <string name="setting_playopt_buffer_sub">快起播：起播快，弱网易卡顿；流畅：起播慢，几乎不卡顿</string>
+    <string name="setting_playopt_quality">画质偏好</string>
+    <string name="setting_playopt_quality_sub">自适应按带宽切换；固定画质可能因源不支持而失效</string>
+    <string name="setting_playopt_apply_hint">设置已保存，下次播放时生效</string>
+
     <!-- Backup & Restore -->
     <string name="restore_select">Select backup</string>
     <string name="restore_success">Restore successful</string>
@@ -343,6 +356,18 @@
         <item>Select audio track</item>
         <item>Select video track</item>
         <item>Select subtitle track</item>
+    </string-array>
+
+    <string-array name="select_buffer_mode">
+        <item>快起播</item>
+        <item>流畅</item>
+    </string-array>
+
+    <string-array name="select_quality_pref">
+        <item>自适应</item>
+        <item>最高画质</item>
+        <item>720P</item>
+        <item>480P</item>
     </string-array>
 
 </resources>
