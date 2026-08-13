@@ -308,13 +308,33 @@ public class Setting {
      *
      * <p>真实搜索会调 public 预览页 t.me/s/{channel} 做关键词匹配（Bot API 本身不提供全局搜索，
      * 但公开频道列表可直接 HTML 解析出标题/磁链/帖子文本，结果可再合并进 App 搜索）。
+     *
+     * <p>v5.5.63：用户未手动配置时，默认返回一组网络公开资源频道（覆盖中英文影视/动漫/剧集分享）。
      */
+    public static final String TG_CHANNELS_DEFAULT =
+            "subsplease_movies," +         // SubsPlease 官方（英文字幕影视、动漫）
+            "subsplease," +                // SubsPlease 主频道（动漫）
+            "nxupdates," +                 // Nyaa 资源更新（动漫、影视）
+            "YHYS_01," +                   // 银河影视（中文字幕影视、剧集）
+            "ysjzyd," +                    // 影视资源站（综合影视资源）
+            "dianyingjie123," +            // 电影界（电影、剧集分享）
+            "movieheavenx," +              // 电影天堂（综合影视）
+            "dytt123";                     // 电影分享频道（电影、电视剧、综艺）
+
     public static String getTgChannelList() {
-        return Prefers.getString("tg_channels", "");
+        String saved = Prefers.getString("tg_channels", "");
+        if (saved == null || saved.trim().isEmpty()) return TG_CHANNELS_DEFAULT;
+        return saved;
     }
 
     public static void putTgChannelList(String s) {
         Prefers.put("tg_channels", s == null ? "" : s.trim());
+    }
+
+    /** 用户是否手动修改过频道列表（即本地存储的不是空字符串）。 */
+    public static boolean isTgChannelListUserDefined() {
+        String saved = Prefers.getString("tg_channels", "");
+        return !(saved == null || saved.trim().isEmpty());
     }
 
     /** X Bearer Token（以 "AAAAAAAAAAAAAAAAAAAA..." 或 "xoxb-" 开头都行，由扫码或粘贴填入） */

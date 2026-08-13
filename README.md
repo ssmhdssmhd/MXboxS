@@ -9,6 +9,18 @@
 
 ## 最新更新
 
+### v5.5.63 · 2026-08-13 · 社交搜索默认公开频道 + 自定义关键词（如庆余年）网络搜索 + 合并搜索开关关闭全链路跳过
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **TG 默认公开频道兜底** | 用户未手动配置频道列表时，`Setting.getTgChannelList()` 自动返回 `TG_CHANNELS_DEFAULT`（8 个网络公开影视/动漫/剧集频道：subsplease_movies, subsplease, nxupdates, YHYS_01, ysjzyd, dianyingjie123, movieheavenx, dytt123）；新增 `isTgChannelListUserDefined()` 判断是否用户自定义 | [Setting.java#L305-L338](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java#L305-L338) |
+| 2 | **测试搜索自定义关键词** | 高级设置页点「立即测试连接并搜索示例」不再硬编码搜 1080p / movie trailer，改为先弹出输入框让用户填自定义关键词（默认预填「庆余年」，也可填庆余年2/三体/任意词），然后调 `SocialApi.searchTg(keyword, maxPerChannel)` 与 `searchX(keyword, xMaxResults)` 从真实网络搜索并把命中的标题/内容/URL 逐条展示在结果对话框 | [SettingAdvancedActivity.java#L284-L429](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java#L284-L429) |
+| 3 | **频道编辑 UI 增强** | `showChannelListDialog()` 顶部提示当前是默认频道还是用户自定义；底部给出默认 8 个频道示例与格式说明；新增「恢复默认」按钮（写入空字符串，get 时自动兜底回默认） | [SettingAdvancedActivity.java#L556-L615](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java#L556-L615) |
+| 4 | **合并搜索关闭全链路跳过** | ① UI 入口 `onSocialTest` 先判 `isSocialSearchEnabled()`，关了立即弹窗提示并 return，不显示关键词框；② `SocialApi.preflightTg/preflightX` 在 4 个网络方法入口再次判开关，关了直接返回 fail 结果，**完全不 sleep、不走 HTTP、任何 TG/X 请求都不发** | [SettingAdvancedActivity.java#L284-L292](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java#L284-L292) / [SocialApi.java#L52-L63](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/SocialApi.java#L52-L63) |
+| 5 | 版本号 | versionCode 611 → **612** / versionName 5.5.62 → **5.5.63** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.62 · 2026-08-13 · 高级设置默认隐藏（点击版本号 20 次解锁）+ 社交搜索增强（TG/X 跳转 App / 限速防封 / 总开关）+ 下载 ZIP 魔术头校验
 
 | # | 模块 | 行为 | 代码位置 |

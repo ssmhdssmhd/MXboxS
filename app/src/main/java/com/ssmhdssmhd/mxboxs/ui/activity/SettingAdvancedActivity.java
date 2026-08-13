@@ -285,70 +285,150 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         if (!Setting.isSocialSearchEnabled()) {
             new MaterialAlertDialogBuilder(this)
                     .setTitle("社交搜索已关闭")
-                    .setMessage("请先打开上方「合并社交搜索到点播」总开关，再测试连接。")
+                    .setMessage("请先打开上方「合并社交搜索到点播」总开关，再测试连接。关闭状态下不会发起任何 TG/X 网络请求，避免被封号/省流量。")
                     .setPositiveButton(R.string.dialog_positive, null)
                     .show();
             return;
         }
-        Notify.progress(this);
-        mSocialExec.execute(() -> {
-            StringBuilder sb = new StringBuilder();
-            boolean anyOk = false;
-            if (Setting.isTgConnected()) {
-                SocialApi.Result r1 = SocialApi.testTgBot();
-                sb.append("TG: ").append(r1.ok ? "✓" : "✗").append(' ').append(r1.message).append('\n');
-                if (r1.ok) {
-                    anyOk = true;
-                    // 连接成功 → 提取并缓存 bot 账号显示名（形如 "@BotFatherBot id=xx" / "昵称: XXX  @yyy"）
-                    String label = extractTgAccountLabelFromTestMsg(r1.message);
-                    if (!TextUtils.isEmpty(label)) Setting.putTgAccountLabel(label);
-                }
-                SocialApi.Result r2 = SocialApi.searchTg("1080p", 3);
-                sb.append("TG 搜索 \"1080p\": ").append(r2.ok ? "✓" : "✗").append(' ')
-                        .append(r2.message).append('\n');
-                if (r2.hits != null && !r2.hits.isEmpty()) {
-                    for (int i = 0; i < Math.min(3, r2.hits.size()); i++) {
-                        sb.append("   • ").append(r2.hits.get(i).toString()).append('\n');
-                    }
-                }
-            } else {
-                sb.append("TG: (未配置 Token，跳过)\n");
+        // 先让用户输入自定义搜索关键词（比如「庆余年」），用户留空也会自动填入默认词。
+        showKeywordInputDialog("搜索测试", "请输入要搜索的关键词（例：庆余年 / 庆余年2 / 三体）",
+                "庆余年", keyword -> {
+                    String finalKw = TextUtils.isEmpty(keyword) ? "庆余年" : keyword.trim();
+                    Notify.progress(this);
+                    mSocialExec.execute(() -> runSocialTestWithKeyword(finalKw));
+                });
+    }
+
+    /** 使用用户指定的关键词（例如「庆余年」）从网络执行 TG/X 搜索，并把结果汇总弹窗显示。 */
+    private void runSocialTestWithKeyword(String keyword) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("搜索关键词：\"").append(keyword).append("\"\n");
+        // 不用 Java 11 String.repeat：项目虽 target Java 17，但 desugar/设备兼容边界仍用手工构建分隔线更稳
+        int dashLen = Math.min(40, Math.max(8, keyword.length() * 2));
+        for (int i = 0; i < dashLen; i++) sb.append('—');
+        sb.append('\n');
+
+        boolean anyOk = false;
+        int totalHits = 0;
+        int maxPerChannel = Math.max(3, Setting.getSocialMaxHitsPerSearch() / 4);
+        int xMaxResults = Math.max(20, Setting.getSocialMaxHitsPerSearch());
+
+        // ---- TG：公开频道 HTML 搜索 ----
+        if (Setting.isTgConnected()) {
+            SocialApi.Result r1 = SocialApi.testTgBot();
+            sb.append("TG Bot: ").append(r1.ok ? "✓" : "✗").append(' ').append(r1.message).append('\n');
+            if (r1.ok) {
+                anyOk = true;
+                String label = extractTgAccountLabelFromTestMsg(r1.message);
+                if (!TextUtils.isEmpty(label)) Setting.putTgAccountLabel(label);
             }
-            if (Setting.isXConnected()) {
-                SocialApi.Result r3 = SocialApi.testX();
-                sb.append("X : ").append(r3.ok ? "✓" : "✗").append(' ').append(r3.message).append('\n');
-                if (r3.ok) {
-                    anyOk = true;
-                    String label = extractXAccountLabelFromTestMsg(r3.message);
-                    if (!TextUtils.isEmpty(label)) Setting.putXAccountLabel(label);
+            sb.append("TG 频道列表：")
+                    .append(Setting.isTgChannelListUserDefined() ? "(用户自定义)" : "(默认网络公开频道)")
+                    .append(" 共").append(countChannels(Setting.getTgChannelList())).append("个\n");
+            SocialApi.Result r2 = SocialApi.searchTg(keyword, maxPerChannel);
+            sb.append("TG 搜索 \"").append(keyword).append("\": ")
+                    .append(r2.ok ? "✓" : "✗").append(' ').append(r2.message).append('\n');
+            if (r2.hits != null && !r2.hits.isEmpty()) {
+                totalHits += r2.hits.size();
+                int shown = 0;
+                for (SocialApi.Hit hit : r2.hits) {
+                    if (shown >= 5) break;
+                    sb.append("   [").append(hit.source).append("] ").append(hit.title).append('\n');
+                    sb.append("       ").append(hit.content.length() > 80 ? hit.content.substring(0, 80) + "…" : hit.content).append('\n');
+                    if (!TextUtils.isEmpty(hit.url)) sb.append("       → ").append(hit.url).append('\n');
+                    shown++;
                 }
-                SocialApi.Result r4 = SocialApi.searchX("movie trailer", 15);
-                sb.append("X 搜索 \"movie trailer\": ").append(r4.ok ? "✓" : "✗").append(' ')
-                        .append(r4.message).append('\n');
-                if (r4.hits != null && !r4.hits.isEmpty()) {
-                    for (int i = 0; i < Math.min(3, r4.hits.size()); i++) {
-                        sb.append("   • ").append(r4.hits.get(i).toString()).append('\n');
-                    }
+                if (r2.hits.size() > shown) sb.append("   …另有 ").append(r2.hits.size() - shown).append(" 条命中，省略显示\n");
+            }
+        } else {
+            sb.append("TG: (未配置 Bot Token → 跳过 TG 搜索)\n");
+        }
+
+        // ---- X：v2 search/recent API 搜索 ----
+        if (Setting.isXConnected()) {
+            SocialApi.Result r3 = SocialApi.testX();
+            sb.append("X : ").append(r3.ok ? "✓" : "✗").append(' ').append(r3.message).append('\n');
+            if (r3.ok) {
+                anyOk = true;
+                String label = extractXAccountLabelFromTestMsg(r3.message);
+                if (!TextUtils.isEmpty(label)) Setting.putXAccountLabel(label);
+            }
+            SocialApi.Result r4 = SocialApi.searchX(keyword, xMaxResults);
+            sb.append("X 搜索 \"").append(keyword).append("\": ")
+                    .append(r4.ok ? "✓" : "✗").append(' ').append(r4.message).append('\n');
+            if (r4.hits != null && !r4.hits.isEmpty()) {
+                totalHits += r4.hits.size();
+                int shown = 0;
+                for (SocialApi.Hit hit : r4.hits) {
+                    if (shown >= 5) break;
+                    sb.append("   [").append(hit.source).append("] ").append(hit.title).append('\n');
+                    sb.append("       ").append(hit.content.length() > 80 ? hit.content.substring(0, 80) + "…" : hit.content).append('\n');
+                    if (!TextUtils.isEmpty(hit.url)) sb.append("       → ").append(hit.url).append('\n');
+                    shown++;
                 }
-            } else {
-                sb.append("X : (未配置 Bearer Token，跳过)\n");
+                if (r4.hits.size() > shown) sb.append("   …另有 ").append(r4.hits.size() - shown).append(" 条推文，省略显示\n");
             }
-            if (!Setting.isTgConnected() && !Setting.isXConnected()) {
-                sb.append("\n请先点 Telegram Bot / X 卡片粘贴 Token 后再试（或点底部「打开 Telegram / 打开 X」去官方 App 快速创建）。");
-            }
-            String msg = sb.toString();
-            boolean finalAnyOk = anyOk;
-            App.post(() -> {
-                Notify.dismiss();
-                // 刷新 UI 上的账号缓存（如果有新写入）
-                refreshSocialStatus();
-                new MaterialAlertDialogBuilder(SettingAdvancedActivity.this)
-                        .setTitle(finalAnyOk ? "连接与搜索结果" : "未完成配置")
-                        .setMessage(msg)
-                        .setPositiveButton(R.string.dialog_positive, null)
-                        .show();
-            });
+        } else {
+            sb.append("X : (未配置 Bearer Token → 跳过 X 搜索)\n");
+        }
+
+        if (!Setting.isTgConnected() && !Setting.isXConnected()) {
+            sb.append("\n⚠️ 尚未配置任何 TG/X Token：无法发起真实的网络社交搜索。\n请先在上方点 Telegram Bot / X 卡片粘贴 Token（或点底部「打开 Telegram / 打开 X」去官方 App 创建），再回到本页测试。");
+        } else {
+            sb.append("\n合计命中：").append(totalHits).append(" 条（单轮合并上限 ").append(Setting.getSocialMaxHitsPerSearch()).append(" 条）");
+        }
+        String msg = sb.toString();
+        boolean finalAnyOk = anyOk;
+        App.post(() -> {
+            Notify.dismiss();
+            refreshSocialStatus();
+            new MaterialAlertDialogBuilder(SettingAdvancedActivity.this)
+                    .setTitle((Setting.isTgConnected() || Setting.isXConnected())
+                            ? ("社交搜索结果 · \"" + keyword + "\"（命中 " + totalHits + " 条）")
+                            : "未完成 Token 配置")
+                    .setMessage(msg)
+                    .setPositiveButton(R.string.dialog_positive, null)
+                    .show();
         });
+    }
+
+    private static int countChannels(String list) {
+        if (TextUtils.isEmpty(list)) return 0;
+        String[] arr = list.split("[,，;；\\s]+");
+        int n = 0;
+        for (String s : arr) if (!TextUtils.isEmpty(s.trim())) n++;
+        return n;
+    }
+
+    /** 关键词输入对话框（用于测试搜索前让用户输入自定义关键词，如「庆余年」「庆余年2」「三体」）。 */
+    private void showKeywordInputDialog(String title, String hint, String defaultText,
+                                        java.util.function.Consumer<String> onConfirm) {
+        int pad = (int) (24 * getResources().getDisplayMetrics().density);
+        int padTop = (int) (16 * getResources().getDisplayMetrics().density);
+        FrameLayout container = new FrameLayout(this);
+        container.setPadding(pad, padTop, pad, 0);
+        TextInputLayout til = new TextInputLayout(this);
+        til.setHint(hint);
+        til.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        TextInputEditText et = new TextInputEditText(til.getContext());
+        et.setSingleLine(true);
+        et.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        et.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_FILTER);
+        if (!TextUtils.isEmpty(defaultText)) {
+            et.setText(defaultText);
+            et.setSelection(defaultText.length());
+        }
+        til.addView(et);
+        container.addView(til);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setView(container)
+                .setNegativeButton(R.string.dialog_negative, null)
+                .setPositiveButton("开始搜索", (d, w) -> {
+                    String kw = et.getText() == null ? "" : et.getText().toString().trim();
+                    onConfirm.accept(kw);
+                })
+                .show();
     }
 
     private static final Pattern TG_LABEL_AT    = Pattern.compile("@(\\S+)");
@@ -478,27 +558,61 @@ public class SettingAdvancedActivity extends AppCompatActivity {
 
     private void showChannelListDialog() {
         String cur = Setting.getTgChannelList();
+        boolean isDefault = !Setting.isTgChannelListUserDefined();
         int pad = (int) (24 * getResources().getDisplayMetrics().density);
         int padTop = (int) (16 * getResources().getDisplayMetrics().density);
-        FrameLayout container = new FrameLayout(this);
-        container.setPadding(pad, padTop, pad, 0);
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
+        outer.setPadding(pad, padTop, pad, 0);
+        // 顶栏提示：当前是默认公开频道，还是用户自定义
+        MaterialTextView hint = new MaterialTextView(this);
+        hint.setText(isDefault
+                ? "当前使用【默认网络公开频道（" + countChannels(cur) + " 个）】，可直接编辑自定义，下方有推荐频道示例。"
+                : "当前使用【用户自定义频道（" + countChannels(cur) + " 个）】。清空并保存即可恢复默认公开频道列表。");
+        hint.setTextColor(0xFFB0BEC5);
+        hint.setTextSize(12);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        hp.bottomMargin = (int) (8 * getResources().getDisplayMetrics().density);
+        outer.addView(hint, hp);
+
         TextInputLayout til = new TextInputLayout(this);
         til.setHint(getString(R.string.setting_social_channels_hint));
-        til.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        til.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         TextInputEditText et = new TextInputEditText(til.getContext());
         et.setSingleLine(false);
-        et.setMinLines(3);
+        et.setMinLines(4);
         et.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
         et.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         if (!TextUtils.isEmpty(cur)) { et.setText(cur); et.setSelection(cur.length()); }
-        til.addView(et); container.addView(til);
+        til.addView(et);
+        outer.addView(til);
+
+        // 底栏示例：推荐公开频道（让用户知道可以搜什么类型的频道）
+        MaterialTextView sample = new MaterialTextView(this);
+        sample.setText(
+                "\n📡 默认公开频道（推荐）：\n" +
+                        "   subsplease_movies, subsplease, nxupdates, YHYS_01, ysjzyd, dianyingjie123, movieheavenx, dytt123\n\n" +
+                        "💡 格式：频道用户名（去掉 @ / t.me/s/ 前缀），用 逗号 / 分号 / 空格 / 换行 分隔都行。"
+        );
+        sample.setTextColor(0xFF80CBC4);
+        sample.setTextSize(11);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        sp.topMargin = (int) (10 * getResources().getDisplayMetrics().density);
+        outer.addView(sample, sp);
+
         new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.setting_social_channels)
-                .setView(container)
+                .setView(outer)
                 .setNegativeButton(R.string.dialog_negative, null)
+                .setNeutralButton("恢复默认", (d, w) -> {
+                    Setting.putTgChannelList(""); // 写入空 → get 时自动走默认
+                    Notify.show("已恢复默认网络公开频道（" + countChannels(Setting.getTgChannelList()) + " 个）");
+                })
                 .setPositiveButton(R.string.dialog_positive, (d, w) -> {
                     Setting.putTgChannelList(et.getText() == null ? "" : et.getText().toString());
-                    Notify.show("频道列表已保存");
+                    Notify.show("频道列表已保存（" + countChannels(Setting.getTgChannelList()) + " 个）");
                 })
                 .show();
     }

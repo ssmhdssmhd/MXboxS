@@ -2,6 +2,53 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.63] - 2026-08-13
+
+### 社交搜索：默认公开频道兜底 + 自定义关键词网络搜索测试 + 合并搜索关闭全链路无请求
+
+用户需求：
+1. 高级设置中的 TG 搜索频道，**默认为网络中的公开频道**（用户不配置也能直接搜、直接测）。
+2. 高级设置里的测试搜索，**可以自定义搜索内容**（比如输入「庆余年」），从真实网络上发起 TG / X 搜索，并且在结果对话框里显示命中的标题/内容片段/链接 URL。
+3. 「合并社交搜索到点播」总开关**关闭时**，测试搜索、Bot 验证、真实搜索、节流 sleep 等全链路都要跳过（完全不发任何 TG / X 请求，省流量 + 防封号）。
+
+#### 实现要点
+
+| # | 模块 | 行为 |
+|---|------|------|
+| 1 | **TG 默认公开频道兜底** | 新增 `Setting.TG_CHANNELS_DEFAULT`（8 个覆盖中英文影视/动漫/剧集的公开频道：subsplease_movies, subsplease, nxupdates, YHYS_01, ysjzyd, dianyingjie123, movieheavenx, dytt123）。`getTgChannelList()` 在用户未保存（Prefers 里为空）时**自动返回该默认列表**；新增 `isTgChannelListUserDefined()` 判断当前使用的是默认值还是用户手动配置值。之前 SocialApi.searchTg 在频道为空时直接返回 fail，现在默认有 8 个公开频道就能真正去 `t.me/s/<channel>` 抓公开 HTML 做关键词匹配。 |
+| 2 | **自定义关键词测试搜索** | `SettingAdvancedActivity.onSocialTest()` 改为：先通过 `showKeywordInputDialog()` 弹出关键词输入框（**默认预填「庆余年」**，hint 提示也给出「庆余年 / 庆余年2 / 三体」等示例；输入法 IME_ACTION_SEARCH、TYPE_TEXT_VARIATION_FILTER 便于搜索）。用户点「开始搜索」后，后台线程执行 `runSocialTestWithKeyword(keyword)`，依次调用 `testTgBot + searchTg(keyword, maxPerChannel)`（TG 搜公开频道 HTML）/ `testX + searchX(keyword, xMaxResults)`（X 调 v2 /2/search/recent 近 7 天），结果对话框逐条展示命中的 [tg/x] 标记、标题、内容摘要（80 字截断）、原始帖子 URL，并在标题栏和结尾汇总「合计命中 N 条 / 单轮合并上限 M 条」。不再用之前硬编码的 "1080p" 与 "movie trailer"。 |
+| 3 | **频道编辑 UI 增强** | `showChannelListDialog()` 顶栏显示"当前使用【默认/用户自定义】N 个频道"；下方给出 8 个默认频道示例与「逗号/分号/空格/换行分隔都行」的格式说明；新增**「恢复默认」**中性按钮（写入空字符串，get 时自动兜底回默认 8 个公开频道）；保存/恢复后 Toast 都显示频道数量，用户一目了然。 |
+| 4 | **合并搜索关闭全链路跳过（双重门控）** | ① UI 入口：`onSocialTest()` 第一行就判 `!Setting.isSocialSearchEnabled()`，**立即弹窗告知关闭状态并 return**，不展示关键词输入框，不进入后台线程，绝无任何网络调用。② 网络层兜底：`SocialApi.preflightTg()/preflightX()` 在 `testTgBot/searchTg/testX/searchX` 四个 public 方法的**最开头再次检查开关**，关了直接 `return Result.fail("社交搜索总开关已关闭，跳过 TG/X 请求")` → **既不 rateLimitSleep、也不发 HTTP，从代码路径上彻底消除任何 TG/X 联网可能**（即便未来有其他调用方绕过 UI 也安全）。 |
+
+#### 体验流程示例
+```
+用户第一次打开高级设置 → 没填任何频道 → 默认有 8 个公开频道
+        ↓
+点「立即测试连接并搜索示例」→ 弹窗预填「庆余年」→ 点「开始搜索」
+        ↓
+TG 端：依次访问 t.me/s/subsplease_movies、t.me/s/YHYS_01 … 等 8 个公开页 → HTML 解析 post → 匹配「庆余年」关键字 → 汇总前 5 条展示
+X  端：GET api.x.com/2/search/recent?query=庆余年 → 返回最近 7 天推文 → 前 5 条展示
+        ↓
+结果对话框：标题 "社交搜索结果 · 庆余年（命中 13 条）"，每条含 [tg]/[x] 标题 + 80 字内容摘要 + 原帖链接 → 用户可点击跳转
+```
+
+#### 关闭合并开关后的行为
+```
+用户关闭「合并社交搜索到点播」总开关
+        ↓
+点「立即测试」 → 立即弹窗："社交搜索已关闭 / 请先打开总开关再测试连接 / 关闭状态下不会发起任何 TG/X 网络请求，避免被封号/省流量" → 确定后什么都不做（不弹关键词框、不跑后台线程、0 HTTP 请求）
+        ↓
+即便未来有代码绕过 UI 直接调 SocialApi.searchTg("庆余年", 3)
+        ↓
+preflightTg() 第一行 isSocialSearchEnabled()==false → 直接 return Result.fail("社交搜索总开关已关闭，跳过 TG 请求。") → 无 sleep、无 HTTP、无任何副作用
+```
+
+### 版本号
+- versionCode 611 → **612**
+- versionName 5.5.62 → **5.5.63**
+
+---
+
 ## [v5.5.62] - 2026-08-13
 
 ### 高级设置默认隐藏 + 点击版本号 20 次解锁 + 社交搜索增强（TG/X 跳转 App / 限速防封 / 总开关）
