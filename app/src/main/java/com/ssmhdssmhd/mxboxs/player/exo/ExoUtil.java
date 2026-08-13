@@ -21,9 +21,12 @@ import androidx.media3.exoplayer.util.EventLogger;
 
 import com.ssmhdssmhd.mxboxs.App;
 import com.ssmhdssmhd.mxboxs.BuildConfig;
+import com.ssmhdssmhd.mxboxs.player.PlaybackAdvisor;
 import com.ssmhdssmhd.mxboxs.player.engine.PlayerEngine;
 import com.ssmhdssmhd.mxboxs.player.track.LangUtil;
 import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
+
+import java.util.concurrent.Executors;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,6 +42,14 @@ public class ExoUtil {
                 .setLoadControl(buildLoadControl())
                 .build();
         if (BuildConfig.DEBUG) player.addAnalyticsListener(new EventLogger());
+        // AI 播放优化：把 BandwidthMeter 的带宽估算喂给 PlaybackAdvisor。
+        // 总开关打开时，Advisor 会根据估算带宽自动调缓冲模式和画质偏好。
+        if (player.getBandwidthMeter() != null) {
+            try {
+                player.getBandwidthMeter().addEventListener(Executors.newSingleThreadExecutor(),
+                        PlaybackAdvisor.get());
+            } catch (Throwable ignored) {}
+        }
         player.setAudioAttributes(AudioAttributes.DEFAULT, true);
         player.setHandleAudioBecomingNoisy(true);
         player.setPlayWhenReady(true);
@@ -76,31 +87,12 @@ public class ExoUtil {
         }
     }
 
-    public static void applyQualitySettings(ExoPlayer player) {
-        try {
-            // NOTE: ExoPlayer.setVideoScalingMode(int) and VIDEO_SCALING_MODE_* constants
-            // were REMOVED in Media3 1.11.0-rc01. The modern equivalent is to set
-            // video scaling mode via TrackSelectionParameters. Since the default behavior
-            // already scales content to fit the surface, we enforce
-            // SCALE_TO_FIT_WITH_CROPPING-equivalent behavior through the standard
-            // TrackSelectionParameters builder.
-            androidx.media3.common.TrackSelectionParameters current = player.getTrackSelectionParameters();
-            androidx.media3.common.TrackSelectionParameters.Builder builder = current.buildUpon();
-            try {
-                // Media3 may or may not expose setVideoScalingMode(int) on
-                // TrackSelectionParameters.Builder across minor versions; call via
-                // reflection to remain source-compatible.
-                java.lang.reflect.Method m = builder.getClass()
-                    .getMethod("setVideoScalingMode", int.class);
-                // VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING == 2
-                m.invoke(builder, 2);
-                player.setTrackSelectionParameters(builder.build());
-            } catch (Throwable ignored) {
-                // Fallback: rely on default (scale to fit). No actionable failure.
-            }
-        } catch (Throwable ignored) {
-        }
-    }
+    /**
+     * @deprecated setVideoScalingMode 已在 Media3 1.11.0-rc01 移除，默认 Surface 的
+     *             "scale to fit" 行为已足够，这里保留空方法仅为兼容旧调用。
+     */
+    @Deprecated
+    public static void applyQualitySettings(ExoPlayer player) {}
 
     public static Map<String, String> extractHeaders(MediaItem item) {
         Bundle extras = item.requestMetadata.extras;

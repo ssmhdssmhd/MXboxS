@@ -372,4 +372,31 @@ public class PlayerSetting {
     public static void putQualityPref(int pref) {
         Prefers.put("play_quality_pref", Math.clamp(pref, QUALITY_AUTO, QUALITY_480));
     }
+
+    // ===== AI 播放优化（统一总开关）=====
+    // 开关打开后，PlaybackAdvisor 会：
+    //   1) 从 ExoPlayer 的 BandwidthMeter 读取估算带宽；
+    //   2) 弱网（<2Mbps）→ 强制缓冲「流畅」档 + 画质降到 480P；
+    //   3) 高速网（>8Mbps）→ 缓冲「快起播」档 + 画质最高；
+    //   4) 其余 → 保持用户手动设置。
+    //   5) 有切集习惯（播放 >=6 分钟后主动切下一集）时，后台提前预解析下一集。
+    // 开关关闭：完全按用户手动设置。
+    public static boolean isAiPlayOptEnabled() {
+        return Prefers.getBoolean("ai_play_opt", true);
+    }
+
+    public static void putAiPlayOptEnabled(boolean enabled) {
+        Prefers.put("ai_play_opt", enabled);
+    }
+
+    /** 记录用户「播放超过 6 分钟就切下一集」的习惯（用于 PlaybackAdvisor 的智能预加载）。 */
+    public static void noteQuickSkipNext() {
+        int cnt = Prefers.getInt("ai_quick_skip_count", 0);
+        Prefers.put("ai_quick_skip_count", Math.min(cnt + 1, 10));
+    }
+
+    /** 是否启用智能预解析下一集：累计 3 次以上"播放 6 分钟就跳下一集"才启动。 */
+    public static boolean shouldPreparseNext() {
+        return Prefers.getInt("ai_quick_skip_count", 0) >= 3;
+    }
 }

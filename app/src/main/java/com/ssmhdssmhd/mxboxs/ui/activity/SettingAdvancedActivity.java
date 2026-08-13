@@ -13,6 +13,7 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textview.MaterialTextView;
 import com.ssmhdssmhd.mxboxs.R;
+import com.ssmhdssmhd.mxboxs.player.parse.ParseJob;
 import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
 import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.ssmhdssmhd.mxboxs.utils.Notify;
@@ -21,7 +22,8 @@ import com.ssmhdssmhd.mxboxs.utils.Notify;
  * 高级设置页面
  * 需在主设置页点击版本号 20 次解锁后才可见。
  *
- * 当前提供「播放优化」卡片：缓存写入 / 自适应码率 / 缓冲模式 / 画质偏好。
+ *  - 播放优化：缓存写入 / 自适应码率 / 缓冲模式 / 画质偏好
+ *  - AI 播放优化：AI 自动调节缓冲与画质 + 解析缓存查看/清理
  * 设置在下次播放时生效。
  */
 public class SettingAdvancedActivity extends AppCompatActivity {
@@ -29,11 +31,15 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private Toolbar toolbar;
     private MaterialTextView lockedHint;
     private MaterialCardView playOptCard;
+    private MaterialCardView aiOptCard;
 
     private SwitchMaterial cacheWriteSwitch;
     private SwitchMaterial adaptiveSwitch;
     private MaterialTextView bufferModeText;
     private MaterialTextView qualityPrefText;
+
+    private SwitchMaterial aiAutoSwitch;
+    private MaterialTextView parseCacheText;
 
     private final String[] bufferModes = new String[]{"快起播", "流畅"};
     private final String[] qualityPrefs = new String[]{"自适应", "最高画质", "720P", "480P"};
@@ -50,10 +56,13 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         toolbar = findViewById(R.id.toolbar);
         lockedHint = findViewById(R.id.lockedHint);
         playOptCard = findViewById(R.id.playOptCard);
+        aiOptCard = findViewById(R.id.aiOptCard);
         cacheWriteSwitch = findViewById(R.id.cacheWriteSwitch);
         adaptiveSwitch = findViewById(R.id.adaptiveSwitch);
         bufferModeText = findViewById(R.id.bufferModeText);
         qualityPrefText = findViewById(R.id.qualityPrefText);
+        aiAutoSwitch = findViewById(R.id.aiAutoSwitch);
+        parseCacheText = findViewById(R.id.parseCacheText);
 
         if (toolbar != null) {
             toolbar.setNavigationOnClickListener(v -> finish());
@@ -73,6 +82,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         boolean unlocked = Setting.isAdvancedUnlocked();
         lockedHint.setVisibility(unlocked ? View.GONE : View.VISIBLE);
         playOptCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
+        aiOptCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
         if (unlocked) refreshValues();
     }
 
@@ -84,6 +94,9 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         bufferModeText.setText(bufferModes[Math.min(bm, bufferModes.length - 1)]);
         int qp = PlayerSetting.getQualityPref();
         qualityPrefText.setText(qualityPrefs[Math.min(qp, qualityPrefs.length - 1)]);
+        aiAutoSwitch.setChecked(PlayerSetting.isAiPlayOptEnabled());
+        parseCacheText.setText(getString(R.string.setting_ai_parse_cache_sub)
+                + "（当前 " + ParseJob.cacheSize() + " 条）");
     }
 
     private void setupListeners() {
@@ -110,6 +123,27 @@ public class SettingAdvancedActivity extends AppCompatActivity {
 
         // 画质偏好：弹出选择
         findViewById(R.id.qualityPrefRow).setOnClickListener(v -> showQualityPrefDialog());
+
+        // AI 自动调节
+        View.OnClickListener aiToggle = v -> {
+            boolean on = !PlayerSetting.isAiPlayOptEnabled();
+            PlayerSetting.putAiPlayOptEnabled(on);
+            aiAutoSwitch.setChecked(on);
+            Notify.show(R.string.setting_playopt_apply_hint);
+        };
+        findViewById(R.id.aiAutoRow).setOnClickListener(aiToggle);
+
+        // 解析缓存：点击清空
+        findViewById(R.id.parseCacheRow).setOnClickListener(v -> {
+            int cleared = ParseJob.clearCache();
+            if (cleared > 0) {
+                Notify.show(String.format(getString(R.string.setting_ai_parse_cache_clear), cleared));
+            } else {
+                Notify.show(R.string.setting_ai_parse_cache_empty);
+            }
+            parseCacheText.setText(getString(R.string.setting_ai_parse_cache_sub)
+                    + "（当前 0 条）");
+        });
     }
 
     private void showBufferModeDialog() {

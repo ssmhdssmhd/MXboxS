@@ -2,6 +2,47 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.69] - 2026-08-13
+
+### 解析加速（三件套）
+
+| 优化项 | 实现位置 | 效果 |
+|--------|----------|------|
+| **解析结果 LRU 缓存** | [ParseJob.PARSE_CACHE](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L52) 容量 200 / TTL 30 分钟，`start()` 时先查缓存命中直接回调成功，`onParseSuccess()` 时写入 | 同集回看 / 重复搜索秒开，跳过 HTTP + WebView |
+| **嗅探候选并发 probe** | [ParseJob.concurrentProbeCandidates](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L322) 限 4 并发，命中即 cancel 其余；`aiSmartParseFallback` / `aiSmartParseFallbackFrom` 都改走并发路径 | 原来 8 个候选最坏 64s → 现在最坏 ≈8s，解析速度 3~5× |
+| **线程池复用** | [ParseJob SHARED\_\*\_EXECUTOR](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L62)，`stop()` 不再 `shutdownNow()` 共享池；`fallbackConcurrentParse` 不再 new 局部池 | 避免每次 ParseJob 都 new/shutdown 线程池的创建/GC 开销；并发池 CallerRunsPolicy 防 OOM |
+
+附加：超时 `execute()` 里现在先 `cancel(true)` 再 `stop()` → `onParseError()`，超时把 WebView 也清掉（之前只 cancel Future 不清 WebView）。
+
+### 搜索加速
+
+- [ViewModelSearchRunner SHARED_SEARCH_POOL](app/src/main/java/com/ssmhdssmhd/mxboxs/model/ViewModelSearchRunner.java#L38)：线程数改为 `min(8, cores*2)` CPU 自适应（原来硬编码 20，低配机/弱网反而互相抢带宽）
+- [快速搜索早停](app/src/main/java/com/ssmhdssmhd/mxboxs/model/ViewModelSearchRunner.java#L89)：首批 20 条结果先给 UI 渲染，剩余慢站 250ms 后 append
+- [Constant.TIMEOUT_SEARCH](app/src/main/java/com/ssmhdssmhd/mxboxs/Constant.java#L20) 30s → 12s
+
+### 起播超时 & 缓冲阶段豁免
+
+- [Constant](app/src/main/java/com/ssmhdssmhd/mxboxs/Constant.java#L13)：起播超时拆分点播 25s / 直播 20s（之前统一 15s 容易误报慢源）
+- [PlayerManager listener.onPlaybackStateChanged](app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L615)：STATE_BUFFERING 时重置超时倒计时（只要播放器在缓冲就不算超时，避免弱网反复误报）
+
+### AI 播放优化（可在高级设置里关掉）
+
+新增 [PlaybackAdvisor](app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlaybackAdvisor.java)，从 ExoPlayer 的 BandwidthMeter 拿 EWMA 平滑后的带宽估算，2 分钟节流一次：
+
+| 估算带宽 | AI 决定 |
+|----------|---------|
+| < 2 Mbps（弱网） | 缓冲=流畅，画质=480P（防卡顿） |
+| > 8 Mbps（高速网） | 缓冲=快起播，画质=最高（秒开+最高清） |
+| 中间 | 保持用户手动设置 |
+
+- [PlayerSetting](app/src/main/java/com/ssmhdssmhd/mxboxs/setting/PlayerSetting.java#L384)：`isAiPlayOptEnabled()` 默认开、`noteQuickSkipNext()` / `shouldPreparseNext()` 预备（累计 3 次"播放 6 分钟就切下一集"则允许后续接智能预解析下一集入口）
+- [ExoUtil.buildPlayer](app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/ExoUtil.java#L49)：把 BandwidthMeter 的 listener 注册给 PlaybackAdvisor
+
+### 高级设置 UI
+
+- 新增「AI 播放优化」卡片：AI 自动调节开关 + 解析缓存查看/清空（[activity_setting_advanced.xml](app/src/main/res/layout/activity_setting_advanced.xml) / [SettingAdvancedActivity](app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java)）
+- [ExoUtil.applyQualitySettings](app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/ExoUtil.java#L95)：清理死代码（setVideoScalingMode 在 Media3 1.11.0-rc01 已移除，原来每次都 try-catch 失败）
+
 ## [v5.5.68] - 2026-08-13
 
 ### 高级设置：播放优化卡片

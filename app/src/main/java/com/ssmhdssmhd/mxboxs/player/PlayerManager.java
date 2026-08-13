@@ -469,7 +469,9 @@ public class PlayerManager implements ParseCallback {
         reset();
         clear();
         stopParse();
-        start(spec, Constant.TIMEOUT_PLAY, startPositionMs);
+        // 点播 25s / 直播 20s；配合下面 BUFFERING state 的 reset 让缓冲阶段不算超时。
+        long timeout = liveMode ? Constant.TIMEOUT_PLAY_LIVE : Constant.TIMEOUT_PLAY;
+        start(spec, timeout, startPositionMs);
     }
 
     public void start(PlaySpec spec, long timeout) {
@@ -608,7 +610,17 @@ public class PlayerManager implements ParseCallback {
 
         @Override
         public void onPlaybackStateChanged(int state) {
-            if (state == Player.STATE_READY || state == Player.STATE_ENDED) App.removeCallbacks(runnable);
+            if (state == Player.STATE_READY || state == Player.STATE_ENDED) {
+                App.removeCallbacks(runnable);
+            } else if (state == Player.STATE_BUFFERING) {
+                // 缓冲中：说明播放器正在拉数据（真在干活），重置起播超时倒计时，
+                // 避免"弱网一直在缓冲却被判超时"。超时仍保留上限以免真挂死。
+                if (spec != null && spec.getUrl() != null) {
+                    long timeout = liveMode ? Constant.TIMEOUT_PLAY_LIVE : Constant.TIMEOUT_PLAY;
+                    App.removeCallbacks(runnable);
+                    App.post(runnable, timeout);
+                }
+            }
         }
 
         @Override

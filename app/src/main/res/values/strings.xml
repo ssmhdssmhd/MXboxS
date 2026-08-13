@@ -177,6 +177,14 @@
     <string name="setting_playopt_quality">画质偏好</string>
     <string name="setting_playopt_quality_sub">自适应按带宽切换；固定画质可能因源不支持而失效</string>
     <string name="setting_playopt_apply_hint">设置已保存，下次播放时生效</string>
+    <string name="setting_ai_opt_title">AI 播放优化</string>
+    <string name="setting_ai_opt_subtitle">根据实时网络自动切换缓冲模式和画质，体验更聪明</string>
+    <string name="setting_ai_opt_auto">AI 自动调节缓冲与画质</string>
+    <string name="setting_ai_opt_auto_sub">弱网自动降档防卡顿，高速网秒开+最高清（2 分钟生效一次，避免抖动）</string>
+    <string name="setting_ai_parse_cache">解析缓存</string>
+    <string name="setting_ai_parse_cache_sub">同集回看秒开，容量 200 条 / 30 分钟自动失效</string>
+    <string name="setting_ai_parse_cache_clear">已清空解析缓存（%d 条）</string>
+    <string name="setting_ai_parse_cache_empty">解析缓存为空</string>
 
     <!-- Backup & Restore -->
     <string name="restore_select">Select backup</string>
