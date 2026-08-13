@@ -9,6 +9,17 @@
 
 ## 最新更新
 
+### v5.5.64 · 2026-08-13 · 修复 TG 搜索「未命中任何公开帖子」
+
+| # | 模块 | 行为 | 代码位置 |
+|---|------|------|---------|
+| 1 | **TG 搜索 URL 加 `?q=` 参数** | `searchTg()` 之前请求 `t.me/s/{channel}` 只拿最新 ~20 条帖子做本地匹配 → 改为 `t.me/s/{channel}?q={keyword}` 让 Telegram 服务端搜索整个频道历史 | [SocialApi.java#L168-L218](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/SocialApi.java#L168-L218) |
+| 2 | **浏览器 UA 请求** | 新增 `fetchTgPreview()` 带 `User-Agent: Chrome/120 Mobile` + `Accept-Language: zh-CN`，避免 t.me 返回精简页面 | [SocialApi.java#L220-L238](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/SocialApi.java#L220-L238) |
+| 3 | **帖子直链解析** | 新增 `parseTelegramPostUrls()` 提取 `t.me/{channel}/{messageId}` 直链，点击可跳转到具体帖子 | [SocialApi.java#L240-L251](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/SocialApi.java#L240-L251) |
+| 4 | 版本号 | versionCode 612 → **613** / versionName 5.5.63 → **5.5.64** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.5.63 · 2026-08-13 · 社交搜索默认公开频道 + 自定义关键词（如庆余年）网络搜索 + 合并搜索开关关闭全链路跳过
 
 | # | 模块 | 行为 | 代码位置 |

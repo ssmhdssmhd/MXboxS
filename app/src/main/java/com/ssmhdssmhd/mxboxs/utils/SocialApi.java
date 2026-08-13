@@ -158,8 +158,12 @@ public final class SocialApi {
     }
 
     /**
-     * 在用户配置的公开频道列表里按关键词做 HTML 搜索（公开页 t.me/s/<channel>）。
-     * 返回命中帖子列表（按频道顺序，每频道最多 5 条）。
+     * 在用户配置的公开频道列表里按关键词做 HTML 搜索（公开页 t.me/s/<channel>?q=<keyword>）。
+     * 返回命中帖子列表（按频道顺序，每频道最多 maxPerChannel 条）。
+     *
+     * <p>v5.5.64 关键修复：之前只抓 t.me/s/{channel} 最新 ~20 条帖子做本地匹配，
+     * 历史帖子完全搜不到。现在用 ?q= 参数让 Telegram 服务端搜索整个频道历史，
+     * 再配合浏览器 UA 确保拿到完整 HTML。
      */
     public static Result searchTg(String keyword, int maxPerChannel) {
         Result pf = preflightTg();
@@ -171,21 +175,32 @@ public final class SocialApi {
         List<Hit> hits = new ArrayList<>();
         StringBuilder failures = new StringBuilder();
         int limit = maxPerChannel > 0 ? maxPerChannel : 5;
-        Pattern p = Pattern.compile(Pattern.quote(keyword), Pattern.CASE_INSENSITIVE);
+        String encodedKw = encodeQuery(keyword);
         for (String raw : channels) {
             String ch = cleanChannel(raw);
             if (TextUtils.isEmpty(ch)) continue;
             try {
-                String html = OkHttp.string("https://t.me/s/" + ch);
+                // 用 ?q= 让 Telegram 服务端搜索频道全部历史消息
+                String url = "https://t.me/s/" + ch + "?q=" + encodedKw;
+                String html = fetchTgPreview(url);
+                // 检查频道是否存在/可用
+                if (html.contains("tgme_page_status") && (html.contains("DELETED") || html.contains("CLOSED"))) {
+                    if (failures.length() > 0) failures.append("; ");
+                    failures.append(ch).append(": 频道已关闭/删除");
+                    continue;
+                }
                 List<String> posts = parseTelegramChannelPosts(html);
+                List<String> postUrls = parseTelegramPostUrls(html);
                 int got = 0;
-                for (String post : posts) {
-                    Matcher m = p.matcher(post);
-                    if (m.find()) {
-                        hits.add(new Hit("tg", "#" + ch, snippetOf(post, keyword), "https://t.me/s/" + ch));
-                        got++;
-                        if (got >= limit) break;
-                    }
+                for (int i = 0; i < posts.size(); i++) {
+                    String post = posts.get(i);
+                    // 服务端已按 ?q= 过滤，直接接受（本地再做一次匹配用于高亮摘要）
+                    String pUrl = i < postUrls.size() && !TextUtils.isEmpty(postUrls.get(i))
+                            ? postUrls.get(i)
+                            : ("https://t.me/s/" + ch + "?q=" + encodedKw);
+                    hits.add(new Hit("tg", "#" + ch, snippetOf(post, keyword), pUrl));
+                    got++;
+                    if (got >= limit) break;
                 }
             } catch (Throwable t) {
                 if (failures.length() > 0) failures.append("; ");
@@ -194,10 +209,45 @@ public final class SocialApi {
         }
         String msg;
         if (hits.isEmpty()) {
-            msg = failures.length() > 0 ? ("未命中；错误: " + failures) : "未命中任何公开帖子";
+            msg = failures.length() > 0
+                    ? ("未命中；错误: " + failures)
+                    : "未命中任何公开帖子（该关键词在这些频道的历史中不存在，或频道为私密频道无法预览）";
             return new Result(failures.length() == 0, msg, hits);
         }
         return Result.ok("命中 " + hits.size() + " 条" + (failures.length() > 0 ? "（部分频道失败: " + failures + "）" : ""), hits);
+    }
+
+    /** 使用带浏览器 UA 的请求获取 Telegram 预览页 HTML，避免被服务端拒绝或返回精简页面。 */
+    private static String fetchTgPreview(String url) {
+        try {
+            OkHttpClient cli = OkHttp.client();
+            Request req = new Request.Builder()
+                    .url(url)
+                    .headers(Headers.of(
+                            "User-Agent", "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+                            "Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                            "Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8"))
+                    .get()
+                    .build();
+            Response resp = cli.newCall(req).execute();
+            return resp.body() == null ? "" : resp.body().string();
+        } catch (Throwable t) {
+            // Fallback: 用 OkHttp.string 简单 GET
+            return OkHttp.string(url);
+        }
+    }
+
+    /** 从 Telegram 预览页 HTML 中提取帖子直链（形如 https://t.me/{channel}/{messageId}）。 */
+    private static List<String> parseTelegramPostUrls(String html) {
+        List<String> urls = new ArrayList<>();
+        if (TextUtils.isEmpty(html)) return urls;
+        Pattern p = Pattern.compile("tgme_widget_message_date\"[^>]*href=\"(https://t\\.me/[^\"]+)\"");
+        Matcher m = p.matcher(html);
+        while (m.find()) {
+            String u = m.group(1);
+            if (u != null && !u.isEmpty()) urls.add(u);
+        }
+        return urls;
     }
 
     private static String cleanChannel(String s) {
