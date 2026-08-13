@@ -474,7 +474,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
         @Override
         public void onError(String msg) {
-            if (isOwner()) PlaybackActivity.this.onError(msg);
+            if (isOwner() && isAlive()) PlaybackActivity.this.onError(msg);
         }
 
         @Override
@@ -540,6 +540,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     @Override
     public void onServiceConnected(ComponentName name, IBinder binder) {
+        if (isFinishing() || isDestroyed()) return;
         mService = ((PlaybackService.LocalBinder) binder).getService();
         mService.replaceBinding(this::closePiP);
         mService.setSessionActivity(buildSessionIntent());
@@ -585,5 +586,10 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         clearForeverObservers();
         super.onDestroy();
         releasePlaybackService();
+    }
+
+    /** 检查 Activity 是否仍然活跃，防止回调到已销毁的 Activity 导致崩溃 */
+    protected boolean isAlive() {
+        return !isFinishing() && !isDestroyed();
     }
 }

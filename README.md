@@ -9,6 +9,19 @@
 
 ## 最新更新
 
+### v5.5.65 · 2026-08-13 · 依赖更新对齐上游 + 6 项闪退修复
+
+| # | 模块 | 变更 | 说明 |
+|---|------|------|------|
+| 1 | **依赖更新** | AGP 9.1.0→9.3.1 / compileSdk 36→37 / Glide 5.0.7→5.0.9 / NewPipeExtractor v0.26.3→v0.26.4 | 对齐上游 FongMi/TV |
+| 2 | **TVBus 闪退修复** | `System.exit(0)` → Toast + PendingIntent 优雅重启 | [TVBus.java#L65-L89](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/extractor/TVBus.java#L65-L89) |
+| 3 | **PlayerManager NPE 修复** | 15+ 方法加 null 防护 | [PlayerManager.java#L91-L107](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L91-L107) |
+| 4 | **onPlayerError 崩溃修复** | try-catch 兜底 | [PlayerManager.java#L623-L637](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L623-L637) |
+| 5 | **FFmpegUtil 崩溃修复** | ensureReady 异常容错 | [FFmpegUtil.java#L135-L148](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FFmpegUtil.java#L135-L148) |
+| 6 | **PlaybackActivity 生命周期修复** | isAlive() 守卫 | [PlaybackActivity.java#L590-L593](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L590-L593) |
+
+---
+
 ### v5.5.64 · 2026-08-13 · 修复 TG 搜索「未命中任何公开帖子」
 
 | # | 模块 | 行为 | 代码位置 |

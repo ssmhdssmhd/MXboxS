@@ -91,7 +91,9 @@ public class PlayerManager implements ParseCallback {
     public void release() {
         App.removeCallbacks(runnable);
         if (player != null) player.removeListener(listener);
-        if (engine != null) engine.release();
+        if (engine != null) {
+            try { engine.release(); } catch (Throwable ignored) {}
+        }
         engine = null;
         player = null;
     }
@@ -101,7 +103,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public Tracks getCurrentTracks() {
-        return player.getCurrentTracks();
+        return player == null ? Tracks.EMPTY : player.getCurrentTracks();
     }
 
     public List<MediaChapter> getCurrentMediaChapters() {
@@ -113,15 +115,15 @@ public class PlayerManager implements ParseCallback {
     }
 
     public MediaItem getCurrentMediaItem() {
-        return player.getCurrentMediaItem();
+        return player == null ? null : player.getCurrentMediaItem();
     }
 
     public int getPlaybackState() {
-        return player.getPlaybackState();
+        return player == null ? Player.STATE_IDLE : player.getPlaybackState();
     }
 
     public boolean isPlaying() {
-        return player.isPlaying();
+        return player != null && player.isPlaying();
     }
 
     public boolean isReleased() {
@@ -155,6 +157,7 @@ public class PlayerManager implements ParseCallback {
 
     public void setMetadata(MediaMetadata data) {
         if (spec != null) spec.setMetadata(data);
+        if (player == null) return;
         MediaItem current = player.getCurrentMediaItem();
         if (current != null) player.replaceMediaItem(player.getCurrentMediaItemIndex(), current.buildUpon().setMediaMetadata(data).build());
     }
@@ -164,7 +167,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public float getSpeed() {
-        return player.getPlaybackParameters().speed;
+        return player == null ? 1.0f : player.getPlaybackParameters().speed;
     }
 
     public boolean isEmpty() {
@@ -180,11 +183,11 @@ public class PlayerManager implements ParseCallback {
     }
 
     public boolean isLive() {
-        return engine.isLive();
+        return engine != null && engine.isLive();
     }
 
     public boolean isVod() {
-        return engine.isVod();
+        return engine != null && engine.isVod();
     }
 
     public boolean haveTrack(int type) {
@@ -220,7 +223,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public long getPosition() {
-        return player.getCurrentPosition();
+        return player == null ? 0 : player.getCurrentPosition();
     }
 
     public String getSizeText() {
@@ -281,7 +284,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public long getDuration() {
-        return player.getDuration();
+        return player == null ? 0 : player.getDuration();
     }
 
     public String getDurationTime() {
@@ -355,38 +358,41 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void play() {
-        player.play();
+        if (player != null) player.play();
     }
 
     public void pause() {
-        player.pause();
+        if (player != null) player.pause();
     }
 
     public void stop() {
-        engine.stop();
+        if (engine != null) {
+            try { engine.stop(); } catch (Throwable ignored) {}
+        }
         stopParse();
     }
 
     public void clearMediaItems() {
-        player.clearMediaItems();
+        if (player != null) player.clearMediaItems();
     }
 
     public boolean isRepeatOne() {
-        return player.getRepeatMode() == Player.REPEAT_MODE_ONE;
+        return player != null && player.getRepeatMode() == Player.REPEAT_MODE_ONE;
     }
 
     public void setRepeatOne(boolean repeat) {
-        player.setRepeatMode(repeat ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
+        if (player != null) player.setRepeatMode(repeat ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
     }
 
     public void replay(long positionMs) {
+        if (player == null) return;
         if (positionMs == C.TIME_UNSET) player.seekToDefaultPosition();
         else player.seekTo(positionMs);
         player.play();
     }
 
     public void seekTo(long time) {
-        player.seekTo(time);
+        if (player != null) player.seekTo(time);
     }
 
     public long getTextOffsetMs() {
@@ -621,11 +627,16 @@ public class PlayerManager implements ParseCallback {
         @Override
         public void onPlayerError(@NonNull PlaybackException e) {
             App.removeCallbacks(runnable);
-            if (spec == null) return;
-            switch (engine.handleError(e)) {
-                case DECODE -> handleDecodeError(e);
-                case RECOVERED -> setDanmakus(spec.getDanmakus());
-                case FATAL -> callback.onError(engine.getErrorMessage(e));
+            if (spec == null || engine == null) return;
+            try {
+                switch (engine.handleError(e)) {
+                    case DECODE -> handleDecodeError(e);
+                    case RECOVERED -> setDanmakus(spec.getDanmakus());
+                    case FATAL -> callback.onError(engine.getErrorMessage(e));
+                }
+            } catch (Throwable t) {
+                // 引擎处理错误时本身出错，兜底报错避免崩溃
+                callback.onError(t.getMessage() != null ? t.getMessage() : "播放器内部错误");
             }
         }
     };

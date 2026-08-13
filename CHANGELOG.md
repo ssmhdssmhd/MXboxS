@@ -2,6 +2,35 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.5.65] - 2026-08-13
+
+### 依赖更新（对齐上游 FongMi/TV）
+
+| 依赖 | 旧版本 | 新版本 | 说明 |
+|------|--------|--------|------|
+| AGP (Android Gradle Plugin) | 9.1.0 | **9.3.1** | 对齐上游 |
+| compileSdk | 36 | **37** | Android 16 |
+| Glide | 5.0.7 | **5.0.9** | 图片加载库 |
+| NewPipeExtractor | v0.26.3 | **v0.26.4** | YouTube 解析 |
+| media3 | 1.11.0-rc01 | 保持 | 已是最新预发布版 |
+
+### 闪退修复
+
+| # | 修复点 | 根因 | 修复方式 |
+|---|--------|------|---------|
+| 1 | **TVBus 核心切换闪退** | `TVBus.change()` 直接 `System.exit(0)` 硬杀进程，用户看到突然闪退 | 改为 Toast 提示「TVBus 核心已切换，正在重启...」+ PendingIntent 优雅重启 |
+| 2 | **PlayerManager NPE 闪退** | `release()` 后 `player`/`engine` 为 null，但回调或 UI 仍调用 `getPosition()`/`getDuration()`/`isPlaying()` 等方法 | 给 15+ 个方法加 `player == null` / `engine == null` 防护：`getCurrentTracks()` → `Tracks.EMPTY`，`getPosition()` → `0`，`isPlaying()` → `false`，`getSpeed()` → `1.0f` 等 |
+| 3 | **onPlayerError 二次崩溃** | `engine.handleError(e)` 本身可能抛异常，导致 listener 回调内崩溃 | 加 `try-catch(Throwable)` 兜底，降级为 `callback.onError(msg)` |
+| 4 | **engine.release() 崩溃** | 释放引擎时 native 层可能异常 | 加 `try-catch(Throwable ignored)` |
+| 5 | **FFmpegUtil 初始化崩溃** | `ensureReady()` 在 context=null 或 assets 复制失败时抛 `IllegalStateException`，调用方未捕获 | `ffmpeg()`/`ffprobe()` 入口加 try-catch，返回 `Result(exitCode=-1)` 而非崩溃 |
+| 6 | **PlaybackActivity 生命周期崩溃** | `onServiceConnected` / `onError` 可能在 Activity 已销毁后回调 | 新增 `isAlive()` 方法（`!isFinishing() && !isDestroyed()`）；`onServiceConnected` 首行加生命周期检查；`onError` 回调加 `isAlive()` 守卫 |
+
+### 版本号
+- versionCode 613 → **614**
+- versionName 5.5.64 → **5.5.65**
+
+---
+
 ## [v5.5.64] - 2026-08-13
 
 ### 修复：TG 搜索「未命中任何公开帖子」

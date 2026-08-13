@@ -133,7 +133,14 @@ public final class FFmpegUtil {
     }
 
     public static Result ffmpeg(Context ctx, List<String> args, LineListener listener, long timeoutMs) {
-        String ffmpeg = ensureReady(ctx);
+        String ffmpeg;
+        try {
+            ffmpeg = ensureReady(ctx);
+        } catch (Throwable t) {
+            List<Line> lines = new ArrayList<>();
+            lines.add(new Line(true, "[ffmpeg] init failed: " + t.getMessage()));
+            return new Result("ffmpeg", -1, lines, 0);
+        }
         List<String> cmd = new ArrayList<>();
         cmd.add(ffmpeg);
         if (args != null) cmd.addAll(args);
@@ -146,12 +153,19 @@ public final class FFmpegUtil {
     }
 
     public static Result ffprobe(Context ctx, List<String> args, LineListener listener, long timeoutMs) {
-        String ffprobe = ensureReady(ctx);
-        // ffprobe 路径用 sFFprobePath，但当前 ensureReady 只返回 ffmpeg 路径；这里直接从静态字段拿
-        String probe = sFFprobePath;
-        if (TextUtils.isEmpty(probe)) {
+        String probe;
+        try {
             ensureReady(ctx);
             probe = sFFprobePath;
+        } catch (Throwable t) {
+            List<Line> lines = new ArrayList<>();
+            lines.add(new Line(true, "[ffprobe] init failed: " + t.getMessage()));
+            return new Result("ffprobe", -1, lines, 0);
+        }
+        if (TextUtils.isEmpty(probe)) {
+            List<Line> lines = new ArrayList<>();
+            lines.add(new Line(true, "[ffprobe] ffprobe path is null after init"));
+            return new Result("ffprobe", -1, lines, 0);
         }
         List<String> cmd = new ArrayList<>();
         cmd.add(probe);

@@ -1,5 +1,8 @@
 package com.ssmhdssmhd.mxboxs.player.extractor;
 
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 
 import com.ssmhdssmhd.mxboxs.App;
@@ -64,7 +67,27 @@ public class TVBus implements Source.Extractor, Listener {
 
     private void change() throws Exception {
         LiveSetting.putBoot(true);
-        App.post(() -> System.exit(0), 100);
+        // 优雅重启：先提示用户，再用 PendingIntent 重启 App，避免硬闪退
+        App.post(() -> {
+            try {
+                android.widget.Toast.makeText(App.get(),
+                    "TVBus 核心已切换，正在重启应用...", android.widget.Toast.LENGTH_SHORT).show();
+            } catch (Throwable ignored) {}
+            // 延迟 1.5 秒让 Toast 显示，再重启
+            App.post(() -> {
+                try {
+                    Context ctx = App.get();
+                    Intent intent = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        PendingIntent pi = PendingIntent.getActivity(ctx, 0, intent,
+                            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+                        pi.send();
+                    }
+                } catch (Throwable ignored) {}
+                System.exit(0);
+            }, 1500);
+        }, 100);
         throw new ExtractException(ResUtil.getString(R.string.error_play_url));
     }
 
