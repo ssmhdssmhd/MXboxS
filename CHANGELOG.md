@@ -2,6 +2,27 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.2] - 2026-08-14
+
+### P0 紧急修复：HTML 嗅探接口被当作直链播放 → 0 KB/s 永久转圈
+
+用户反馈 v5.6.1 后仍有个别源（如 `jx.xmflv.cc` 这类）打开就一直转圈，截图里 URL 形如 `https://jx.xmflv.cc/?url=https://v.youku.com/v_show/id_xxx.html`。根因是：这是一条 **HTML 嗅探接口**，返回的是一个包含 `<iframe>`/`<video>`/`<source>` 的 HTML 页面，真实视频流靠 JS/WebView 嗅探才能拿到；但当源配置里没有 `parse=1` / `jx=1` 时，`Result.needParse()` 返回 false，App 直接把这个 HTML URL 当作"直链"丢给 ExoPlayer，ExoPlayer 拉到 HTML 文本当视频解析失败 → retry 循环 → 0 KB/s 永久转圈。
+
+#### 两步修复：HTML 嗅探接口识别 + 强制走解析链路
+
+| # | 修复点 | 说明 | 代码位置 |
+|---|--------|------|---------|
+| 1 | **HTML 嗅探接口识别** | 在 `UrlUtil` 里新增 `isLikelyHtmlSniffer(url)`：通过 URL 特征（`?url=`/`&url=`/`?v=` 参数、`jiexi.php`/`api.php`/`jx.php` 等典型嗅探脚本名、以及 `xmflv`/`qq`/`duopian`/`iqiyi` 等嗅探域名关键字）识别 HTML 嗅探接口；**视频直链（.m3u8/.mp4/.flv 等）直接放过**，不会误伤 | [UrlUtil.isLikelyHtmlSniffer](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L177-L211) |
+| 2 | **强制走解析链路** | 在 `PlaybackActivity.startPlayer` 「直链起播分支」前新增一道检查：若 `result.getUrl()` 或 `result.getPlayUrl()` 命中 HTML 嗅探接口特征，**强制把 useParse 置为 true**，走 `player().parse(...)` → 进入 WebView 嗅探 / 后端嗅探链路，从 HTML 里把 m3u8/mp4 抓出来再播 | [PlaybackActivity.startPlayer](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L260-L266) |
+| 3 | **嗅探成功率增强** | 在 `UrlUtil.sniffVideoCandidates` 里新增第 5 步：用正则把 HTML 里的 `<iframe>/<video>/<source>/<script>/<embed>` 标签的 `src` 属性值抓出来当候选，再走 base64/正则二次嗅探，覆盖一批典型 HTML 嗅探返回的嵌套页面场景 | [UrlUtil.sniffVideoCandidates](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L268-L293) |
+
+#### 版本号
+
+- versionCode 621 → **622**
+- versionName 5.6.1 → **5.6.2**
+
+---
+
 ## [v5.6.1] - 2026-08-14
 
 ### P0 紧急修复：0 KB/s 一直转圈不能播放（Referer / User-Agent 丢失 → CDN 403）

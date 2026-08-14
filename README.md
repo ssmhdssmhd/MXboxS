@@ -9,6 +9,17 @@
 
 ## 最新更新
 
+### v5.6.2 · 2026-08-14 · P0 紧急修复：HTML 嗅探接口被当作直链播放 → 0 KB/s 永久转圈
+
+| # | 模块 | 变更 | 代码位置 |
+|---|------|------|---------|
+| 1 | **HTML 嗅探接口识别** | 在 `UrlUtil` 新增 `isLikelyHtmlSniffer(url)`：通过 URL 特征（?url=/&url=/?v= 参数、jiexi.php/api.php/jx.php 等典型嗅探脚本名、xmflv/qq/duopian/iqiyi 等嗅探域名关键字）识别 HTML 嗅探接口；视频直链直接放过 | [UrlUtil.isLikelyHtmlSniffer](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L177-L211) |
+| 2 | **强制走解析链路** | `PlaybackActivity.startPlayer` 直链起播分支前新增检查：命中 HTML 嗅探接口特征就 `useParse=true` 走 `player().parse(...)`，不再把 HTML 页面直接丢给 ExoPlayer | [PlaybackActivity.java#L260-L266](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L260-L266) |
+| 3 | **嗅探成功率增强** | `UrlUtil.sniffVideoCandidates` 新增第 5 步：用正则抓 `<iframe>/<video>/<source>/<script>/<embed>` 标签 `src` 属性值当候选，再走 base64/正则二次嗅探 | [UrlUtil.sniffVideoCandidates](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L268-L293) |
+| 4 | **版本号** | versionCode 621 → **622** / versionName 5.6.1 → **5.6.2** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.6.1 · 2026-08-14 · P0 紧急修复：0 KB/s 一直转圈不能播放（Referer / User-Agent 丢失 → CDN 403）
 
 | # | 模块 | 变更 | 代码位置 |

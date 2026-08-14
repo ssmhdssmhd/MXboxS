@@ -165,6 +165,52 @@ public class UrlUtil {
     }
 
     /**
+     * 识别一个 URL 是否像「HTML 嗅探接口」（俗称"万能解析"/"嗅探器"）：
+     *   - 特征 1：URL 里带 ?url= / &url= / ?v= 这样的"把真实视频页作为参数"的结构
+     *     例: https://jx.xmflv.cc/?url=https://v.youku.com/v_show/id_xxx.html
+     *   - 特征 2：路径里带 jiexi.php / api.php / jx.php / parse.php 这类典型嗅探接口名
+     *   - 特征 3：host 命中一批公开嗅探域名（qq/xmflv/duopian/zf/cfss/... 等关键字）
+     *
+     * 识别为 HTML 嗅探接口的 URL 不能直接丢给 ExoPlayer（ExoPlayer 会拉到 HTML 文本当视频解析 → 0 KB/s 永久转圈），
+     * 必须走 WebView 嗅探 / 后端嗅探接口的解析流程。
+     */
+    public static boolean isLikelyHtmlSniffer(String url) {
+        if (TextUtils.isEmpty(url)) return false;
+        try {
+            String lc = url.toLowerCase();
+            // 视频直链直接放过
+            if (lc.contains(".m3u8") || lc.contains(".mp4") || lc.contains(".flv")
+                    || lc.contains(".m4v") || lc.contains(".ts") || lc.contains(".mkv")
+                    || lc.contains(".webm") || lc.contains(".mov")) return false;
+            // 特征 1：?url= / &url= / ?v= 这类"把目标页作为参数"的结构
+            if (lc.contains("?url=") || lc.contains("&url=") || lc.contains("?v=") || lc.contains("&v=")) {
+                // 再排除一些正常图片/静态资源 CDN 里带 url 参数的场景
+                if (!lc.contains(".jpg") && !lc.contains(".png") && !lc.contains(".gif")
+                        && !lc.contains(".css") && !lc.contains(".js")) return true;
+            }
+            // 特征 2：路径里带典型嗅探脚本名
+            String[] sniffScripts = {
+                    "jiexi.php", "jiexi.php", "api.php", "jx.php", "parse.php", "player.php",
+                    "json.php", "getVideo", "play.php", "index.php"
+            };
+            for (String s : sniffScripts) if (lc.contains(s)) return true;
+            // 特征 3：host 命中公开嗅探域名关键字
+            String[] sniffHostHints = {
+                    "xmflv", "qq.com", "duopian", "cfss", "zf.com", "boosj", "player",
+                    "jx.", "jiexi", "sohu", "letv", "bilibili", "mgtv", "iqiyi"
+            };
+            int q = lc.indexOf("://");
+            if (q > 0) {
+                String hostPart = lc.substring(q + 3);
+                int slash = hostPart.indexOf('/');
+                String host = slash > 0 ? hostPart.substring(0, slash) : hostPart;
+                for (String h : sniffHostHints) if (host.contains(h)) return true;
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    /**
      * 从 HTML/JS 正文中嗅探视频直链 URL（m3u8/mp4/flv 等），返回第一个命中。
      * 保留旧 API 供已有调用直接使用。
      */
@@ -219,6 +265,32 @@ public class UrlUtil {
                 }
             }
         } catch (Throwable ignored) {}
+        // 5) HTML 嗅探接口（比如 xmflv / qq / 虾米 / duopian 等）通常返回一个 HTML，
+        //    里面通过 <iframe src="..." /> / <video src="..." /> / <source src="..." />
+        //    这类标签指向真正的视频播放页/直链。我们把这些 src 提取出来当候选，再跑一轮 base64/正则嗅探。
+        try {
+            List<String> tagSrcs = sniffHtmlTagSrcs(body);
+            for (String src : tagSrcs) {
+                if (TextUtils.isEmpty(src)) continue;
+                // src 本身就是带目标视频参数的嗅探 URL（?url= / &url= / ?v=）：
+                // 里面 url 参数可能是编码过的视频页，再递归取一层
+                addCandidates(seen, sniffAllByKeys(src, keys, true), baseUrl);
+                addCandidates(seen, sniffAllByKeys(src, keys, false), baseUrl);
+                String decodedTag = safeUrlDecode(src);
+                if (decodedTag != null && !decodedTag.equals(src)) {
+                    addCandidates(seen, sniffAllByKeys(decodedTag, keys, true), baseUrl);
+                    addCandidates(seen, sniffAllByKeys(decodedTag, keys, false), baseUrl);
+                }
+                // src 里可能嵌了 base64（atob(url) 拼到 src 里）
+                List<String> tagB64Pieces = sniffBase64Blobs(src);
+                for (String piece : tagB64Pieces) {
+                    String decoded = safeBase64Decode(piece);
+                    if (TextUtils.isEmpty(decoded)) continue;
+                    addCandidates(seen, sniffAllByKeys(decoded, keys, true), baseUrl);
+                    addCandidates(seen, sniffAllByKeys(decoded, keys, false), baseUrl);
+                }
+            }
+        } catch (Throwable ignored) {}
         for (String u : seen) {
             if (u != null && u.startsWith("http")) out.add(u);
             if (out.size() >= topN) break;
@@ -247,6 +319,32 @@ public class UrlUtil {
                 String g = m.group(1);
                 if (!TextUtils.isEmpty(g) && (g.length() % 4 == 0)) out.add(g);
                 if (out.size() > 32) break;
+            }
+        } catch (Throwable ignored) {}
+        return out;
+    }
+
+    /**
+     * 从 HTML 正文里抓 <iframe src="..."> / <video src="..."> / <source src="...">
+     * / <script src="..."> / <embed src="..."> 等常见媒体标签的 src 属性，
+     * 用于 HTML 嗅探接口返回的页面再做一次候选扩展。
+     * 同时支持单引号 / 双引号 / 无引号（空格前截断）。
+     */
+    private static List<String> sniffHtmlTagSrcs(String body) {
+        List<String> out = new ArrayList<>();
+        if (TextUtils.isEmpty(body)) return out;
+        try {
+            // 兼容大小写与空白
+            String regex = "<(?:iframe|video|source|script|embed)[^>]+?\\bsrc\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>\"'`]+))";
+            Matcher m = Pattern.compile(regex, Pattern.CASE_INSENSITIVE).matcher(body);
+            while (m.find()) {
+                String src = m.group(1);
+                if (TextUtils.isEmpty(src)) src = m.group(2);
+                if (TextUtils.isEmpty(src)) src = m.group(3);
+                if (!TextUtils.isEmpty(src)) {
+                    String t = src.trim();
+                    if (!t.isEmpty()) out.add(t);
+                }
             }
         } catch (Throwable ignored) {}
         return out;

@@ -257,6 +257,13 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         } else if (result.needParse() || useParse) {
             attachSurface();
             player().parse(key, result, useParse, metadata, startPositionMs);
+        } else if (isHtmlSnifferUrl(result.getUrl().v()) || isHtmlSnifferUrl(result.getPlayUrl())) {
+            // 新修复 v5.6.2：识别为 HTML 嗅探接口（jx/qq/xmflv 等）时，
+            // 强制走解析流程（WebView 嗅探 / 后端嗅探），而不是把 HTML 页面直接丢给 ExoPlayer
+            // → 避免 "0 KB/s 永久转圈"。
+            android.util.Log.w("PlaybackActivity", "detected HTML sniffer url, force parse");
+            attachSurface();
+            player().parse(key, result, true, metadata, startPositionMs);
         } else {
             attachSurface();
             // 修复 v5.6.1：直链出口必须补 UA / Referer 兜底，否则 m3u8 源常见 403 → 0 KB/s 一直转圈。
@@ -267,6 +274,11 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             result.setHeader(safeHeaders);
             player().start(PlaySpec.from(result, key, metadata), timeout, startPositionMs);
         }
+    }
+
+    /** 识别一个 URL 是否像 HTML 嗅探接口；空串 / 直链 m3u8/mp4 返回 false。 */
+    private static boolean isHtmlSnifferUrl(String url) {
+        return com.ssmhdssmhd.mxboxs.utils.UrlUtil.isLikelyHtmlSniffer(url);
     }
 
     private void bindPlaybackService() {
