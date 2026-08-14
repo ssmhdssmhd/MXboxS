@@ -373,6 +373,21 @@ public class PlayerSetting {
         Prefers.put("play_quality_pref", Math.clamp(pref, QUALITY_AUTO, QUALITY_480));
     }
 
+    /**
+     * WebView 嗅探默认开启开关：
+     *   开（默认）：HTML 嗅探接口（jx/xmflv/qq/duopian 等）解析路径里，默认 WebView 嗅探和多解析站并发一起跑，
+     *               更稳，基本不会"0 KB/s 转圈"（但 WebView 稍耗电）。
+     *   关：解析仅走云端接口（qcb jiexi/xt）+ 本地正则/并发 probe/LLM 嗅探，
+     *       不启 WebView（省电量，适合弱机或追求续航）。
+     */
+    public static boolean isWebviewSniffDefaultOn() {
+        return Prefers.getBoolean("play_webview_sniff_on", true);
+    }
+
+    public static void putWebviewSniffDefaultOn(boolean on) {
+        Prefers.put("play_webview_sniff_on", on);
+    }
+
     // ===== AI 播放优化（统一总开关）=====
     // 开关打开后，PlaybackAdvisor 会：
     //   1) 从 ExoPlayer 的 BandwidthMeter 读取估算带宽；

@@ -44,6 +44,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private SwitchMaterial adaptiveSwitch;
     private MaterialTextView bufferModeText;
     private MaterialTextView qualityPrefText;
+    private SwitchMaterial webviewSniffSwitch;
 
     private SwitchMaterial aiAutoSwitch;
     private MaterialTextView parseCacheText;
@@ -82,6 +83,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         adaptiveSwitch = findViewById(R.id.adaptiveSwitch);
         bufferModeText = findViewById(R.id.bufferModeText);
         qualityPrefText = findViewById(R.id.qualityPrefText);
+        webviewSniffSwitch = findViewById(R.id.webviewSniffSwitch);
         aiAutoSwitch = findViewById(R.id.aiAutoSwitch);
         parseCacheText = findViewById(R.id.parseCacheText);
 
@@ -128,6 +130,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         bufferModeText.setText(bufferModes[Math.min(bm, bufferModes.length - 1)]);
         int qp = PlayerSetting.getQualityPref();
         qualityPrefText.setText(qualityPrefs[Math.min(qp, qualityPrefs.length - 1)]);
+        webviewSniffSwitch.setChecked(PlayerSetting.isWebviewSniffDefaultOn());
         aiAutoSwitch.setChecked(PlayerSetting.isAiPlayOptEnabled());
         parseCacheText.setText(getString(R.string.setting_ai_parse_cache_sub)
                 + "（内存 " + ParseJob.cacheSize() + " 条 · 磁盘 " + ParseDiskCache.size() + " 条）");
@@ -171,6 +174,15 @@ public class SettingAdvancedActivity extends AppCompatActivity {
 
         // 画质偏好：弹出选择
         findViewById(R.id.qualityPrefRow).setOnClickListener(v -> showQualityPrefDialog());
+
+        // WebView 嗅探默认开启
+        View.OnClickListener webviewSniffToggle = v -> {
+            boolean on = !PlayerSetting.isWebviewSniffDefaultOn();
+            PlayerSetting.putWebviewSniffDefaultOn(on);
+            webviewSniffSwitch.setChecked(on);
+            Notify.show(R.string.setting_playopt_apply_hint);
+        };
+        findViewById(R.id.webviewSniffRow).setOnClickListener(webviewSniffToggle);
 
         // AI 自动调节
         View.OnClickListener aiToggle = v -> {

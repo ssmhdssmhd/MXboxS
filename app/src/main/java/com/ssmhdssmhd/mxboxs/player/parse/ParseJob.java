@@ -535,6 +535,8 @@ public class ParseJob implements ParseCallback {
      *
      *  3) 最后兜底：fallbackConcurrentParse 跑完整的传统"多解析站并发（jsonParse + jsonExtend + jsonMix + WebView sniff 多源）"
      *     专门处理爱奇艺/腾讯/优酷/B 站这类前端渲染 + 必须依赖解析站的官解线路。
+     *     - 若「高级设置 > WebView 嗅探默认开启」=开，且 webUrl 被识别为 HTML 嗅探接口（jx/xmflv/jiexi 等），
+     *       会在并发首路**额外**多起一路 defaultP 的 WebView 嗅探（提前抢跑，命中更快）。
      *
      *  1/2/3 只要一路命中 → onParseSuccess；全部失败 → 才 onParseError。
      */
@@ -542,6 +544,27 @@ public class ParseJob implements ParseCallback {
         if (done.get()) return;
         if (hasQcbParseServer() && qcbJiexiParse(webUrl)) return;
         if (aiSmartParseFallback(webUrl)) return;
+        // 新增 v5.6.3：高级设置"WebView 嗅探默认开启"开着 + webUrl 命中 HTML 嗅探接口特征，
+        // 则先抢跑一路 startWeb，跟 fallbackConcurrentParse 里的其它并发一起赛跑，
+        // 对虾米/duopian/qq/xmflv 这类解析口，命中速度显著更快（减少整体缓冲等待）。
+        boolean webviewDefaultOn = com.ssmhdssmhd.mxboxs.setting.PlayerSetting.isWebviewSniffDefaultOn();
+        Parse defaultP = parse != null ? parse : VodConfig.get().getParse();
+        if (webviewDefaultOn && UrlUtil.isLikelyHtmlSniffer(webUrl)
+                && defaultP != null && !defaultP.isEmpty() && WebViewUtil.support()) {
+            App.post(() -> {
+                try {
+                    CustomWebView.create(App.get()).start(
+                            "", defaultP.getName(), defaultP.getHeader(),
+                            defaultP.getUrl() + webUrl, defaultP.getClick(),
+                            new ParseCallback() {
+                                @Override public void onParseSuccess(Map<String, String> m, String u, String f) {
+                                    ParseJob.this.onParseSuccess(m, u, f + "+preWeb");
+                                }
+                                @Override public void onParseError() { }
+                            }, false);
+                } catch (Throwable ignored) {}
+            });
+        }
         fallbackConcurrentParse(webUrl);
         if (!done.get()) onParseError();
     }

@@ -9,6 +9,16 @@
 
 ## 最新更新
 
+### v5.6.3 · 2026-08-14 · 高级设置新增「WebView 嗅探默认开启」开关 + 默认嗅探抢跑
+
+| # | 模块 | 变更 | 代码位置 |
+|---|------|------|---------|
+| 1 | **高级设置开关** | 「播放优化」卡片新增 `WebView 嗅探默认开启`（默认开）。关闭只走 qcb+正则+多解析站，省电；开启时 HTML 嗅探接口提前起 WebView 抢跑 | [PlayerSetting.isWebviewSniffDefaultOn](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/PlayerSetting.java#L376-L388) / [SettingAdvancedActivity#L178-L185](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java#L178-L185) |
+| 2 | **默认 WebView 嗅探抢跑** | `builtinParse` 增加抢跑逻辑：开关开 + `isLikelyHtmlSniffer(webUrl)` 命中时，提前异步起一路 CustomWebView 跟后续并发赛跑，虾米/qq/jx/xmflv 等命中更快 | [ParseJob.builtinParse#L547-L566](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L547-L566) |
+| 3 | **版本号** | versionCode 622 → **623** / versionName 5.6.2 → **5.6.3** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.6.2 · 2026-08-14 · P0 紧急修复：HTML 嗅探接口被当作直链播放 → 0 KB/s 永久转圈
 
 | # | 模块 | 变更 | 代码位置 |

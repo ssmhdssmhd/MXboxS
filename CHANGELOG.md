@@ -2,6 +2,26 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.3] - 2026-08-14
+
+### 高级设置新增「WebView 嗅探默认开启」开关 + 默认嗅探抢跑
+
+针对 HTML 嗅探接口（虾米/qq/jx/xmflv/duopian 等）虽然 v5.6.2 已「不被误当直链」，但解析路径里 WebView 嗅探只在 fallbackConcurrentParse 的「默认解析站 type=0 分支」才会被拉起——对于一部分源仍要等 qcb jiexi + ai 正则嗅探 + 多解析站跑了一轮才启 WebView，缓冲等待体感偏长。
+
+本次在高级设置里补一个可配置开关，并加入"WebView 嗅探抢跑"优化：
+
+| # | 修复点 | 说明 | 代码位置 |
+|---|--------|------|---------|
+| 1 | **高级设置开关** | 「播放优化」卡片新增 `WebView 嗅探默认开启`（默认开）。关闭：只走 qcb + 正则 + 多解析站，不启 WebView（省电，适合弱机/续航优先）。 | [PlayerSetting.isWebviewSniffDefaultOn](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/PlayerSetting.java#L376-L388) / [SettingAdvancedActivity](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java#L178-L185) / [strings.xml#L179-L180](file:///workspace/app/src/main/res/values/strings.xml#L179-L180) |
+| 2 | **默认 WebView 嗅探抢跑** | `builtinParse` 在 fallbackConcurrentParse 之前多一道：若开关=开 + `UrlUtil.isLikelyHtmlSniffer(webUrl)=true` + 当前有默认解析站 + 设备支持 WebView，则**提前异步起一路 CustomWebView** 跟后续并发一起赛跑，HTML 嗅探接口命中更快。 | [ParseJob.builtinParse#L547-L566](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L547-L566) |
+
+#### 版本号
+
+- versionCode 622 → **623**
+- versionName 5.6.2 → **5.6.3**
+
+---
+
 ## [v5.6.2] - 2026-08-14
 
 ### P0 紧急修复：HTML 嗅探接口被当作直链播放 → 0 KB/s 永久转圈
