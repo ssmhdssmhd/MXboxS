@@ -102,24 +102,6 @@ android {
         }
     }
 
-    // slim APK 的 jniLibs 打包期排除：只从 APK 里移除第三方扩展 extractor 的 .so 文件，
-    // 保留 Java/Kotlin 入口类（让用户能正常启动），真用到对应扩展时会优雅降级提示，
-    // 而不是 ClassNotFoundException 闪退。full flavor 这里完全不进。
-    applicationVariants.all { variant ->
-        if (variant.getFlavorName().contains('slim')) {
-            packagingOptions.jniLibs.excludes += [
-                    '**/libxl_thunder_sdk.so',
-                    '**/libxl_stat.so',
-                    '**/libjpa.so',
-                    '**/libp2p.so',
-                    '**/libp3p.so',
-                    '**/libmitv.so',
-                    '**/libcore.so',
-                    '**/libjnidispatch.so'
-            ]
-        }
-    }
-
     buildFeatures {
         buildConfig = true
         viewBinding = true
