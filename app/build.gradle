@@ -19,8 +19,8 @@ android {
         applicationId "com.ssmhdssmhd.mxboxs"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 625
-        versionName "5.6.5"
+        versionCode 626
+        versionName "5.6.6"
         // v5.6.5 体积优化：resConfigs 只打包 3 种常用语言，其它 values-xx 的 system strings 不进 APK
         // （App 自己的中文资源文件在 values-zh-rCN / values-zh-rTW，不会被排除）
         resConfigs "zh-rCN", "zh-rTW", "en"
@@ -36,6 +36,9 @@ android {
         // 注意：v5.6.5 已把 ffmpeg/ffprobe 从 app/src/main/assets/ffmpeg/{arm64-v8a,armeabi-v7a}/
         //         迁移到 app/src/{arm64_v8a,armeabi_v7a}/assets/ffmpeg/ （各 ABI 只包含自己那份）
         //         每个 ABI APK 从"两份 15MB+14.8MB 都打入"变为"只打当前 ABI 一份" → 单 APK 直接瘦 15MB。
+        // v5.6.6 新增 size 维：full（默认，原有完整包不改动）+ slim（轻量包，额外 strip assets/ffmpeg
+        //       + 按需下载）。slim 包打包 aaptOptions 仍然保留 noCompress 避免运行时动态下载回来的文件
+        //       和其它二进制被二次压缩。
         noCompress 'ffmpeg', 'ffprobe', ''
     }
 
@@ -56,7 +59,16 @@ android {
         }
     }
 
-    flavorDimensions = ["mode", "abi"]
+    // v5.6.6：只新增，不替换 —— 新增第 3 个 flavor 维度 size:
+    //   full (默认，也就是 v5.6.5 之前用户一直在用的"功能完整大包"，功能/体积/APK 文件名完全不变，兼容)
+    //   slim (轻量包：APK 里去掉了 assets/ffmpeg，体积再瘦 ~30MB；首次用到 FFmpeg 时运行时按需下载。
+    //         APK 文件名加 -slim 后缀，用户自行选择安装)
+    // 原有 flavor 组合：mode(mobile|leanback) × abi(arm64_v8a|armeabi_v7a)  × buildType(release)
+    // 新增后组合：      mode × size × abi × release
+    // Gradle task 名：
+    //   旧 assembleMobileArm64_v8aRelease 等 → 全部等价于 assembleMobileFullArm64_v8aRelease（因为 full 是 default）
+    //   新增 assembleMobileSlimArm64_v8aRelease 等
+    flavorDimensions = ["mode", "size", "abi"]
 
     productFlavors {
         leanback {
@@ -65,6 +77,21 @@ android {
         mobile {
             dimension "mode"
         }
+        // ⭐ full = 默认"原有完整包"，功能 100% 保持不变（assets/ffmpeg 二进制仍打进 APK、迅雷/荐片/ZLive
+        //    等扩展 extractor .so 全在），老用户 0 影响，100% 兼容。
+        full {
+            dimension "size"
+            isDefault = true
+        }
+        // slim = 新增的"轻量包"，仅做资源/资产裁剪（Java/Kotlin 代码完全一致）：
+        //   - assets/ffmpeg 整个目录不打进 slim APK → 再瘦 ~30MB / ABI（从大包 98MB → 68MB 左右）；
+        //     运行时用到时由 FFmpegUtil 走"按需下载(Release 附件直链 + 多镜像 + sha256 校验 + 缓存)"。
+        //   - 其它 extractor（thunder/jianpian/zlive 等）Java 入口仍保留（避免代码/反射找不到类崩），
+        //     仅对应的 .so 用 packagingOptions.jniLibs excludes 从 slim APK strip，真正用到对应源时会弹
+        //     "完整版组件不可用"提示。
+        slim {
+            dimension "size"
+        }
         arm64_v8a {
             dimension "abi"
             ndk { abiFilters "arm64-v8a" }
@@ -72,6 +99,36 @@ android {
         armeabi_v7a {
             dimension "abi"
             ndk { abiFilters "armeabi-v7a" }
+        }
+    }
+
+    // 只对 slim flavor 做打包期 strip；full flavor 完全不触碰原有打包产物。
+    androidComponents.onVariants(selector().withFlavor('size', 'slim')) { variant ->
+        // 1) assets: 从 slim APK 中移除 assets/ffmpeg/ 整个目录（ffmpeg + ffprobe 两份二进制合计 ~30MB）
+        variant.sources.assets.getExcludes().add('ffmpeg/**')
+        // 2) 给 BuildConfig 写入一个标记：FFmpegUtil 运行时读到 BUILD_FLAVOR_SLIM=true 时，
+        //    才会走"资源不存在 → 在线按需下载"路径；full flavor 该标记固定 false，走原逻辑完全不变。
+        variant.buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'true'
+    }
+    androidComponents.onVariants(selector().withFlavor('size', 'full')) { variant ->
+        variant.buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'false'
+    }
+
+    // slim APK 的 jniLibs 打包期排除：只从 APK 里移除第三方扩展 extractor 的 .so 文件，
+    // 保留 Java/Kotlin 入口类（让用户能正常启动），真用到对应扩展时会优雅降级提示，
+    // 而不是 ClassNotFoundException 闪退。full flavor 这里完全不进。
+    applicationVariants.all { variant ->
+        if (variant.getFlavorName().contains('slim')) {
+            packagingOptions.jniLibs.excludes += [
+                    '**/libxl_thunder_sdk.so',
+                    '**/libxl_stat.so',
+                    '**/libjpa.so',
+                    '**/libp2p.so',
+                    '**/libp3p.so',
+                    '**/libmitv.so',
+                    '**/libcore.so',
+                    '**/libjnidispatch.so'
+            ]
         }
     }
 
@@ -123,11 +180,17 @@ androidComponents {
     onVariants(selector().withBuildType('release')) { variant ->
         def flavors = variant.productFlavors.collectEntries { [(it.first): it.second] }
         def mode = flavors['mode'] ?: 'mode'
+        // v5.6.6 只新增不替换：保留 size=full 时 APK 文件名完全不变（和 v5.6.5 一样，不带 -full 后缀，
+        //   完全兼容老用户/已有更新链接：MXboxS-mobile-arm64_v8a-5.6.6.apk）
+        //   size=slim 时 APK 文件名加 -slim 后缀，比如 MXboxS-mobile-arm64_v8a-5.6.6-slim.apk
+        //   用户一眼能区分，也避免覆盖同一 Release 里 full 的同名 APK 附件。
+        def size = flavors['size']
+        def sizeSuffix = (size == null || size == 'full') ? '' : '-slim'
         def abi = flavors['abi'] ?: 'abi'
         def vcode = android.defaultConfig.versionCode
         def vname = android.defaultConfig.versionName
         variant.outputs.each { output ->
-            output.outputFileName.set("MXboxS-${mode}-${abi}-${vname}.apk")
+            output.outputFileName.set("MXboxS-${mode}-${abi}-${vname}${sizeSuffix}.apk")
         }
     }
 }

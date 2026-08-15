@@ -2,6 +2,39 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.6] - 2026-08-15 · 只新增不替换：FULL 完整版保持不变 + 新增 SLIM 轻量包（再瘦 ~30MB，双轨可选）
+
+### 核心原则：**原有完整包 100% 不变，只在旁边多提供一个 SLIM 轻量版**
+
+用户要求"原有的也要有不变，只增加，方便用户兼容使用"——因此 v5.6.6 不替换任何现有产物：
+
+| 分类 | 原有 FULL 完整版 (full flavor) | 🆕 新增 SLIM 轻量版 (slim flavor) |
+|------|------------------------------|-----------------------------------|
+| APK 文件名 | 完全不变：<br>`MXboxS-mobile-arm64_v8a-5.6.6.apk` 等 | 新增：<br>`MXboxS-mobile-arm64_v8a-5.6.6-slim.apk` 等（带 `-slim` 后缀，一眼区分）|
+| 功能 | ✅ **和 v5.6.5 完全一样**，所有功能/文件/行为 100% 兼容 | 基础功能完全一致；只在"首次需要用到 FFmpeg 截帧/ffprobe 分析"时，**运行时按需下载** Release 附件里的独立二进制（30MB） |
+| assets/ffmpeg | ✅ **仍打进 APK**，走 copyAssetIfChanged，0 变动 | 打包期从 APK 中 strip 掉 `assets/ffmpeg/**`（省 ~30MB） |
+| 第三方扩展 .so | ✅ **libxl_thunder_sdk / libjpa / libcore / libjnidispatch 等全都在** | 打包期 jniLibs excludes 掉上述 8 个扩展 extractor 的 .so（Java 入口类仍在，避免崩；真用到对应源会弹降级提示） |
+| BuildConfig 标记 | `BUILD_FLAVOR_SLIM=false` | `BUILD_FLAVOR_SLIM=true` |
+| 自动更新链路 | ✅ 老用户仍对比 full APK 的 `MXboxS-mobile-arm64_v8a-5.6.6.apk` → **完全不改下载目标，100% 兼容** | slim 用户也会比对版本号；下载时建议自行选择 `-slim` 对应文件 |
+
+### 代码落点一览（6 处改动，全部是"新增分支 + 新增 step"，老分支 0 触碰）
+
+| # | 位置 | 做了啥（全是"只加不删"）|
+|---|------|------------------------|
+| 1 | [app/build.gradle#L62-L133](file:///workspace/app/build.gradle#L62-L133) | 新增第 3 个 flavor 维度 `size`: `full`(isDefault=true, 默认) + `slim`(新增)。`full` 不做任何打包期改动；`slim` 只在 variant 上挂 excludes（assets `ffmpeg/**` + jniLibs 8 个 so），不会影响 full。 |
+| 2 | [app/build.gradle#L179-L196](file:///workspace/app/build.gradle#L179-L196) | APK 文件名生成：size=full 时**不加任何后缀**（和 v5.6.5 完全相同）；size=slim 才追加 `-slim`。保证老用户的 Release 附件对比/下载链接 **100% 稳定、不失效**。 |
+| 3 | [.github/workflows/build.yml#L103-L157](file:///workspace/.github/workflows/build.yml#L103-L157) | 原有 4 条 FULL 构建 step（`assembleMobileFullArm64_v8aRelease` 等）**一条不删**，只是 step 名加了注释 "完整包不变"；**另外新增 4 条 SLIM 构建 step**（`assembleMobileSlimArm64_v8aRelease` 等）。构建时长从 16m → 预计 30m 左右。 |
+| 4 | [.github/workflows/build.yml#L180-L289](file:///workspace/.github/workflows/build.yml#L180-L289) | `Collect APKs` step 新增第 2 部分：把 flavor sourceset 里的 `ffmpeg/ffprobe` 复制为 4 个独立二进制附件（`ffmpeg-{abi}-{bin}`），随 Release 一起上传；这就是 slim 包运行时按需下载的直链资产，**和 full 包里的二进制字节级一致**。 |
+| 5 | [FFmpegUtil#L60-L76, L216-L406](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FFmpegUtil.java#L60-L406) | **只在 ensureReady 里加了个 else 分支**：<br>• 有 assets/ffmpeg → 老逻辑不变（copyAssetIfChanged，full 大包走这条）<br>• 没 assets 且 BUILD_FLAVOR_SLIM=true → 新增 `ensureBinsDownloaded()` 走 GitHub Release 附件 + ghproxy/ghp.ci 多镜像下载（支持 Range 断点续传、30s 卡滞切源、90s 总超时、失败自动重试 2 轮、下载后 SHA256 记录到 `.sha256` 文件）。<br>full 包 **BUILD_FLAVOR_SLIM=false 永远不会进 else**。 |
+| 6 | CHANGELOG / README | 新增"双轨下载矩阵"说明，强调**原完整版 100% 不变，只是在旁边多了一份 slim 供选择** |
+
+### 版本号
+
+- versionCode 625 → **626**
+- versionName 5.6.5 → **5.6.6**
+
+---
+
 ## [v5.6.5] - 2026-08-15 · 零风险体积瘦身（v5.6.3 114MB → 预计 97MB，-15MB）
 
 ### 头号元凶定位：FFmpeg/FFprobe 预编译二进制占 31%

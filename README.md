@@ -9,6 +9,21 @@
 
 ## 最新更新
 
+### v5.6.6 · 2026-08-15 · 只新增不替换：FULL 完整版保持不变 + 🆕 新增 SLIM 轻量包（再瘦 ~30MB，双轨可选）
+
+**核心原则：原有完整包 100% 不变，只在旁边多给一个轻量版，老用户零影响、完全兼容。**
+
+| 分类 | 原有 FULL 完整版（推荐老用户继续装） | 🆕 新增 SLIM 轻量版（可选，安装包更小）|
+|------|-----------------------------------|--------------------------------------|
+| APK 文件名 | **完全不变**：`MXboxS-mobile-arm64_v8a-5.6.6.apk` 等 | 新增（带 `-slim` 后缀）：`MXboxS-mobile-arm64_v8a-5.6.6-slim.apk` 等 |
+| 功能 | ✅ 与 v5.6.5 完全一致（FFmpeg 内置、迅雷/荐片/ZLive 扩展全有）| 基础功能一致；**首次用 FFmpeg 相关功能才在线下 30MB 二进制**（多镜像/断点/90s 超时自动重试）|
+| 代码 | 老逻辑 `if (assetPrefix != null)` 不动 | 只新增 `else if (BUILD_FLAVOR_SLIM) ensureBinsDownloaded(...)` 分支 |
+
+代码位置：
+- Gradle flavor 尺寸维 + 打包期 excludes：[app/build.gradle#L62-L196](file:///workspace/app/build.gradle#L62-L196)
+- Workflow 4 FULL（原 step 不动）+ 4 SLIM（新增）+ Release 独立 FFmpeg binary 附件上传：[build.yml#L103-L289](file:///workspace/.github/workflows/build.yml#L103-L289)
+- FFmpegUtil 新增 slim 按需下载分支（full 包不进）：[FFmpegUtil#L216-L406](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FFmpegUtil.java#L216-L406)
+
 ### v5.6.5 · 2026-08-15 · 零风险体积瘦身（v5.6.3 114MB → 预计 97MB，-15MB ✅）
 
 头号元凶：`assets/ffmpeg/{arm64-v8a,armeabi-v7a}/` 两份都打入了同一个 ABI APK（占 31%）。本版把 FFmpeg/FFprobe 按 ABI 拆 sourceset，单 APK 直接瘦 ~15MB：
