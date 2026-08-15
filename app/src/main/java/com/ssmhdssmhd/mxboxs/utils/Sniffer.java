@@ -13,6 +13,7 @@ import com.github.catvod.utils.Json;
 import com.github.catvod.utils.Trans;
 import com.github.catvod.utils.Util;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;

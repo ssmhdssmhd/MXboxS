@@ -104,7 +104,7 @@ public class CustomWebView extends WebView implements DialogInterface.OnDismissL
                     if (!TextUtils.isEmpty(cand) && cand.length() > 20) {
                         Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(new HashMap<>(), cand);
                         result.cancel();
-                        onParseSuccess(safeHeaders, cand, from + "+webview-probe");
+                        onParseSuccess(safeHeaders, cand);
                         return true;
                     }
                 }
@@ -114,7 +114,7 @@ public class CustomWebView extends WebView implements DialogInterface.OnDismissL
                     if (Sniffer.isVideoFormat(cand)) {
                         Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(new HashMap<>(), cand);
                         result.cancel();
-                        onParseSuccess(safeHeaders, cand, from + "+webview-prompt");
+                        onParseSuccess(safeHeaders, cand);
                         return true;
                     }
                 }
@@ -125,7 +125,7 @@ public class CustomWebView extends WebView implements DialogInterface.OnDismissL
                 if (message != null && message.length() > 30 && Sniffer.isVideoFormat(message)) {
                     Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(new HashMap<>(), message.trim());
                     result.cancel();
-                    onParseSuccess(safeHeaders, message.trim(), from + "+webview-alert");
+                    onParseSuccess(safeHeaders, message.trim());
                     return true;
                 }
                 return super.onJsAlert(view, url, message, result);

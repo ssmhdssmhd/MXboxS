@@ -11,6 +11,7 @@ import com.google.common.net.HttpHeaders;
 import java.io.File;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -312,10 +313,10 @@ public class UrlUtil {
                 while (m.find()) {
                     String cand = m.group(1);
                     if (TextUtils.isEmpty(cand)) continue;
-                    addCandidates(seen, new String[]{cand}, baseUrl);
+                    addCandidates(seen, Arrays.asList(cand), baseUrl);
                     // URLDecode 一遍
                     String dec = safeUrlDecode(cand);
-                    if (dec != null && !dec.equals(cand)) addCandidates(seen, new String[]{dec}, baseUrl);
+                    if (dec != null && !dec.equals(cand)) addCandidates(seen, Arrays.asList(dec), baseUrl);
                 }
             }
             // 再扫一遍 URLDecode 后的 body（很多站 URL 被先 encode 再塞到字符串里）
@@ -326,9 +327,9 @@ public class UrlUtil {
                     while (m.find()) {
                         String cand = m.group(1);
                         if (TextUtils.isEmpty(cand)) continue;
-                        addCandidates(seen, new String[]{cand}, baseUrl);
+                        addCandidates(seen, Arrays.asList(cand), baseUrl);
                         String dec = safeUrlDecode(cand);
-                        if (dec != null && !dec.equals(cand)) addCandidates(seen, new String[]{dec}, baseUrl);
+                        if (dec != null && !dec.equals(cand)) addCandidates(seen, Arrays.asList(dec), baseUrl);
                     }
                 }
             }
@@ -337,9 +338,9 @@ public class UrlUtil {
             while (anyQuoted.find()) {
                 String cand = anyQuoted.group(1);
                 if (TextUtils.isEmpty(cand)) continue;
-                addCandidates(seen, new String[]{cand}, baseUrl);
+                addCandidates(seen, Arrays.asList(cand), baseUrl);
                 String dec = safeUrlDecode(cand);
-                if (dec != null && !dec.equals(cand)) addCandidates(seen, new String[]{dec}, baseUrl);
+                if (dec != null && !dec.equals(cand)) addCandidates(seen, Arrays.asList(dec), baseUrl);
             }
         } catch (Throwable ignored) {}
         for (String u : seen) {
