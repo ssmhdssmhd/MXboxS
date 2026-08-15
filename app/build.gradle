@@ -82,15 +82,19 @@ android {
         full {
             dimension "size"
             isDefault = true
+            // BuildConfig 标记写在 productFlavors 标准 DSL 里（AGP 全版本兼容，不依赖 variant API）：
+            // full=false → FFmpegUtil 走本地 copyAssetIfChanged，100% 老逻辑
+            buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'false'
         }
         // slim = 新增的"轻量包"，仅做资源/资产裁剪（Java/Kotlin 代码完全一致）：
         //   - assets/ffmpeg 整个目录不打进 slim APK → 再瘦 ~30MB / ABI（从大包 98MB → 68MB 左右）；
         //     运行时用到时由 FFmpegUtil 走"按需下载(Release 附件直链 + 多镜像 + sha256 校验 + 缓存)"。
-        //   - 其它 extractor（thunder/jianpian/zlive 等）Java 入口仍保留（避免代码/反射找不到类崩），
-        //     仅对应的 .so 用 packagingOptions.jniLibs excludes 从 slim APK strip，真正用到对应源时会弹
-        //     "完整版组件不可用"提示。
+        //   - 其它 extractor（thunder/jianpian/zlive 等）Java 入口仍保留（避免代码/反射找不到类崩）。
         slim {
             dimension "size"
+            // BuildConfig 标记写在 productFlavors 标准 DSL 里：
+            // slim=true → FFmpegUtil 走"资产不存在 → 在线按需下载"分支
+            buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'true'
         }
         arm64_v8a {
             dimension "abi"
@@ -151,14 +155,9 @@ android {
 androidComponents {
     // === v5.6.6 新增：只对 slim flavor 做打包期 strip；full flavor 完全不触碰原有打包产物 ===
     onVariants(selector().withFlavor('size', 'slim')) { variant ->
-        // 1) assets: 从 slim APK 中移除 assets/ffmpeg/ 整个目录（两份二进制合计 ~30MB）
+        // assets: 从 slim APK 中移除 assets/ffmpeg/ 整个目录（两份二进制合计 ~30MB）
+        //   （最大头的瘦身项；BUILD_FLAVOR_SLIM 已在 productFlavors DSL 中注入，不再重复写）
         variant.sources.assets.getExcludes().add('ffmpeg/**')
-        // 2) BuildConfig 标记：BUILD_FLAVOR_SLIM=true → FFmpegUtil 走到"在线按需下载"分支
-        variant.buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'true'
-    }
-    onVariants(selector().withFlavor('size', 'full')) { variant ->
-        // full（默认完整版）→ 标记 false，FFmpegUtil 走老逻辑 copyAssetIfChanged，100% 不变
-        variant.buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'false'
     }
 
     // === APK 文件名生成（release 构建）===
