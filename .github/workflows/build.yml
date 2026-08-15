@@ -246,6 +246,11 @@ jobs:
           COMMIT_SHA=$(git rev-parse --short HEAD)
           echo "VERSION_NAME=${VERSION_NAME}  VERSION_CODE=${VERSION_CODE}  COMMIT=${COMMIT_SHA}"
           echo "=== 创建 release（latest=true，确保 API /releases/latest 返回它） ==="
+          # v5.6.6 fix: output/* glob 可能意外匹配 output/ 下的子目录（GitHub Release asset 只允许文件），
+          #   先把 output/ 下所有子目录清掉，再用精确 glob 只匹配 *.apk + ffmpeg-* 二进制，确保只传文件
+          find output/ -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+          RELEASE_FILES=$(find output/ -maxdepth 1 -type f \( -name "*.apk" -o -name "ffmpeg-*" \) | sort | tr '\n' ' ')
+          echo "Release asset files: ${RELEASE_FILES}"
           NOTES=$(cat <<EOF
           ## MXboxS 最新构建
 
@@ -285,7 +290,7 @@ jobs:
             --latest \
             --title "MXboxS v${VERSION_NAME} (build ${COMMIT_SHA})" \
             --notes "${NOTES}" \
-            output/*
+            ${RELEASE_FILES}
           echo "✅ Release MXboxS-latest (v${VERSION_NAME}-${COMMIT_SHA}) 已创建并设为 latest（含 4×APK FULL + 4×APK SLIM + 4×FFmpeg binary）"
 
       - name: Create Tag Release
@@ -293,6 +298,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: output/*
+          files: |
+            output/*.apk
+            output/ffmpeg-*
           generate_release_notes: true
           make_latest: false
