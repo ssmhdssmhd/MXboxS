@@ -153,12 +153,14 @@ android {
 // ⭐ AGP 9.x DSL：androidComponents {} 闭包内才会注入 selector() 方法，
 //    所以所有 onVariants(selector()...) 必须统一写在这个块里，不能散落到 android {} 内部。
 androidComponents {
-    // === v5.6.6 新增：只对 slim flavor 做打包期 strip；full flavor 完全不触碰原有打包产物 ===
-    onVariants(selector().withFlavor('size', 'slim')) { variant ->
-        // assets: 从 slim APK 中移除 assets/ffmpeg/ 整个目录（两份二进制合计 ~30MB）
-        //   （最大头的瘦身项；BUILD_FLAVOR_SLIM 已在 productFlavors DSL 中注入，不再重复写）
-        variant.sources.assets.getExcludes().add('ffmpeg/**')
-    }
+    // === v5.6.6 架构说明：size=slim 差异化打包（以下 3 处为 100% 兼容标准 DSL，无 AGP 版本依赖） ===
+    // ① flavor 定义：productFlavors { full/slim { dimension "size" + buildConfigField 'BUILD_FLAVOR_SLIM' } }（写在上方 android{} 内）
+    // ② APK 文件名：onVariants(selector().withBuildType('release')) 根据 size=full/slim 决定是否追加 -slim 后缀（下方）
+    // ③ assets ffmpeg 排除：当前 AGP 9.x variant.sources.assets.getExcludes() API 不存在（LayeredSourceDirectoriesImpl 无此方法），
+    //    暂时改用「FFmpegUtil 先判断 isBuildFlavorSlim()再走 ensureBinsDownloaded」的代码兼容：
+    //    - 虽然 slim APK 暂时仍带 assets/ffmpeg（体积暂与 full 相同），但 slim BUILD_FLAVOR_SLIM=true 会
+    //      优先尝试走本地 assets 路径；等后续写自定义 Gradle task 在 mergeSlim*Assets 后删除 ffmpeg 再瘦 30MB。
+    //    - ✅ 关键：full 版本 BUILD_FLAVOR_SLIM=false，100% 完全不变！
 
     // === APK 文件名生成（release 构建）===
     onVariants(selector().withBuildType('release')) { variant ->
