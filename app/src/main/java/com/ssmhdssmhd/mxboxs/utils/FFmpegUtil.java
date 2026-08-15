@@ -204,8 +204,26 @@ public final class FFmpegUtil {
             if (!dstDir.exists()) dstDir.mkdirs();
             if (!dstDir.isDirectory()) throw new IllegalStateException("cannot create bin dir: " + dstDir);
 
-            // 已放置版本标记（ffmpeg 9.0）
-            String assetPrefix = DIR_FFMPEG + "/" + abi + "/";
+            // v5.6.5 打包体积优化：二进制从 app/src/main/assets/ffmpeg/{abi}/ 迁移到
+            // app/src/{arm64_v8a,armeabi_v7a}/assets/ffmpeg/ （各 ABI 只包含自己那一份）
+            // → 每个 ABI 单 APK 从"把 arm64+armeabi 两份 15MB 都打包"变为只打自己那份，直接瘦 ~15MB。
+            // 这里做兼容性：先试 flavorsrc 新路径（ffmpeg/<bin>），找不到再 fallback 旧路径
+            //   （ffmpeg/<abi>/<bin>），保证升级、调试、回退都不炸。
+            String[] candidates = new String[] {
+                    DIR_FFMPEG + "/",
+                    DIR_FFMPEG + "/" + abi + "/"
+            };
+            String assetPrefix = null;
+            for (String c : candidates) {
+                if (assetExists(app, c + "ffmpeg") && assetExists(app, c + "ffprobe")) {
+                    assetPrefix = c;
+                    break;
+                }
+            }
+            if (assetPrefix == null) {
+                // 最后兜底：直接按 flavorsrc 路径构造（哪怕 assert 异常也能看到明确报错）
+                assetPrefix = DIR_FFMPEG + "/";
+            }
             File ffmpegDst = copyAssetIfChanged(app, assetPrefix + "ffmpeg", new File(dstDir, "ffmpeg"));
             File ffprobeDst = copyAssetIfChanged(app, assetPrefix + "ffprobe", new File(dstDir, "ffprobe"));
 
@@ -217,6 +235,18 @@ public final class FFmpegUtil {
             sInitedOk = Boolean.TRUE;
             return sFFmpegPath;
         }
+    }
+
+    private static boolean assetExists(Context ctx, String assetPath) {
+        if (ctx == null || TextUtils.isEmpty(assetPath)) return false;
+        try {
+            String[] list = ctx.getAssets().list(
+                    assetPath.contains("/") ? assetPath.substring(0, assetPath.lastIndexOf('/')) : "");
+            String leaf = assetPath.contains("/") ? assetPath.substring(assetPath.lastIndexOf('/') + 1) : assetPath;
+            if (list != null) for (String s : list) if (leaf.equals(s)) return true;
+            try { ctx.getAssets().openFd(assetPath).close(); return true; } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {}
+        return false;
     }
 
     private static String pickAbi() {

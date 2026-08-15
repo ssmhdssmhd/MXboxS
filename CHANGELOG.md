@@ -2,6 +2,43 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.5] - 2026-08-15 · 零风险体积瘦身（v5.6.3 114MB → 预计 97MB，-15MB）
+
+### 头号元凶定位：FFmpeg/FFprobe 预编译二进制占 31%
+
+v5.6.3 arm64-v8a APK 基线 114.6MB，最大头是 `assets/ffmpeg/{arm64-v8a,armeabi-v7a}/`：
+- arm64 ffmpeg **15.0MB** + ffprobe **14.8MB**
+- armeabi ffmpeg **15.0MB** + ffprobe **14.8MB**
+
+**之前 main/assets/ffmpeg 下两个 ABI 目录都被打包进同一个 APK**（哪怕 ndk abiFilters 只过滤 jniLibs，对 assets 无效）→ 每个单 ABI APK 里其实装了 4 份 FFmpeg/FFprobe。最大的一项就这样被我直接干掉了 ⬇️
+
+### 本版落地 4 项零风险优化（不改运行行为，全在打包 / 资源侧）
+
+| # | 优化项 | 预计节省 | 代码位置 | 风险 |
+|---|--------|---------|---------|------|
+| 1 | **FFmpeg/FFprobe 按 ABI 分 sourceset 打包** ✅ 最大头！ | **-14 ~ -16 MB / APK** | 目录迁移：<br>`app/src/main/assets/ffmpeg/{arm64-v8a,armeabi-v7a}/` → 删除 / 拆分到<br>[app/src/arm64_v8a/assets/ffmpeg/](file:///workspace/app/src/arm64_v8a/assets/ffmpeg) + [app/src/armeabi_v7a/assets/ffmpeg/](file:///workspace/app/src/armeabi_v7a/assets/ffmpeg) | ⚪ 零风险。<br>配合 FFmpegUtil 兼容双路径：先试 flavorsrc `ffmpeg/<bin>`，再 fallback `ffmpeg/<abi>/<bin>`，升级/回退都不炸。 |
+| 2 | **resConfigs 只打包 zh-rCN / zh-rTW / en 3 种语言** | **-0.8 ~ -1.5 MB** | [app/build.gradle#L26](file:///workspace/app/build.gradle#L26) `resConfigs "zh-rCN","zh-rTW","en"` | ⚪ 零风险。<br>App 自己的 strings 只在 values/values-zh-rCN/values-zh-rTW，不受影响。砍掉的是 AndroidX/Material AppCompat 80+ 个 values-xx-* 的框架 strings（用户永远看不到）。 |
+| 3 | **META-INF 冗余排除（AL2.0/LGPL2.1 / *.version / kotlin_module）** | **-0.3 ~ -0.8 MB** | [app/build.gradle#L42-L56](file:///workspace/app/build.gradle#L42-L56) `packagingOptions.resources.excludes` | ⚪ 零风险。<br>APK 签名校验、META-INF/MANIFEST 不影响；仅排掉一些开源协议声明重复副本与 kotlin 元数据（release 已 minify）。 |
+| 4 | **16 张 launcher/notification PNG 无损重压缩（zlib lvl9 strip 非关键chunk）** | **-21 KB** | `ic_launcher.png × 10`（各密度 × round + normal），`ic_launcher_foreground.png` 96KB → 90.9KB，`ic_logo.png` 50KB → 38KB，`ic_notification.png × 4` | ⚪ 零风险。<br>像素 100% 一致，仅 IDAT 重压 + 删除 text/gAMA 等冗余 ancillary chunk。 |
+
+### 代码兼容：FFmpegUtil 路径双 fallback
+
+为防止升级后旧版本缓存路径 / 调试 build 路径不一致，[FFmpegUtil.ensureReady#L190-L250](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FFmpegUtil.java#L190-L250) 新增：
+
+```
+先找 ffmpeg/ffmpeg + ffmpeg/ffprobe   （v5.6.5+ flavorsrc 新结构）
+找不到再 fallback：ffmpeg/<abi>/ffmpeg  （v5.6.4- 旧 main/assets 结构）
+```
+
+任何一方能 openFd 就继续 copyAssetIfChanged，升级/回退/本地 debug 三种场景都一致可用，不会出现「FFmpeg init failed → 截图功能崩」。
+
+### 版本号
+
+- versionCode 624 → **625**
+- versionName 5.6.4 → **5.6.5**
+
+---
+
 ## [v5.6.4] - 2026-08-15
 
 ### P0 修复：v5.6.3 引入的「播放报错连接超时」回归问题

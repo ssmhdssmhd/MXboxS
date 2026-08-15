@@ -9,6 +9,18 @@
 
 ## 最新更新
 
+### v5.6.5 · 2026-08-15 · 零风险体积瘦身（v5.6.3 114MB → 预计 97MB，-15MB ✅）
+
+头号元凶：`assets/ffmpeg/{arm64-v8a,armeabi-v7a}/` 两份都打入了同一个 ABI APK（占 31%）。本版把 FFmpeg/FFprobe 按 ABI 拆 sourceset，单 APK 直接瘦 ~15MB：
+
+| # | 优化项 | 预计节省 | 代码位置 |
+|---|--------|---------|---------|
+| 1 | **FFmpeg/FFprobe per-ABI sourceset（最大头）** | **-14 ~ -16 MB / 单 ABI APK** | [arm64_v8a/assets/ffmpeg/](file:///workspace/app/src/arm64_v8a/assets/ffmpeg) + [armeabi_v7a/assets/ffmpeg/](file:///workspace/app/src/armeabi_v7a/assets/ffmpeg) |
+| 2 | resConfigs 只打包 zh-rCN / zh-rTW / en | -0.8 ~ -1.5 MB | [app/build.gradle#L26](file:///workspace/app/build.gradle#L26) |
+| 3 | packagingOptions 排除 META-INF 冗余 | -0.3 ~ -0.8 MB | [app/build.gradle#L42-L56](file:///workspace/app/build.gradle#L42-L56) |
+| 4 | 16 张 launcher/PNG zlib9 无损重压缩 | -21 KB | mipmap-* / drawable-nodpi / drawable-*hdpi |
+| 5 | **FFmpegUtil 新路径兼容**（flavorsrc + fallback main） | N/A（避免升级后崩）| [FFmpegUtil#L190-L250](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FFmpegUtil.java#L190-L250) |
+
 ### v5.6.4 · 2026-08-15 · P0 修复：v5.6.3 引入的「播放报错连接超时」回归
 
 | # | 模块 | 变更 | 代码位置 |

@@ -19,8 +19,11 @@ android {
         applicationId "com.ssmhdssmhd.mxboxs"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 624
-        versionName "5.6.4"
+        versionCode 625
+        versionName "5.6.5"
+        // v5.6.5 体积优化：resConfigs 只打包 3 种常用语言，其它 values-xx 的 system strings 不进 APK
+        // （App 自己的中文资源文件在 values-zh-rCN / values-zh-rTW，不会被排除）
+        resConfigs "zh-rCN", "zh-rTW", "en"
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.ssmhdssmhd.mxboxs.event.EventIndex"]
@@ -30,7 +33,27 @@ android {
 
     aaptOptions {
         // ffmpeg / ffprobe 预编译二进制已在 assets，不希望被 aapt2 压缩，否则运行时读取会更慢且可能对齐问题。
+        // 注意：v5.6.5 已把 ffmpeg/ffprobe 从 app/src/main/assets/ffmpeg/{arm64-v8a,armeabi-v7a}/
+        //         迁移到 app/src/{arm64_v8a,armeabi_v7a}/assets/ffmpeg/ （各 ABI 只包含自己那份）
+        //         每个 ABI APK 从"两份 15MB+14.8MB 都打入"变为"只打当前 ABI 一份" → 单 APK 直接瘦 15MB。
         noCompress 'ffmpeg', 'ffprobe', ''
+    }
+
+    packagingOptions {
+        // v5.6.5 体积优化：
+        // 1) resConfigs 只保留 zh-rCN/zh-rTW/en 三种语言资源框架文件
+        //    → 去掉 80+ 个 AndroidX/Material AppCompat values-xx-* 目录里 strings.xml 冗余
+        //    → 预计节省 resources.arsc + .xml 合计 0.8~1.5MB
+        // 2) jniLibs.useLegacyPackaging=false（Android 11+ 默认值）
+        //    → APK 内 .so 存为未压缩 + 4K 页对齐 → 安装时不必再解一份到 /data/app
+        //      节省磁盘空间；APK 内体积略大但"安装后占用"变小，通常用户体感更好。
+        resources {
+            excludes += [
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "/META-INF/*.version",
+                "/META-INF/*.kotlin_module"
+            ]
+        }
     }
 
     flavorDimensions = ["mode", "abi"]
