@@ -43,7 +43,17 @@ public class Sniffer {
     }
 
     public static List<String> getScript(Uri uri) {
-        return getRule(uri).getScript();
+        List<String> base = new ArrayList<>(getRule(uri).getScript());
+        // ===== v5.6.7 新增：HTML 嗅探站通用 JS 探针（兜底）=====
+        // 不管 RuleConfig 里有没有为 jx.xmflv.cc / qq 万能解析 / cfss 等站配置自定义脚本，
+        // 这里都额外追一批「onPageFinished 后轮询式抓真实视频 URL」的 JS：
+        //   1) 抓 <video>/<source> 的 currentSrc / src；
+        //   2) 抓常见播放器实例（Hls/DPlayer/ArtPlayer/Xmflv/ckplayer 等）的 url/src；
+        //   3) 抓 window / document 全局对象上的常见赋值变量（now/playUrl/playerData 等）；
+        //   4) 兼容混淆变量里嵌了 base64(encoded URL)，先 atob 再返回。
+        // WebView 超时已从 15s → 45s，给这类 JS 足够多轮轮询时间（每 200ms 一轮，最多 40 轮 = 8s）。
+        base.add("javascript:(function(){var tries=0;var timer=setInterval(function(){try{tries++;if(tries>40){clearInterval(timer);return;}function ok(u){try{if(u&&u.length>24){clearInterval(timer);var e=document.createEvent('HTMLEvents');e.initEvent('videourlfound',true,true);e.url=u;document.dispatchEvent(e);}}}function atobIf(u){try{if(u.length>24&&!(u.startsWith('http')||u.startsWith('/'))){var d=atob(u);if(d&&d.length>10)return d}}catch(e){}return u}function chk(s){try{if(!s)return null;s=String(s);if(!s)return null;s=atobIf(s);if(s&&s.length>0)return s}catch(e){}return null}var V=null,vs=document.querySelectorAll('video,source,audio,iframe');for(var i=0;i<vs.length;i++){var v=vs[i];V=chk(v.currentSrc)||chk(v.src)||chk(v.getAttribute('src'))||chk(v.getAttribute('data-src'));if(V){ok(V);return}}try{if(window.player&&chk(window.player.src)){ok(window.player.src);return}}catch(e){}try{if(window.dplayer&&window.dplayer.video&&chk(window.dplayer.video.currentSrc)){ok(window.dplayer.video.currentSrc);return}}catch(e){}try{if(window.artplayer&&window.artplayer.video&&chk(window.artplayer.video.currentSrc)){ok(window.artplayer.video.currentSrc);return}}catch(e){}try{if(window.Xmflv&&(chk(window.Xmflv.url)||chk(window.Xmflv.src)||chk(window.Xmflv.now)||(window.Xmflv.player&&(chk(window.Xmflv.player.currentSrc)||chk(window.Xmflv.player.src))))){ok(chk(window.Xmflv.url)||chk(window.Xmflv.src)||chk(window.Xmflv.now)||chk(window.Xmflv.player.currentSrc)||chk(window.Xmflv.player.src));return}}catch(e){}try{if(window.ckplayer&&chk(window.ckplayer.status)){ok(window.ckplayer.status);return}}catch(e){}var keys=['now','playUrl','play_url','videoUrl','video_url','playerUrl','player_url','mediaUrl','media_url','sourceUrl','source_url','realUrl','real_url','m3u8','url','src','video','playerData'];for(var k=0;k<keys.length;k++){var g=keys[k];try{var wg=window[g];if(wg){if(typeof wg==='string'){var V2=chk(wg);if(V2){ok(V2);return}}}}catch(e){}try{var doc=document[g];if(doc&&typeof doc==='string'){var V3=chk(doc);if(V3){ok(V3);return}}}catch(e){}}if(tries%5===0){try{var scripts=document.querySelectorAll('script');for(var s=0;s<scripts.length;s++){var txt=scripts[s].innerText||scripts[s].textContent||'';if(!txt)continue;var mm=txt.match(/[\"']((?:https?:[^\"']{24,})|(?:[^\"']{8,}\\.(?:m3u8|mp4|flv|m4v|ts|mpd)[^\"']*))[\"']/g);if(mm){for(var j=0;j<mm.length;j++){var cv=mm[j].slice(1,-1);var cv2=chk(cv);if(cv2){ok(cv2);return}}}}}catch(e){}}}catch(err){}};},200);})();");
+        return base;
     }
 
     private static Rule getRule(Uri uri) {

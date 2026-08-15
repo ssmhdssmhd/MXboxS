@@ -291,6 +291,57 @@ public class UrlUtil {
                 }
             }
         } catch (Throwable ignored) {}
+        // ===== v5.6.7 新增：6) 混淆 JS 变量赋值嗅探（专门对付 jx.xmflv.cc 这种带 var _0x1ef3 混淆的万能嗅探站）=====
+        //     xmflv / qq / cfss / duopian 等公开嗅探站 JS 会把真实视频 URL 赋值给几个常见变量名，
+        //     只要能抓到就能省掉一次 WebView 启动，加快起播速度。
+        try {
+            // 顺序：先抓「带引号的字面量赋值」最靠谱；再抓「window.xxx / config.xxx」属性；
+            //       最后再扫一遍 JS 对象字面量里 url: "...", src: "...", video: "..."
+            Pattern[] jsp = new Pattern[]{
+                    // var now = "https://xxx.m3u8?sign=..." / let playUrl = "https://..." / const video_url = ...
+                    Pattern.compile("(?:var|let|const)\\s+(?:now|playUrl|play_url|videoUrl|video_url|playerUrl|player_url|mediaUrl|media_url|sourceUrl|source_url|m3u8|src|url|realUrl|real_url)\\s*=\\s*[\"']([^\"']{12,})[\"']", Pattern.CASE_INSENSITIVE),
+                    // window.player_url = "https://..."; window.Xmflv = { url: "..." } 的属性赋值
+                    Pattern.compile("(?:window|self|top|globalThis)\\s*\\.\\s*(?:now|playUrl|play_url|videoUrl|video_url|playerUrl|player_url|mediaUrl|media_url|sourceUrl|source_url|url|src|Xmflv|DPlayer)\\s*(?:\\[[^\\]]+\\])?\\s*=\\s*[\"']([^\"']{12,})[\"']", Pattern.CASE_INSENSITIVE),
+                    // JS 对象字面量：{ url: "https://xxx.m3u8", ... } 或 { "url": "..." }
+                    Pattern.compile("[\"']?(?:url|src|video|m3u8|playUrl|play_url|playerUrl|now)\\s*[\"']?\\s*:\\s*[\"']([^\"']{12,})[\"']", Pattern.CASE_INSENSITIVE),
+                    // config.xxx.player.xxx.xxx.url = "..." 点式属性链
+                    Pattern.compile("(?:config|player|playerData|option|options|setting|settings)\\s*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*\\s*\\.\\s*(?:url|src|now|video)\\s*=\\s*[\"']([^\"']{12,})[\"']", Pattern.CASE_INSENSITIVE),
+            };
+            for (Pattern p : jsp) {
+                Matcher m = p.matcher(body);
+                while (m.find()) {
+                    String cand = m.group(1);
+                    if (TextUtils.isEmpty(cand)) continue;
+                    addCandidates(seen, new String[]{cand}, baseUrl);
+                    // URLDecode 一遍
+                    String dec = safeUrlDecode(cand);
+                    if (dec != null && !dec.equals(cand)) addCandidates(seen, new String[]{dec}, baseUrl);
+                }
+            }
+            // 再扫一遍 URLDecode 后的 body（很多站 URL 被先 encode 再塞到字符串里）
+            String decodedBody = safeUrlDecode(body);
+            if (decodedBody != null && !decodedBody.equals(body)) {
+                for (Pattern p : jsp) {
+                    Matcher m = p.matcher(decodedBody);
+                    while (m.find()) {
+                        String cand = m.group(1);
+                        if (TextUtils.isEmpty(cand)) continue;
+                        addCandidates(seen, new String[]{cand}, baseUrl);
+                        String dec = safeUrlDecode(cand);
+                        if (dec != null && !dec.equals(cand)) addCandidates(seen, new String[]{dec}, baseUrl);
+                    }
+                }
+            }
+            // 最后补：把所有 "..." / '...' 字面量（长度>24 且含 http 或 .m3u8/.mp4 典型特征）全扫一遍，去重
+            Matcher anyQuoted = Pattern.compile("[\"']((?:https?:[^\"']{12,})|(?:[^\"']{8,}\\.(?:m3u8|mp4|flv|m4v|ts|mpd)[^\"']*))[\"']", Pattern.CASE_INSENSITIVE).matcher(body);
+            while (anyQuoted.find()) {
+                String cand = anyQuoted.group(1);
+                if (TextUtils.isEmpty(cand)) continue;
+                addCandidates(seen, new String[]{cand}, baseUrl);
+                String dec = safeUrlDecode(cand);
+                if (dec != null && !dec.equals(cand)) addCandidates(seen, new String[]{dec}, baseUrl);
+            }
+        } catch (Throwable ignored) {}
         for (String u : seen) {
             if (u != null && u.startsWith("http")) out.add(u);
             if (out.size() >= topN) break;

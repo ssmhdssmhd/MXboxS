@@ -18,8 +18,11 @@ public class Constant {
     // 搜索每站超时：12s（之前 30s 太长，用户感知"搜不出"）；
     // 再配合全局快速搜索早停，首批命中后 UI 先渲染。
     public static final long TIMEOUT_SEARCH = TimeUnit.SECONDS.toMillis(12);
+    // 解析超时：默认(非WebView) 15s；WebView 45s（原 15s 对 xmflv.cc 这种带混淆JS+多段noscdn脚本的万能嗅探站不够，
+    // 没等 JS 跑完 Xmflv 初始化播放器就触发 stop(error) → 永远拿不到 m3u8 → 表现为 0 KB/s 转圈）
+    // Live WebView 保持 15s（直播一般不会用混淆JS 接口）
     public static final long TIMEOUT_PARSE_DEF = TimeUnit.SECONDS.toMillis(15);
-    public static final long TIMEOUT_PARSE_WEB = TimeUnit.SECONDS.toMillis(15);
+    public static final long TIMEOUT_PARSE_WEB = TimeUnit.SECONDS.toMillis(45);
     public static final long TIMEOUT_PARSE_LIVE = TimeUnit.SECONDS.toMillis(10);
     public static final long HISTORY_TIME = TimeUnit.DAYS.toMillis(60);
 

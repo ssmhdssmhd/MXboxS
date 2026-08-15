@@ -13,7 +13,10 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebChromeClient;
 import android.webkit.WebViewClient;
+import android.webkit.JsPromptResult;
+import android.webkit.JsResult;
 
 import androidx.annotation.NonNull;
 
@@ -32,6 +35,7 @@ import com.google.common.net.HttpHeaders;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -86,6 +90,47 @@ public class CustomWebView extends WebView implements DialogInterface.OnDismissL
         setting.setJavaScriptCanOpenWindowsAutomatically(false);
         setting.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         setWebViewClient(webViewClient());
+        // ===== v5.6.7：设置 WebChromeClient，拦截 onJsPrompt 取到探针 JS 抛出的真实视频 URL =====
+        //     探针 JS 轮询到 window.Xmflv.* / <video>.currentSrc 等真实 m3u8/mp4 后，
+        //     会 document.dispatchEvent 然后 prompt('MVIDURL:' + url)；
+        //     这里 prompt 被 Java 层 onJsPrompt 拦截 → 立即 onParseSuccess 返回 → 命中即关 WebView。
+        //     （用 prompt 而不用 addJavascriptInterface 是因为 addJavascriptInterface 有安全隐患，
+        //       且 prompt 拦截是 Android WebView 最通用、跨版本最稳的 JS→Java 桥）
+        setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {
+                if (message != null && message.startsWith("MVIDURL:")) {
+                    String cand = message.substring("MVIDURL:".length()).trim();
+                    if (!TextUtils.isEmpty(cand) && cand.length() > 20) {
+                        Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(new HashMap<>(), cand);
+                        result.cancel();
+                        onParseSuccess(safeHeaders, cand, from + "+webview-probe");
+                        return true;
+                    }
+                }
+                // isVideoFormat(cand) 的二次检查（兜底）：先允许 Sniffer.isVideoFormat 判断是否真实视频 URL
+                if (message != null && message.length() > 30) {
+                    String cand = message.trim();
+                    if (Sniffer.isVideoFormat(cand)) {
+                        Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(new HashMap<>(), cand);
+                        result.cancel();
+                        onParseSuccess(safeHeaders, cand, from + "+webview-prompt");
+                        return true;
+                    }
+                }
+                return super.onJsPrompt(view, url, message, defaultValue, result);
+            }
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                if (message != null && message.length() > 30 && Sniffer.isVideoFormat(message)) {
+                    Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(new HashMap<>(), message.trim());
+                    result.cancel();
+                    onParseSuccess(safeHeaders, message.trim(), from + "+webview-alert");
+                    return true;
+                }
+                return super.onJsAlert(view, url, message, result);
+            }
+        });
     }
 
     public CustomWebView start(String key, String from, Map<String, String> headers, String url, String click, ParseCallback callback, boolean detect) {
@@ -137,6 +182,11 @@ public class CustomWebView extends WebView implements DialogInterface.OnDismissL
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 if (url.equals(BLANK)) return;
+                // ===== v5.6.7 新增：Sniffer.getScript 里加了「轮询抓 URL 再通过 videourlfound DOM 事件抛出」的探针，
+                //        先在这里 addEventListener 接住，一旦探针 JS 轮询到真实 m3u8/mp4，就立刻 onParseSuccess。
+                try {
+                    view.evaluateJavascript("(function(){if(window.__mxboxsSniffListenerInstalled)return;window.__mxboxsSniffListenerInstalled=true;document.addEventListener('videourlfound',function(e){try{var u=e.url||e.detail;if(u&&u.length>20){prompt('MVIDURL:'+u)}}catch(err){}});})()", null);
+                } catch (Throwable ignored) {}
                 evaluate(getScript(url), 0);
             }
 

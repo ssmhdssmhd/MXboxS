@@ -881,6 +881,18 @@ public class ParseJob implements ParseCallback {
     }
 
     private void checkResult(Map<String, String> headers, String url, String from, boolean fatal) {
+        // ===== v5.6.7 新修复：HTML 嗅探接口套娃 URL 拦截 =====
+        // 云端公开解析站（如 qcb-jiexi.php）会返回 "解析成功"，但 url 字段里给的仍是另一个
+        // HTML 万能嗅探站的包装 URL（jx.xmflv.cc/?url=jx.xmflv.cc/?url=... 这种，长度肯定 >40），
+        // 原代码 length>40 就 onParseSuccess 放行，ExoPlayer 拿 HTML 当视频播 → 0 KB/s 永久转圈。
+        // 现在：检测到 isLikelyHtmlSniffer(url) 的，一律不回调成功，改走 WebView + AI 嗅探深度解析；
+        // 只有当它是真正的视频直链 / Content-Type probe 成功的才放行。
+        if (!TextUtils.isEmpty(url) && com.ssmhdssmhd.mxboxs.utils.UrlUtil.isLikelyHtmlSniffer(url)) {
+            Map<String, String> safeH = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(headers, url);
+            if (aiSmartParseFallbackFrom(safeH, url, from + "+sniff-fallback")) return;
+            fallbackConcurrentParse(url, true);
+            return;
+        }
         if (url.length() > 40) onParseSuccess(headers, url, from);
         else if (fatal) onParseError();
     }
@@ -922,6 +934,19 @@ public class ParseJob implements ParseCallback {
 
     @Override
     public void onParseSuccess(Map<String, String> headers, String url, String from) {
+        // ===== v5.6.7 修复：出口再做一次 HTML 嗅探 URL 拦截 =====
+        // 任何解析路径（包括 checkResult / jsonExtend / 旧缓存等）如果想把「jx.xmflv.cc / qq万能解析 / jiexi.php」
+        // 这种 HTML 页面包装 URL 直接当视频回调，全部都拦下来：
+        //   1) 先跑 aiSmartParseFallbackFrom（正则 + 并发 probe + LLM）抢快；
+        //   2) 抢不到 fallbackConcurrentParse(preferWebviewFirst=true)：
+        //      如果用户"高级设置>WebView默认开"开了，WebView 这一路会先启动（抢跑效果），
+        //      xmflv.cc 这种混淆 JS + 多段 noscdn 脚本的嗅探站就能等 JS 初始化出真实 m3u8。
+        if (!TextUtils.isEmpty(url) && com.ssmhdssmhd.mxboxs.utils.UrlUtil.isLikelyHtmlSniffer(url)) {
+            Map<String, String> safeH = UrlUtil.mergeDefaultHeaders(headers, url);
+            if (aiSmartParseFallbackFrom(safeH, url, from + "+sniff-fallback")) return;
+            fallbackConcurrentParse(url, true);
+            return;
+        }
         // 拦截第三方解析站伪造的「假本地代理 URL」（如 http://127.0.0.1:10079/p/0/.../base64/index.m3u8），
         // 我们没有在 9978~9999 以外的端口启任何代理，直接塞给播放器会 Network Connection Failed。
         // 从 base64 段还原出真实 URL（如 https://player.ypls.com/play/...）：

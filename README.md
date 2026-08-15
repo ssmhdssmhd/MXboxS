@@ -9,6 +9,22 @@
 
 ## 最新更新
 
+### v5.6.7 · 2026-08-15 · P0 修复：能看到视频标题/选集/简介，但就是永远 0 KB/s 转圈无法播放（万能嗅探站套娃 URL 漏网问题）
+
+**根因**：`qcb jiexi.php` 公开解析站虽然返回 `{"code":200,"ZT":"解析成功"}`，但 `url` 字段给的是**第二层 jx.xmflv.cc 包装 URL**（典型套娃）。原代码 `checkResult` 只判断 length>40，导致 HTML 嗅探站包装 URL 被直接丢给 ExoPlayer → 永远 0 KB/s 转圈。
+
+**本版落地 5 层防线（只加不改，原有判断 100% 保留）**：
+
+| # | 位置 | 效果 |
+|---|------|------|
+| ① 入闸拦截 | [ParseJob.checkResult#L883-L898](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L883-L898) | JSON 解析站返回套娃 URL → 不回调成功，自动降级到 WebView + AI 嗅探深度解析 |
+| ② 出口二次拦截 | [ParseJob.onParseSuccess#L935-L949](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L935-L949) | 所有路径（含旧缓存、扩展回调）再扫一遍 isLikelyHtmlSniffer，防止进 ExoPlayer |
+| ③ WebView 超时 | [Constant#L21-L26](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Constant.java#L21-L26) | 15s → 45s（仅 WebView；非 WebView 仍 15s，省电）专杀 xmflv.cc 混淆 JS + noscdn 多脚本 |
+| ④ 混淆 JS 正则嗅探 | [UrlUtil.sniffVideoCandidates#L294-L344](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L294-L344) | 抓 `var now=`/`window.play_url=`/`{url:"..."}`/点式 config 属性链 + URLDecode 二次扫描，不开 WebView 也能本地命中抢跑 |
+| ⑤ WebView 通用探针 + prompt 桥 | [CustomWebView.initSettings#L92-L132](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWebView.java#L92-L132) + [Sniffer.getScript#L45-L57](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Sniffer.java#L45-L57) | 200ms × 40 轮 轮询抓 `<video>`/`window.Xmflv.*`/dplayer/artplayer/ckplayer + script 字面量全扫；命中走 `videourlfound` 事件 → `prompt('MVIDURL:')` → Java onJsPrompt 拦截 → 命中即关 WebView |
+
+版本号：versionCode 626 → **627** / versionName 5.6.6 → **5.6.7**
+
 ### v5.6.6 · 2026-08-15 · 只新增不替换：FULL 完整版保持不变 + 🆕 新增 SLIM 轻量包（再瘦 ~30MB，双轨可选）
 
 **核心原则：原有完整包 100% 不变，只在旁边多给一个轻量版，老用户零影响、完全兼容。**

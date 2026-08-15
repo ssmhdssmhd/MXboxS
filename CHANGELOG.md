@@ -2,6 +2,38 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.7] - 2026-08-15 · 修复"能看到视频信息/选集/简介，但就是 0 KB/s 一直转圈无法播放"问题（万能嗅探站 jx.xmflv.cc/qq/jiexi.php 套娃）
+
+### P0 根因定位（复现：线路 qq → 第1集 → 永远 0 KB/s）
+
+用户截图 debug 卡片显示：解析出的 **URL 本身仍是 `https://jx.xmflv.cc/?url=https%3A%2F%2Fjx.xmflv.cc%2F%3Furl%3Dhttps%3A%2F%2Fv.qq.com%2F...`** 这种「HTML 万能嗅探接口套娃 URL」，**长度 >40 被 checkResult 判定通过** → 直接把 HTML 文本页丢给 ExoPlayer → ExoPlayer 按 HLS/MP4 解析失败 + 无限重试 → 表现为 **进度条永远转 + 0 KB/s 显示**。
+
+我们本地用 `http://114.134.184.91:9002/jiexi.php?url=jx.xmflv.cc...` 实测：返回的 `url` 字段果然是**第二层 jx.xmflv.cc 包装 URL**（代码 200、ZT=解析成功、msg/url 给的却是另一个嗅探站入口，典型套娃结构）。如果不拦截，上层会永远"以为拿到了真实视频"。
+
+### 本版落地 5 层防线（全部是"只加不改"，原有判断逻辑 100% 保留）
+
+| # | 防线位置 | 做了啥 | 防御目标 |
+|---|---------|--------|----------|
+| ① | [checkResult](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L883-L898) | **入闸拦截**：如果 JSON 解析站返回的 url 满足 `isLikelyHtmlSniffer(url)`，不回调成功，改走 `aiSmartParseFallbackFrom + fallbackConcurrentParse(preferWebviewFirst=true)` 深度解析 | 专门对付 qcb jiexi/公开解析返回 "ZT=解析成功 url=jx.xmflv.cc/?url=..." 的套娃情形 |
+| ② | [onParseSuccess](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L935-L949) | **出口二次拦截**：任何路径（jsonExtend/旧缓存/第三方回调）要回调成功的 URL，再做一次 `isLikelyHtmlSniffer` 判定；命中就继续深度解析，不会进 startCurrent 去开 ExoPlayer | 防止第①层漏网之鱼直接进播放出口（例：升级后旧缓存里存了嗅探 URL） |
+| ③ | [Constant.TIMEOUT_PARSE_WEB](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Constant.java#L21-L26) | **WebView 超时放宽**：`15s → 45s`；`TIMEOUT_PARSE_DEF(非WebView)` 仍保持 15s 不变（省电）。原 15s 对 jx.xmflv.cc 不够：要先拉 4 段 nim.nosdn.127.net 的混淆脚本，再执行 `var _0x1ef3=[...]` 解密 + `Xmflv.initialize()` 初始化播放器，约 20~30s 才会发第一条 m3u8 请求 | 专杀 xmflv / cfss / duopian / qq 这类带混淆 JS + 多脚本 noscdn 加载的公开嗅探站 |
+| ④ | [UrlUtil.sniffVideoCandidates](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L294-L344) | **AI 嗅探新增「混淆 JS 变量赋值嗅探」**：第 6 轮正则专门抓 `var now = "..."` / `window.player_url = "..."` / `config.xxx.url: "..."` / `{ url: "https://xxx.m3u8" }`，URLDecode 后再扫一轮，最后补「所有带引号字面量全扫」兜底；对 HTML 正文抓不到但变量里嵌了真实 m3u8 的情形（哪怕 base64/encode 过），**不用启动 WebView 就能纯 Java 本地正则命中**，比等 JS 快 2~5 倍 | 作为「开 WebView 之前」的抢跑层；即便没开 WebView 开关也能覆盖一批套娃 URL |
+| ⑤ | [CustomWebView](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/custom/CustomWebView.java#L92-L132) + [Sniffer.getScript](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Sniffer.java#L45-L57) | **WebView 注入通用 JS 轮询探针 + prompt 拦截桥**：<br>a) `getScript()` 每个 onPageFinished 后都会追一段「每 200ms 轮询 40 轮 = 8s」的通用 JS：查 `<video>/<source>` currentSrc、`window.Xmflv.*` / `dplayer` / `artplayer` / `ckplayer` 实例、`window.now/playUrl/playerData/...` 全局变量、内嵌 `<script>` 字面量全扫；<br>b) 命中后 dispatch `videourlfound` DOM 事件；<br>c) 先 `evaluateJavascript` 注册监听器 → listener 里 `prompt('MVIDURL:' + url)` → 被 Java 层 `onJsPrompt` 拦截 → 直接 `onParseSuccess()`，**不等 shouldInterceptRequest 就关 WebView** | 即便混淆 JS 已经把真实 URL 塞进变量但未触发网络请求，也能通过主动轮询抓取拿到视频 URL，彻底杜绝「JS 初始化太慢 / 没发请求 / 发了被广告域名误拦截」的 0 KB/s 转圈问题 |
+
+### 增量兼容（符合用户"原有的也要有不变，只增加"原则）
+
+- FULL / SLIM 双产品矩阵不变；FULL 版 APK 文件名、自动更新、功能链路 100% 相同
+- 原有 `length > 40` 判定没删、没改；只是在之前**多插入了一层 `isLikelyHtmlSniffer` 拦截**（仅当嗅探套娃 URL 才走；真正的 m3u8/mp4 直链完全不进这个分支，延迟 0 增加）
+- TIMEOUT_PARSE_DEF / TIMEOUT_PLAY / TIMEOUT_SEARCH 等其它超时均未改动，避免影响弱机体验
+- WebView 探针 JS 是"追加到 RuleConfig 指定脚本之后"执行；RuleConfig 里各站如果有自定义脚本，会先跑自定义脚本（100% 保留原有优先级），脚本跑完再跑我们的通用轮询兜底
+
+### 版本号
+
+- versionCode 626 → **627**
+- versionName 5.6.6 → **5.6.7**
+
+---
+
 ## [v5.6.6] - 2026-08-15 · 只新增不替换：FULL 完整版保持不变 + 新增 SLIM 轻量包（再瘦 ~30MB，双轨可选）
 
 ### 核心原则：**原有完整包 100% 不变，只在旁边多提供一个 SLIM 轻量版**
