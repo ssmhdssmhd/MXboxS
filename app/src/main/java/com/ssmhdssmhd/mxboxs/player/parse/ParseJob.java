@@ -501,7 +501,11 @@ public class ParseJob implements ParseCallback {
     private String safeGetBody(String url, Map<String, String> headers) {
         if (TextUtils.isEmpty(url)) return null;
         Map<String, String> h = UrlUtil.mergeDefaultHeaders(headers, url);
-        try (Response res = OkHttp.newCall(url, h).execute()) {
+        // v5.6.4 修复：safeGetBody 之前走 OkHttp.newCall（默认 client，超时配置不明确）。
+        // AI 嗅探抓正文只要 10s 足够；挂太久会占用 aiSmartParseFallback → doInBackground → 总超时 15s 触发
+        // onParseError，表现为"连接超时"。显式 client(10000) 控制 connect+read+write 各 10s 内返回。
+        Request req = new Request.Builder().url(url).get().headers(Headers.of(h)).build();
+        try (Response res = OkHttp.client(10000L).newCall(req).execute()) {
             // 只接受 2xx，拒绝把 403/404/5xx 的错误页面当正文去嗅探
             if (!res.isSuccessful() || res.body() == null) return null;
             // 若 Content-Type 是二进制/视频，没必要当正文去正则，直接跳过
@@ -536,7 +540,8 @@ public class ParseJob implements ParseCallback {
      *  3) 最后兜底：fallbackConcurrentParse 跑完整的传统"多解析站并发（jsonParse + jsonExtend + jsonMix + WebView sniff 多源）"
      *     专门处理爱奇艺/腾讯/优酷/B 站这类前端渲染 + 必须依赖解析站的官解线路。
      *     - 若「高级设置 > WebView 嗅探默认开启」=开，且 webUrl 被识别为 HTML 嗅探接口（jx/xmflv/jiexi 等），
-     *       会在并发首路**额外**多起一路 defaultP 的 WebView 嗅探（提前抢跑，命中更快）。
+     *       会在 fallbackConcurrentParse 里**先启动 defaultP（把 WebView 嗅探这一路提到最前，实现抢跑，
+     *       命中更快）**——不再独立起第二路 WebView，避免 v5.6.3 出现的重复创建 / 资源泄漏 / 双路冲突。
      *
      *  1/2/3 只要一路命中 → onParseSuccess；全部失败 → 才 onParseError。
      */
@@ -544,41 +549,35 @@ public class ParseJob implements ParseCallback {
         if (done.get()) return;
         if (hasQcbParseServer() && qcbJiexiParse(webUrl)) return;
         if (aiSmartParseFallback(webUrl)) return;
-        // 新增 v5.6.3：高级设置"WebView 嗅探默认开启"开着 + webUrl 命中 HTML 嗅探接口特征，
-        // 则先抢跑一路 startWeb，跟 fallbackConcurrentParse 里的其它并发一起赛跑，
-        // 对虾米/duopian/qq/xmflv 这类解析口，命中速度显著更快（减少整体缓冲等待）。
+        // v5.6.4 修复：不再在这里 App.post 独立起一路 CustomWebView（避免 3 个 bug）：
+        //   ① 抢跑的 cv 没加入 webViews → stop() 不会 destroy → WebView 泄漏；
+        //   ② 跟 fallbackConcurrentParse 里的 defaultP.startWeb() 组成"两路相同解析站 + 相同 URL"
+        //      → WebView 竞争 Cookie/UA 冲突，表现为"连接超时"；
+        //   ③ 最后一个 sniff 参数硬编码 false，跟 startWeb 里 !url.contains("player/?url=") 不一致，
+        //      导致 player/?url= 结构的解析站抢跑一路必然嗅探失败。
+        // 现在把"WebView 优先"效果下沉到 fallbackConcurrentParse 内部实现（只改提交顺序）。
         boolean webviewDefaultOn = com.ssmhdssmhd.mxboxs.setting.PlayerSetting.isWebviewSniffDefaultOn();
-        Parse defaultP = parse != null ? parse : VodConfig.get().getParse();
-        if (webviewDefaultOn && UrlUtil.isLikelyHtmlSniffer(webUrl)
-                && defaultP != null && !defaultP.isEmpty() && WebViewUtil.support()) {
-            App.post(() -> {
-                try {
-                    CustomWebView.create(App.get()).start(
-                            "", defaultP.getName(), defaultP.getHeader(),
-                            defaultP.getUrl() + webUrl, defaultP.getClick(),
-                            new ParseCallback() {
-                                @Override public void onParseSuccess(Map<String, String> m, String u, String f) {
-                                    ParseJob.this.onParseSuccess(m, u, f + "+preWeb");
-                                }
-                                @Override public void onParseError() { }
-                            }, false);
-                } catch (Throwable ignored) {}
-            });
-        }
-        fallbackConcurrentParse(webUrl);
+        boolean likelySniffer = UrlUtil.isLikelyHtmlSniffer(webUrl);
+        fallbackConcurrentParse(webUrl, webviewDefaultOn && likelySniffer);
         if (!done.get()) onParseError();
     }
 
     /**
      * 传统多解析站并发兜底（给 builtinParse / superParse 的最后防线用）：
-     * 1) 所有 type=1 的 JSON 解析站并发 jsonParse；
-     * 2) 默认解析站 WebView sniff（startWeb）一路；
-     * 3) jsonExtend 扩展多解析并发一路；
-     * 4) 每路完成就 countDown，统一 15 秒超时；
+     * 1) 若 preferWebviewFirst=true（开关开+命中嗅探接口），先提交 defaultP 分支
+     *    → 对 HTML 嗅探接口先启 WebView，实现"抢跑"效果；
+     * 2) 所有 type=1 的 JSON 解析站并发 jsonParse；
+     * 3) 若 defaultP 没被第一步先启，就按默认顺序补一路；
+     * 4) jsonExtend 扩展多解析并发一路；
+     * 5) 每路完成就 countDown，统一 15 秒超时；
      *    有任何一路 done 被 CAS 为 true 就提前释放，剩下全部 cancel。
      * 复用共享线程池 SHARED_PARSE_INFINITE，不在每次调用时 new/shutdown 局部池。
      */
     private void fallbackConcurrentParse(String webUrl) {
+        fallbackConcurrentParse(webUrl, false);
+    }
+
+    private void fallbackConcurrentParse(String webUrl, boolean preferWebviewFirst) {
         if (done.get()) return;
         List<Parse> list = VodConfig.get().getParses();
         List<Parse> jsons = new ArrayList<>();
@@ -590,6 +589,24 @@ public class ParseJob implements ParseCallback {
         ExecutorService svc = SHARED_PARSE_INFINITE;
         List<Future<?>> fs = new ArrayList<>();
         try {
+            boolean defaultAlreadySubmitted = false;
+            // ---- v5.6.4：WebView 优先/抢跑提交（只改顺序，不复用 WebView 实例，无双路冲突）
+            if (preferWebviewFirst && !done.get() && defaultP != null && !defaultP.isEmpty()) {
+                defaultAlreadySubmitted = true;
+                fs.add(svc.submit(() -> {
+                    if (done.get()) { countDownAll(latch, 1); return; }
+                    try {
+                        if (defaultP.getType() == 0) startWeb(latch, defaultP, webUrl);
+                        else if (defaultP.getType() == 1) { jsonParse(defaultP, webUrl, false); countDownAll(latch, 1); }
+                        else if (defaultP.getType() == 2) { jsonExtend(webUrl); countDownAll(latch, 1); }
+                        else if (defaultP.getType() == 3) { jsonMix(webUrl, ""); countDownAll(latch, 1); }
+                        else countDownAll(latch, 1);
+                    } catch (Throwable ignored) { countDownAll(latch, 1); }
+                }));
+                // 给 WebView 最多 60ms head start：先让 App.post runnable 把 cv 加到 webViews，
+                // 同时让 WebView 的 loadUrl 早于 JSON 解析站 HTTP 调用发起，实现"抢跑"。
+                try { Thread.sleep(60L); } catch (Throwable ignored) {}
+            }
             if (jsons.isEmpty()) {
                 countDownAll(latch, 1);
             } else {
@@ -602,17 +619,19 @@ public class ParseJob implements ParseCallback {
                     }));
                 }
             }
-            if (!done.get() && defaultP != null && !defaultP.isEmpty()) {
-                fs.add(svc.submit(() -> {
-                    if (done.get()) { countDownAll(latch, 1); return; }
-                    try {
-                        if (defaultP.getType() == 0) startWeb(latch, defaultP, webUrl);
-                        else if (defaultP.getType() == 1) { jsonParse(defaultP, webUrl, false); countDownAll(latch, 1); }
-                        else if (defaultP.getType() == 2) { jsonExtend(webUrl); countDownAll(latch, 1); }
-                        else if (defaultP.getType() == 3) { jsonMix(webUrl, ""); countDownAll(latch, 1); }
-                        else countDownAll(latch, 1);
-                    } catch (Throwable ignored) { countDownAll(latch, 1); }
-                }));
+            if (!defaultAlreadySubmitted) {
+                if (!done.get() && defaultP != null && !defaultP.isEmpty()) {
+                    fs.add(svc.submit(() -> {
+                        if (done.get()) { countDownAll(latch, 1); return; }
+                        try {
+                            if (defaultP.getType() == 0) startWeb(latch, defaultP, webUrl);
+                            else if (defaultP.getType() == 1) { jsonParse(defaultP, webUrl, false); countDownAll(latch, 1); }
+                            else if (defaultP.getType() == 2) { jsonExtend(webUrl); countDownAll(latch, 1); }
+                            else if (defaultP.getType() == 3) { jsonMix(webUrl, ""); countDownAll(latch, 1); }
+                            else countDownAll(latch, 1);
+                        } catch (Throwable ignored) { countDownAll(latch, 1); }
+                    }));
+                } else countDownAll(latch, 1);
             } else countDownAll(latch, 1);
             if (!done.get()) {
                 fs.add(svc.submit(() -> {

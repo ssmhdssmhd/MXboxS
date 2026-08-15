@@ -82,14 +82,16 @@ public class OkHttp {
 
     public static synchronized OkHttpClient player() {
         if (get().player != null) return get().player;
-        // 播放器独立连接池 + 更短连接超时：
+        // 播放器独立连接池：
         // - 独立 ConnectionPool / Dispatcher，避免与爬虫搜索的高并发请求互相抢连接；
-        // - 连接超时 8s（默认 30s 偏长，慢源起播会等很久才报错），读超时保留 30s 保证大文件可读。
+        // - 连接超时放宽到 15s（v5.6.4 修复：之前 8s 在弱网/高延迟CDN/TLS握手慢时，
+        //   ExoPlayer 会先抛 SocketTimeoutException，提示"连接超时"且不会重试 → 影响体验）；
+        //   读/写保留 30s 保证大分片、m3u8 长列表能完整读完。
         return get().player = getBuilder()
-                .connectTimeout(8, TimeUnit.SECONDS)
+                .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
-                .connectionPool(new okhttp3.ConnectionPool(8, 5, TimeUnit.MINUTES))
+                .connectionPool(new okhttp3.ConnectionPool(16, 5, TimeUnit.MINUTES))
                 .dispatcher(new okhttp3.Dispatcher())
                 .build();
     }

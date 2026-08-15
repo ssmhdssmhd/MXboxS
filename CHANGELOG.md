@@ -2,6 +2,31 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.4] - 2026-08-15
+
+### P0 修复：v5.6.3 引入的「播放报错连接超时」回归问题
+
+v5.6.3 新增的「WebView 抢跑」实现在 builtinParse 里独立 App.post 启动一路 CustomWebView，引入了 3 个致命 bug，直接导致：
+* 解析阶段 15s 总超时触发 onParseError → 吐司「连接超时」；
+* 或者解析虽然成功但后续视频源连接超时 → 同样「连接超时」。
+
+本次逐个修复并附带弱网播放链路的 HTTP 超时放宽：
+
+| # | 修复点 | 说明 | 代码位置 |
+|---|--------|------|---------|
+| 1 | **抢跑 WebView 泄漏** | 之前抢跑的 `CustomWebView` 没有 `synchronized(webViews) { webViews.add(cv) }` → `ParseJob.stop()` / 总超时不会 destroy → 多次播放后 WebView 实例泄漏 → 低端机 WebView 资源耗尽 → 下一次 `startWeb` 失败 → **连接超时**。现在改为「下沉到 fallbackConcurrentParse 内部，复用 startWeb 完整生命周期」，startWeb 会把 cv 正确加入 webViews，stop() 一定能销毁。 | [ParseJob.builtinParse#L548-L559](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L548-L559) / [ParseJob.fallbackConcurrentParse#L576-L644](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L576-L644) |
+| 2 | **双路相同 WebView 冲突** | v5.6.3 先抢跑一路（`defaultP.getUrl()+webUrl`），又在 fallbackConcurrentParse 里 `defaultP.type==0` 时 `startWeb(...)` 再跑一路相同 URL 相同解析站 → 两路 WebView 同时 loadUrl，Cookie/UA/JS 上下文竞争：要么都嗅探失败，要么第一路回调 done=false 后又被第二路写脏回调。现在用 `preferWebviewFirst + defaultAlreadySubmitted`：要么先提交（抢跑 head start 60ms），要么后面正常提交，**全局一定只提交 1 次 defaultP**，无双路冲突。 | [ParseJob#L588-L605](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L588-L605) / [ParseJob#L618-L631](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L618-L631) |
+| 3 | **嗅探注入参数不一致** | v5.6.3 抢跑那一路 `start(..., false)` 硬编码 false；而真正的 startWeb 里使用的是 `!item.getUrl().contains("player/?url=")`（对 `player/?url=` 结构关闭点击嗅探）。不一致导致 player/?url= 类解析站抢跑一路**必然嗅探失败**。下沉复用 startWeb 后天然一致。 | [ParseJob.startWeb#L666](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L666) |
+| 4 | **safeGetBody 正文抓取超时无上限** | 之前 `OkHttp.newCall` 使用默认 client（connect+read 30s），aiSmartParseFallback 里抓正文太久会吃掉整个 ParseJob 15s 总超时（Constant.TIMEOUT_PARSE_DEF=15s），表现为「解析超时 → 连接超时」。显式改为 `OkHttp.client(10000L)` 控制 10s 内一定返回。 | [ParseJob.safeGetBody#L501-L522](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L501-L522) |
+| 5 | **播放器 OkHttp connectTimeout 过短（8s）** | `OkHttp.player()` 之前 connectTimeout=8s，在移动弱网、境外 CDN、TLS 握手慢（高延迟链路）场景下，ExoPlayer 起播拉第一个 m3u8 就会抛 `SocketTimeoutException: connect timed out` → Toast「连接超时」且 LoadErrorHandlingPolicy 直接失败。放宽到 15s，弱网仍能成功握手；读写保留 30s；连接池 8→16，多路并发画质切换/预加载不排队。 | [OkHttp.player#L83-L96](file:///workspace/catvod/src/main/java/com/github/catvod/net/OkHttp.java#L83-L96) |
+
+#### 版本号
+
+- versionCode 623 → **624**
+- versionName 5.6.3 → **5.6.4**
+
+---
+
 ## [v5.6.3] - 2026-08-14
 
 ### 高级设置新增「WebView 嗅探默认开启」开关 + 默认嗅探抢跑

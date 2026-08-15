@@ -9,6 +9,17 @@
 
 ## 最新更新
 
+### v5.6.4 · 2026-08-15 · P0 修复：v5.6.3 引入的「播放报错连接超时」回归
+
+| # | 模块 | 变更 | 代码位置 |
+|---|------|------|---------|
+| 1 | **抢跑 WebView 泄漏+双路冲突+嗅探参数3合1修复** | 移除 builtinParse 独立 App.post 抢跑的那一路 CustomWebView，改为「下沉到 fallbackConcurrentParse，开关开时先提交 defaultP 并 sleep 60ms head start」；全局 defaultP **只提交 1 次**（无双路冲突）；复用 startWeb 正确生命周期（cv 入 webViews、嗅探注入参数动态判断 player/?url=），stop() 一定能 destroy 不再泄漏 | [ParseJob.builtinParse#L544-L559](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L544-L559) / [fallbackConcurrentParse#L576-L644](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L576-L644) / [startWeb#L666](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L666) |
+| 2 | **safeGetBody 显式 10s 超时** | aiSmartParseFallback 抓正文改 `OkHttp.client(10000L).newCall(...)`，防止弱网/超时无限挂着，避免占用 ParseJob 15s 总超时窗口导致 onParseError | [ParseJob.safeGetBody#L501-L522](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L501-L522) |
+| 3 | **播放器 connectTimeout 8s→15s** | 弱网/高延迟CDN/TLS握手慢场景不轻易 `SocketTimeoutException`；连接池 8→16 支持更多并发画质切换/预加载 | [OkHttp.player#L83-L96](file:///workspace/catvod/src/main/java/com/github/catvod/net/OkHttp.java#L83-L96) |
+| 4 | **版本号** | versionCode 623 → **624** / versionName 5.6.3 → **5.6.4** | [app/build.gradle#L22-L23](file:///workspace/app/build.gradle#L22-L23) |
+
+---
+
 ### v5.6.3 · 2026-08-14 · 高级设置新增「WebView 嗅探默认开启」开关 + 默认嗅探抢跑
 
 | # | 模块 | 变更 | 代码位置 |
