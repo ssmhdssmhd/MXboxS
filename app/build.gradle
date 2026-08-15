@@ -102,18 +102,6 @@ android {
         }
     }
 
-    // 只对 slim flavor 做打包期 strip；full flavor 完全不触碰原有打包产物。
-    androidComponents.onVariants(selector().withFlavor('size', 'slim')) { variant ->
-        // 1) assets: 从 slim APK 中移除 assets/ffmpeg/ 整个目录（ffmpeg + ffprobe 两份二进制合计 ~30MB）
-        variant.sources.assets.getExcludes().add('ffmpeg/**')
-        // 2) 给 BuildConfig 写入一个标记：FFmpegUtil 运行时读到 BUILD_FLAVOR_SLIM=true 时，
-        //    才会走"资源不存在 → 在线按需下载"路径；full flavor 该标记固定 false，走原逻辑完全不变。
-        variant.buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'true'
-    }
-    androidComponents.onVariants(selector().withFlavor('size', 'full')) { variant ->
-        variant.buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'false'
-    }
-
     // slim APK 的 jniLibs 打包期排除：只从 APK 里移除第三方扩展 extractor 的 .so 文件，
     // 保留 Java/Kotlin 入口类（让用户能正常启动），真用到对应扩展时会优雅降级提示，
     // 而不是 ClassNotFoundException 闪退。full flavor 这里完全不进。
@@ -176,7 +164,22 @@ android {
     }
 }
 
+// ⭐ AGP 9.x DSL：androidComponents {} 闭包内才会注入 selector() 方法，
+//    所以所有 onVariants(selector()...) 必须统一写在这个块里，不能散落到 android {} 内部。
 androidComponents {
+    // === v5.6.6 新增：只对 slim flavor 做打包期 strip；full flavor 完全不触碰原有打包产物 ===
+    onVariants(selector().withFlavor('size', 'slim')) { variant ->
+        // 1) assets: 从 slim APK 中移除 assets/ffmpeg/ 整个目录（两份二进制合计 ~30MB）
+        variant.sources.assets.getExcludes().add('ffmpeg/**')
+        // 2) BuildConfig 标记：BUILD_FLAVOR_SLIM=true → FFmpegUtil 走到"在线按需下载"分支
+        variant.buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'true'
+    }
+    onVariants(selector().withFlavor('size', 'full')) { variant ->
+        // full（默认完整版）→ 标记 false，FFmpegUtil 走老逻辑 copyAssetIfChanged，100% 不变
+        variant.buildConfigField 'boolean', 'BUILD_FLAVOR_SLIM', 'false'
+    }
+
+    // === APK 文件名生成（release 构建）===
     onVariants(selector().withBuildType('release')) { variant ->
         def flavors = variant.productFlavors.collectEntries { [(it.first): it.second] }
         def mode = flavors['mode'] ?: 'mode'
