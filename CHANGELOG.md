@@ -2,6 +2,53 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.8] - 2026-08-15 · 修复 m3u8 跨域 TS 段 CDN sign 鉴权 403 → "Network Connection Failed" 白屏（cache.0567890.xyz:4433 → cdn.hls.one 实测）
+
+### P0 根因定位（复现：https://cache.0567890.xyz:4433/Cache/youku/xxx.m3u8?vkey=65303439... → Network Connection Failed）
+
+curl + Python 脚本实测发现：
+
+1. **入口 M3U8 本身能正常拉取**（HTTP 200，返回 playlist 文本），但里面的 TS 段是**跨域绝对 URL**：
+   `https://cdn.hls.one/cache1-se/youku/11200c80.../seg1-v1-a1.ts?sign=443940ba...`
+   （host 从 `cache.0567890.xyz:4433` 跳到了 `cdn.hls.one`，典型 CDN 切源）。
+2. 直接用 curl 访问 TS URL 是通的（200 OK，能拿到 816KB TS 段）。**但 TS URL 带了 432 位 `sign=...` 查询参数**，
+   这个 sign 是 CDN 对**来源（URL + Referer + UA 组合）** 做的 HMAC 签名校验 —— 来源不对就 403。
+3. 进 ExoPlayer 后查链路发现：`UrlUtil.mergeDefaultHeaders(headers, url)` **直接把整个 `refererUrl` 参数（含
+   `?vkey=65303439...` 400+ 位查询串）塞进 Referer**：
+   ```
+   Referer: https://cache.0567890.xyz:4433/Cache/youku/xxx.m3u8?vkey=65303439557B...（完整 430+字节）
+   ```
+   浏览器标准规定 Referer 是 **scheme://host(:port)/path，不含 query / fragment**；CDN sign 鉴权对
+   「Referer 里带了一堆别的域名 ? 长查询参数」特别敏感，于是：
+   - cdn.hls.one 收到 TS 请求 → 验 sign：Referer 格式非法（带 query）+ Referer 源 host 不是它预期的 → **403**
+   - ExoPlayer HLS Extractor 请求 TS 段连续失败 → 上抛 `PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED`
+   - UI 层显示"**Network Connection Failed**"白屏。
+
+### 本版落地 4 层修复（只加不改，原有解析爬虫 mergeDefaultHeaders 完全保留）
+
+| # | 位置 | 做了啥 | 防御目标 |
+|---|------|--------|----------|
+| ① 导出级 Referer 推导工具 | [UrlUtil.inferRefererForPlayback / mergeDefaultHeadersForPlayback](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L164-L250) | **新增**「播放出口专用」headers 合并函数：Referer 严格按浏览器标准 = `scheme://host:port/path_dir/`（去掉最后一个 `/` 之后的内容）或 `scheme://host:port/`（ORIGIN 版，跨域段用），**永远不包含 query / fragment**。解析爬虫流程（不是实际播放）仍然用旧版 mergeDefaultHeaders（把完整 URL 当 Referer，对解析站反爬更友好），两套函数分工明确互不影响。同时自动补 UA + Accept:\*/\* 兜底 | 从源头上消除「Referer 带 ?vkey= 长 query」这种 CDN sign 验签必然失败的非法格式 |
+| ② 3 个播放出口全部切播放版 merge | [PlaybackActivity.startPlayer](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L268-L277) / [PlayerManager.onParseSuccess](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L572-L579) / [VodPlaybackController.startPlaybackWithCached](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L143-L162) | 3 处 `UrlUtil.mergeDefaultHeaders(result.getHeader(), realUrl)` → **替换为** `UrlUtil.mergeDefaultHeadersForPlayback(result.getHeader(), realUrl)`。之前三个出口里 headers 的 Referer 都已经是"含 query 的完整 URL"，现在统一换播放版。 | 保证 PlaySpec 里 headers 的 Referer 永远合规；即便将来加了新出口，只要走这 3 个就不会再踩坑 |
+| ③ OkHttpDataSource 跨域段动态 Referer 修正 | [OkHttpDataSource.Factory.setPlaylistUrl](file:///workspace/app/src/main/java/androidx/media3/datasource/okhttp/OkHttpDataSource.java#L77-L96) + [OkHttpDataSource.open()#跨域判断](file:///workspace/app/src/main/java/androidx/media3/datasource/okhttp/OkHttpDataSource.java#L203-L226) + [MediaSourceFactory.createDataSourceFactory](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java#L102-L116) | MediaSourceFactory 在构造 OkHttpDataSource.Factory 时**额外调用 `.setPlaylistUrl(playbackUrl)`**，把顶层播放 m3u8 URL 告诉 Factory。`open(DataSpec)` 在每次发请求前做判定：**如果当前段请求的 host:port 与 playlist host:port 不同（= 跨域 cdn.hls.one TS），并且不是 m3u8/mpd playlist 重拉**，就动态把 Referer 从 "playlist 目录级（含 path）"**降级为 playlist ORIGIN 级**（`scheme://cache.0567890.xyz:4433/`），这是浏览器跨域请求 Referer 的默认策略（strict-origin-when-cross-origin），CDN sign 鉴权通过率最高 | 专门解决 cache.0567890.xyz → cdn.hls.one 这类「playlist 与段 CDN 不在同一个域名 + 段 URL 自带 sign 来源校验」场景 |
+| ④ HLS/DASH/TS 段加载失败重试策略升级 | [ExoUtil.buildMediaSourceFactory](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/ExoUtil.java#L314-L325) | DefaultLoadErrorHandlingPolicy 三项参数从默认 1 次 → **统一 3 次**：`minLoadableRetryCount=3`、`minRetryCountAfterPartialError=3`、`progressiveMediaItemRetryCount=3` | cache.0567890.xyz / cdn.hls.one 这类境外/高延迟源，临时丢包/TLS 握手慢偶发，默认 1 次重试很容易直接失败弹 Network Connection Failed；升 3 次后白屏率显著下降，对现有源无副作用（重试仍遵循 1s/2s/4s 指数退避） |
+
+### 增量兼容（完全保留旧行为）
+
+- FULL / SLIM 双产品矩阵不变；FULL 版 APK 文件名、自动更新、功能链路 100% 相同
+- **解析爬虫链路（不是播放）仍然用旧的 `mergeDefaultHeaders(headers, url)`**（把完整 URL 当 Referer）
+  因为部分解析站反爬会校验 Referer 是否和请求的 url 一致（含 query）；两套函数分工明确互不影响
+- OkHttpDataSource.Factory 新增 `setPlaylistUrl()` 是**纯可选**，旧代码不传也能 100% 正常工作
+- 超时参数未改：`OkHttp.player()` 保持 connectTimeout=15s / readTimeout=30s
+- 只有「跨域 + 非 playlist 请求」才会动态换 Referer；同源 m3u8/mpd 重拉保持用户指定 Referer
+
+### 版本号
+
+- versionCode 627 → **628**
+- versionName 5.6.7 → **5.6.8**
+
+---
+
 ## [v5.6.7] - 2026-08-15 · 修复"能看到视频信息/选集/简介，但就是 0 KB/s 一直转圈无法播放"问题（万能嗅探站 jx.xmflv.cc/qq/jiexi.php 套娃）
 
 ### P0 根因定位（复现：线路 qq → 第1集 → 永远 0 KB/s）

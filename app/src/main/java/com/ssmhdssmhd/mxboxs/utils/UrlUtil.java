@@ -161,6 +161,90 @@ public class UrlUtil {
         return out;
     }
 
+    /**
+     * 把一个「视频播放直链 URL」推导成浏览器语义的合规 Referer（2 种精度）。
+     *
+     * 背景（v5.6.8 修复 cache.0567890.xyz:4433 → cdn.hls.one Network Connection Failed）：
+     * 原先 mergeDefaultHeaders 直接把「完整 URL（含 ?vkey=...400+位长查询参数）」当 Referer 塞进 headers，
+     * HLS Extractor 后续请求跨域 TS 绝对段（如 https://cdn.hls.one/xxx?sign=...）时，
+     * defaultRequestProperties 里的 Referer 仍原样发送：
+     *   Referer: https://cache.0567890.xyz:4433/Cache/youku/xxx.m3u8?vkey=65303439557...
+     * CDN sign 鉴权对「Referer 带 query 乱码 / Referer 来源 host 与其预期不符」特别敏感 → 直接 403/5xx，
+     * ExoPlayer 收不到 TS 段，就会抛「Network Connection Failed」白屏。
+     *
+     * 浏览器标准行为：Referer 默认是 scheme://host(:port)/path(不含 query,fragment)。
+     * 本方法提供 2 档：
+     *   - DIRECTORY(推荐给 playlist / TS 段同源请求用): scheme://host:port/path_dir/ (末尾切到最后一个 '/')
+     *   - ORIGIN(推荐给跨域 TS 段用): scheme://host:port/
+     * 对非 http(s) URL 返回空串。
+     */
+    public static final int REFERRER_DIRECTORY = 0;
+    public static final int REFERRER_ORIGIN = 1;
+
+    public static String inferRefererForPlayback(String playbackUrl, int mode) {
+        if (TextUtils.isEmpty(playbackUrl)) return "";
+        try {
+            android.net.Uri u = android.net.Uri.parse(playbackUrl.trim());
+            String scheme = u.getScheme();
+            if (scheme == null) return "";
+            scheme = scheme.toLowerCase();
+            if (!scheme.equals("http") && !scheme.equals("https")) return "";
+            String host = u.getHost();
+            if (TextUtils.isEmpty(host)) return "";
+            int port = u.getPort();
+            String authority = (port > 0 && port != 80 && port != 443)
+                    ? (host + ":" + port)
+                    : host;
+            String origin = scheme + "://" + authority + "/";
+            if (mode == REFERRER_ORIGIN) return origin;
+            // DIRECTORY：切到最后一个 '/'
+            String path = u.getPath();
+            if (TextUtils.isEmpty(path)) return origin;
+            int slash = path.lastIndexOf('/');
+            String dir = (slash > 0) ? path.substring(0, slash + 1) : (path.endsWith("/") ? path : "/");
+            if (!dir.startsWith("/")) dir = "/" + dir;
+            return scheme + "://" + authority + dir;
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    /**
+     * 【播放出口专用】合并 headers 并按浏览器标准推导合规 Referer（scheme://host:port/dir/，不含 query）。
+     * 3 个播放出口（PlaybackActivity.startPlayer / PlayerManager.onParseSuccess /
+     * VodPlaybackController.startPlaybackWithCached）都必须走这个版本，
+     * 配合 OkHttpDataSource.open() 的跨域动态 Referer 修正，解决 cdn.hls.one 这类跨域 TS 段 CDN 鉴权 403
+     * 导致的「Network Connection Failed」。
+     *
+     * 解析爬虫流程（不是实际播放）继续用旧的 mergeDefaultHeaders（把完整 URL 当 Referer，
+     * 对解析站反爬更友好），两套函数分工明确互不影响。
+     */
+    public static java.util.Map<String, String> mergeDefaultHeadersForPlayback(java.util.Map<String, String> userHeaders, String playbackUrl) {
+        java.util.HashMap<String, String> out = new java.util.HashMap<>();
+        if (userHeaders != null) {
+            for (java.util.Map.Entry<String, String> e : userHeaders.entrySet())
+                if (e != null && e.getKey() != null) out.put(fixHeader(e.getKey()), e.getValue() == null ? "" : e.getValue());
+        }
+        if (!out.containsKey(HttpHeaders.USER_AGENT) || TextUtils.isEmpty(out.get(HttpHeaders.USER_AGENT))) {
+            out.put(HttpHeaders.USER_AGENT, DEFAULT_UA);
+        }
+        // 播放链路：用户传进来的 Referer 已经有了就保留（有些解析站会精确指定 Referer，不要覆盖）
+        if (!out.containsKey(HttpHeaders.REFERER) || TextUtils.isEmpty(out.get(HttpHeaders.REFERER))) {
+            String ref = inferRefererForPlayback(playbackUrl, REFERRER_DIRECTORY);
+            if (!TextUtils.isEmpty(ref)) out.put(HttpHeaders.REFERER, ref);
+        }
+        // Accept 头：HLS/DASH/TS 直接用 */*，避免 CDN 对奇怪 Accept 拦截
+        if (!out.containsKey(HttpHeaders.ACCEPT)) {
+            out.put(HttpHeaders.ACCEPT, "*/*");
+        }
+        return out;
+    }
+
+    /** 给跨域段请求推导的 ORIGIN 版 Referer (只含 scheme://host:port/) 简版对外 */
+    public static String inferOriginReferer(String playbackUrl) {
+        return inferRefererForPlayback(playbackUrl, REFERRER_ORIGIN);
+    }
+
     public static String defaultUA() {
         return DEFAULT_UA;
     }

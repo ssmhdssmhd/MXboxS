@@ -144,8 +144,9 @@ public class VodPlaybackController {
         state.setUseParse(false);
         state.setPlayingRequest(VodPlayRequest.create(host.getVodKey(), flag, episode));
         // 修复 v5.6.1：缓存 headers 必须过 mergeDefaultHeaders 补 UA/Referer 兜底。
-        // 部分源（尤其是升级后新跑的解析）写缓存时没有把 Referer/UA 全量写入，shortcut 会缺失 → CDN 403 → 0 KB/s。
-        java.util.Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(
+        // 修复 v5.6.8：改用 mergeDefaultHeadersForPlayback，Referer 不含查询参数（严格浏览器语义），
+        // 解决 cache.0567890.xyz:4433 → cdn.hls.one 跨域 TS CDN 鉴权 403 → Network Connection Failed。
+        java.util.Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeadersForPlayback(
                 hit.headers, hit.url);
         // 缓存直链：直接以真实 URL + headers 构造 PlaySpec 起播（不走 ParseJob → HTTP API → 回环）
         androidx.media3.common.MediaMetadata metadata =

@@ -38,6 +38,10 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
     private final OkHttpClient client;
     private final Map<String, String> defaultRequestProperties;
     private final Map<String, String> requestProperties;
+    // v5.6.8 新增：playlist 级 Referer 推导缓存（由 Factory 传入，跨域 TS 段 open() 时用）
+    private final @Nullable String playlistUrl;
+    private final @Nullable String playlistOriginReferer;
+    private final @Nullable String playlistHostPort;
 
     private @Nullable Response response;
     private @Nullable ResponseBody responseBody;
@@ -53,6 +57,14 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
         private OkHttpClient client;
         private final Map<String, String> defaultRequestProperties = new HashMap<>();
         private @Nullable String userAgent;
+        // v5.6.8 新增：playlist（m3u8/mpd）的原始 URL，用于推断跨域 TS / chunk 段请求时的 Referer。
+        // 之前的 Referer 是合并时塞进 defaultRequestProperties，但它可能是 playlist 推导的 DIRECTORY 版
+        // （scheme://host:port/path_dir/），当请求的是另一个域名（如 cdn.hls.one）的绝对段 URL 时，
+        // 很多 CDN 对 Referer 带第三方 path 敏感；因此跨域请求时动态切换为 playlist 的 ORIGIN 版
+        // （scheme://host:port/），这是浏览器标准行为，CDN 鉴权兼容性最高。
+        private @Nullable String playlistUrl;
+        private @Nullable String playlistOriginReferer;
+        private @Nullable String playlistHostPort;
 
         public Factory() {
             // 允许无参构造（兼容旧代码）
@@ -60,6 +72,27 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
 
         public Factory(OkHttpClient client) {
             this.client = client;
+        }
+
+        /** v5.6.8 新增：告诉 Factory 顶层播放的 playlist URL，用于跨域 TS/chunk 段动态修正 Referer。 */
+        @androidx.annotation.NonNull
+        public Factory setPlaylistUrl(@Nullable String playlistUrl) {
+            this.playlistUrl = playlistUrl;
+            if (!android.text.TextUtils.isEmpty(playlistUrl)) {
+                this.playlistOriginReferer = com.ssmhdssmhd.mxboxs.utils.UrlUtil.inferOriginReferer(playlistUrl);
+                try {
+                    android.net.Uri pu = android.net.Uri.parse(playlistUrl);
+                    String h = pu.getHost();
+                    if (h != null) {
+                        int p = pu.getPort();
+                        playlistHostPort = (p > 0) ? (h + ":" + p) : h;
+                    }
+                } catch (Throwable ignored) { playlistHostPort = null; }
+            } else {
+                this.playlistOriginReferer = null;
+                this.playlistHostPort = null;
+            }
+            return this;
         }
 
         @NonNull
@@ -82,7 +115,8 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
         public OkHttpDataSource createDataSource() {
             OkHttpClient c = client;
             if (c == null) c = com.github.catvod.net.OkHttp.player();
-            OkHttpDataSource ds = new OkHttpDataSource(c, defaultRequestProperties);
+            OkHttpDataSource ds = new OkHttpDataSource(c, defaultRequestProperties,
+                    playlistUrl, playlistOriginReferer, playlistHostPort);
             if (userAgent != null && !userAgent.isEmpty()) {
                 ds.setRequestProperty("User-Agent", userAgent);
             }
@@ -91,14 +125,24 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
     }
 
     public OkHttpDataSource(OkHttpClient client) {
-        this(client, Collections.emptyMap());
+        this(client, Collections.emptyMap(), null, null, null);
     }
 
     public OkHttpDataSource(OkHttpClient client, Map<String, String> defaultRequestProperties) {
+        this(client, defaultRequestProperties, null, null, null);
+    }
+
+    OkHttpDataSource(OkHttpClient client, Map<String, String> defaultRequestProperties,
+                     @Nullable String playlistUrl,
+                     @Nullable String playlistOriginReferer,
+                     @Nullable String playlistHostPort) {
         super(true);
         this.client = client;
         this.defaultRequestProperties = defaultRequestProperties != null ? defaultRequestProperties : Collections.emptyMap();
         this.requestProperties = new HashMap<>();
+        this.playlistUrl = playlistUrl;
+        this.playlistOriginReferer = playlistOriginReferer;
+        this.playlistHostPort = playlistHostPort;
     }
 
     // ---------------- HttpDataSource ----------------
@@ -154,6 +198,31 @@ public class OkHttpDataSource extends BaseDataSource implements HttpDataSource {
         // 单次请求头覆盖默认
         for (Map.Entry<String, String> e : requestProperties.entrySet()) {
             builder.header(e.getKey(), e.getValue());
+        }
+
+        // v5.6.8 核心修复：跨域 TS/chunk 段请求时，动态把 Referer 从 playlist 目录级（含 path）
+        // 降级为 playlist ORIGIN 级（只含 scheme://host:port/），解决 cache.0567890.xyz:4433
+        // → cdn.hls.one 的 CDN sign 鉴权 403 → Network Connection Failed 白屏。
+        // 判定：
+        //   1) 有 playlistHostPort（说明是 HLS/DASH 播放链路），并且
+        //   2) 当前 dataSpec.uri 的 host:port 与 playlist 的 host:port 不同，并且
+        //   3) 当前请求 URL 看起来像音视频段（ts/m4s/m4v/webm/fmp4/mkv）或 不是 m3u8/mpd（不是 playlist 重拉）
+        if (playlistHostPort != null && playlistOriginReferer != null && dataSpec.uri != null) {
+            String urlLc = null;
+            try {
+                String reqHost = dataSpec.uri.getHost();
+                int reqPort = dataSpec.uri.getPort();
+                String reqHostPort = reqHost != null ? ((reqPort > 0) ? (reqHost + ":" + reqPort) : reqHost) : null;
+                if (reqHostPort != null && !reqHostPort.equalsIgnoreCase(playlistHostPort)) {
+                    // 只有请求「段资源」时才替换；m3u8/mpd 的 playlist 重拉仍然保留用户指定的 Referer
+                    urlLc = dataSpec.uri.toString().toLowerCase();
+                    boolean isPlaylist = urlLc.contains(".m3u8") || urlLc.contains(".mpd");
+                    if (!isPlaylist) {
+                        builder.removeHeader("Referer");
+                        builder.header("Referer", playlistOriginReferer);
+                    }
+                }
+            } catch (Throwable ignored) { /* 保险：Referer 修正失败不影响请求主流程 */ }
         }
 
         // Range 请求

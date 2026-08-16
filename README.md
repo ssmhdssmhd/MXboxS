@@ -9,6 +9,21 @@
 
 ## 最新更新
 
+### v5.6.8 · 2026-08-15 · P0 修复：m3u8 跨域 TS 段 CDN sign 鉴权 403 → "Network Connection Failed" 白屏（cache.0567890.xyz:4433 → cdn.hls.one）
+
+**根因**：入口 M3U8（`https://cache.0567890.xyz:4433/...xxx.m3u8?vkey=65303439...`）能正常拉取，但里面 TS 段是**跨域绝对 URL**（`https://cdn.hls.one/...ts?sign=432位...`）。之前 `UrlUtil.mergeDefaultHeaders` 把**完整 playlist URL（含 ?vkey=400+位查询串）** 塞进 Referer，违反浏览器 Referer 标准（应不含 query）→ cdn.hls.one sign 鉴权把 TS 段请求**直接 403** → ExoPlayer HLS Extractor 段加载失败 → 上抛 `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED` → UI 白屏弹"Network Connection Failed"。
+
+**本版落地 4 层修复（只加不改，解析爬虫链路行为完全保留）**：
+
+| # | 位置 | 效果 |
+|---|------|------|
+| ① 播放专用 Referer 推导工具 | [UrlUtil.inferRefererForPlayback / mergeDefaultHeadersForPlayback](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L164-L250) | 新增 Referer 两档推导：DIRECTORY 版 = `scheme://host:port/path_dir/` / ORIGIN 版 = `scheme://host:port/`；**永远不含 query/fragment**，严格浏览器标准；补 UA + Accept:\*/\* 兜底 |
+| ② 3 个播放出口全部切播放版 merge | [PlaybackActivity.startPlayer](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L268-L277) / [PlayerManager.onParseSuccess](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L572-L579) / [VodPlaybackController.startPlaybackWithCached](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/playback/vod/VodPlaybackController.java#L143-L162) | 3 处 `mergeDefaultHeaders` → `mergeDefaultHeadersForPlayback`；PlaySpec 里的 Referer 从现在起永远是合规的目录级 Referer（不带 query） |
+| ③ 跨域 TS 段动态 Referer 修正（核心） | [OkHttpDataSource.Factory.setPlaylistUrl](file:///workspace/app/src/main/java/androidx/media3/datasource/okhttp/OkHttpDataSource.java#L77-L96) + [OkHttpDataSource.open](file:///workspace/app/src/main/java/androidx/media3/datasource/okhttp/OkHttpDataSource.java#L203-L226) + [MediaSourceFactory.createDataSourceFactory](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java#L102-L116) | Factory 新增可选 `setPlaylistUrl()` 缓存顶层 m3u8 URL；每次 `open()` 发请求前判定：**跨域 + 非 playlist 重拉** → 动态把 Referer 从目录级降级为 **ORIGIN 级**（strict-origin-when-cross-origin，浏览器跨域默认策略），CDN sign 鉴权通过率最高 |
+| ④ HLS/DASH 段失败重试策略 | [ExoUtil.buildMediaSourceFactory](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/ExoUtil.java#L314-L325) | DefaultLoadErrorHandlingPolicy 三项参数 1 次 → **3 次**，境外/高延迟源临时丢包不会直接弹失败 |
+
+版本号：versionCode 627 → **628** / versionName 5.6.7 → **5.6.8**
+
 ### v5.6.7 · 2026-08-15 · P0 修复：能看到视频标题/选集/简介，但就是永远 0 KB/s 转圈无法播放（万能嗅探站套娃 URL 漏网问题）
 
 **根因**：`qcb jiexi.php` 公开解析站虽然返回 `{"code":200,"ZT":"解析成功"}`，但 `url` 字段给的是**第二层 jx.xmflv.cc 包装 URL**（典型套娃）。原代码 `checkResult` 只判断 length>40，导致 HTML 嗅探站包装 URL 被直接丢给 ExoPlayer → 永远 0 KB/s 转圈。

@@ -267,9 +267,10 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         } else {
             attachSurface();
             // 修复 v5.6.1：直链出口必须补 UA / Referer 兜底，否则 m3u8 源常见 403 → 0 KB/s 一直转圈。
-            // 之前只有 fakeLocalProxy 分支做了 mergeDefaultHeaders，这里补上其余直链场景。
+            // 修复 v5.6.8：改用 mergeDefaultHeadersForPlayback（Referer 推导为 playlist 目录，不含 ?vkey= 长 query），
+            // 否则跨域 cdn.hls.one TS 段仍带 cache.0567890.xyz?vkey=... Referer → CDN sign 鉴权拒绝 → Network Connection Failed。
             String realForHeaders = !android.text.TextUtils.isEmpty(realUrl) ? realUrl : result.getRealUrl();
-            java.util.Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(
+            java.util.Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeadersForPlayback(
                     result.getHeader(), realForHeaders);
             result.setHeader(safeHeaders);
             player().start(PlaySpec.from(result, key, metadata), timeout, startPositionMs);

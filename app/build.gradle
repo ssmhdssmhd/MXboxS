@@ -19,8 +19,8 @@ android {
         applicationId "com.ssmhdssmhd.mxboxs"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 627
-        versionName "5.6.7"
+        versionCode 628
+        versionName "5.6.8"
         // v5.6.5 体积优化：resConfigs 只打包 3 种常用语言，其它 values-xx 的 system strings 不进 APK
         // （App 自己的中文资源文件在 values-zh-rCN / values-zh-rTW，不会被排除）
         resConfigs "zh-rCN", "zh-rTW", "en"
@@ -113,10 +113,14 @@ android {
 
     signingConfigs {
         release {
-            storeFile file(localProps['storeFile'])
-            keyAlias localProps['keyAlias']
-            keyPassword localProps['storePassword']
-            storePassword localProps['storePassword']
+            // signing 字段可能在本地 local.properties 不存在（CI 环境用环境变量或签名文件路径）。
+            // 当 storeFile 为空时跳过，避免 build configuration 阶段 Cannot convert null to File 报错。
+            if (localProps['storeFile'] != null && !localProps['storeFile'].toString().isEmpty()) {
+                storeFile file(localProps['storeFile'])
+                keyAlias localProps['keyAlias']
+                keyPassword localProps['storePassword']
+                storePassword localProps['storePassword']
+            }
         }
     }
 
@@ -124,7 +128,10 @@ android {
         release {
             minifyEnabled = true
             shrinkResources = true
-            signingConfig = signingConfigs.release
+            // 只有 release signing 配置有 storeFile 时才 attach signingConfig；否则让 CI 用默认 debug 签名或后处理签名
+            if (signingConfigs.release != null && signingConfigs.release.storeFile != null) {
+                signingConfig = signingConfigs.release
+            }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'proguard-rules-media.pro'
         }
     }

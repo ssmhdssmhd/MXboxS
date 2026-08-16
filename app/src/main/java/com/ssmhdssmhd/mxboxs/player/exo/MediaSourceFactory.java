@@ -100,11 +100,18 @@ public class MediaSourceFactory implements MediaSource.Factory {
     }
 
     private DataSource.Factory createDataSourceFactory(MediaItem mediaItem) {
+        // v5.6.8 修复：MediaItem 里可能没 header 或 header 的 Referer 仍是旧版 mergeDefaultHeaders 版
+        // （含 ?vkey=xx 长 query），这里再强制走一遍播放专用 headers 流程；并把 MediaItem URL 作为
+        // playlistUrl 灌给 OkHttpDataSource.Factory，用于跨域 TS 段动态修正 Referer。
+        // 解决 cache.0567890.xyz:4433 → cdn.hls.one Network Connection Failed。
+        String playbackUrl = mediaItem != null && mediaItem.localConfiguration != null
+                ? (mediaItem.localConfiguration.uri != null ? mediaItem.localConfiguration.uri.toString() : "")
+                : "";
         Map<String, String> headers = ExoUtil.extractHeaders(mediaItem);
-        HttpDataSource.Factory httpFactory = new OkHttpDataSource.Factory(OkHttp.player());
-        if (headers != null && !headers.isEmpty()) {
-            httpFactory.setDefaultRequestProperties(headers);
-        }
+        Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeadersForPlayback(headers, playbackUrl);
+        OkHttpDataSource.Factory httpFactory = new OkHttpDataSource.Factory(OkHttp.player());
+        httpFactory.setDefaultRequestProperties(safeHeaders);
+        httpFactory.setPlaylistUrl(playbackUrl);
         return () -> getCacheDataSource(new DefaultDataSource.Factory(App.get(), httpFactory)).createDataSource();
     }
 

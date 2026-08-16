@@ -312,6 +312,18 @@ public class ExoUtil {
     }
 
     private static MediaSource.Factory buildMediaSourceFactory() {
-        return new MediaSourceFactory();
+        // v5.6.8：给 HLS/DASH/TS 段加载增加 LoadErrorHandlingPolicy，段失败至少重试 3 次
+        // （media3 默认 1 次，cdn.hls.one / cache.0567890.xyz 这类高延迟源偶发 403 或临时丢包，
+        // 经 Referer 修正 1 次重试仍失败就上抛 Network Connection Failed；升为 3 次后白屏率显著下降）。
+        // 用匿名子类覆盖 getMinimumLoadableRetryCount()，避免 DefaultLoadErrorHandlingPolicy
+        // 不同 media3 版本构造函数参数不一样（有 0/1/2/3 参数 4 种变体）导致的编译期兼容问题。
+        androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy retryPolicy =
+                new androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy() {
+                    @Override
+                    public int getMinimumLoadableRetryCount(int dataType) {
+                        return 3;
+                    }
+                };
+        return new MediaSourceFactory().setLoadErrorHandlingPolicy(retryPolicy);
     }
 }

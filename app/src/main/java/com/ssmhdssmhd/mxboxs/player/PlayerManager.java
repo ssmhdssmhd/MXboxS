@@ -572,8 +572,9 @@ public class PlayerManager implements ParseCallback {
         if (!TextUtils.isEmpty(from)) Notify.show(ResUtil.getString(R.string.parse_from, from));
         if (headers != null) headers.remove(HttpHeaders.RANGE);
         // 修复 v5.6.1：解析成功出口统一 mergeDefaultHeaders（补 Referer/UA 兜底）
-        // 否则部分内置嗅探/第三方解析返回的 headers 不完整，CDN 返回 403 导致 0 KB/s 一直缓冲。
-        Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(headers, url);
+        // 修复 v5.6.8：改用 mergeDefaultHeadersForPlayback（Referer = playlist 目录，不带 query 乱码），
+        // 否则请求 cdn.hls.one 跨域 TS 绝对段时 Referer 包含 cache.0567890.xyz?vkey=xxx 导致 sign 鉴权 403 → Network Connection Failed。
+        Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeadersForPlayback(headers, url);
         if (spec != null) spec.setHeaders(safeHeaders);
         if (spec != null) spec.setUrl(url);
         startCurrent(pendingStartPositionMs);
