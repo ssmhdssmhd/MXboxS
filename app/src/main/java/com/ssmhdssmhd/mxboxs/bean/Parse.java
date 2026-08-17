@@ -66,6 +66,31 @@ public class Parse implements Diffable<Parse> {
         return parse;
     }
 
+    /**
+     * 内置官方 ssmhdssmhd Node.js 解析站（type = 1，JSON HTTP 解析）。
+     *
+     * v5.6.9 新增：用户请求把「http://114.134.184.91:1314/ssmhdssmhd/node.js?url=」
+     * 作为内置解析写死进二进制，即使 VodConfig 远程配置 parses 为空 / 没配置，
+     * 也有官方解析兜底，ParseJob.fallbackConcurrentParse 会把它和其他 type=1
+     * 解析一起并发 jsonParse；jsonParse 里直接 item.getUrl() + webUrl 拼接，
+     * 正好匹配 ?url= 前缀；checkResult 会判定 {code:200, url:"...m3u8"} 并回调成功。
+     *
+     * 之所以不叫 parse_ssmhdssmhd：因为旧配置文件里的 parses.name 也叫 "ssmhdssmhd"，
+     * 同名可做去重（Parse.equals/hashCode 是按 name 比较），避免远程配置里写了同名解析时
+     * 出现两个相同节点。如果远程已经有同名，setParses 插入前的 distinct() 会自动把内置版本去重，
+     * 用远程配置那个（它可能有自定义 header/ext / 新域名），优先级更高。
+     */
+    public static final String BUILTIN_SSMHDSSMHD_NAME = "ssmhdssmhd-node";
+    public static final String BUILTIN_SSMHDSSMHD_URL  = "http://114.134.184.91:1314/ssmhdssmhd/node.js?url=";
+
+    public static Parse builtinSsmhdssmhd() {
+        Parse parse = new Parse();
+        parse.setName(BUILTIN_SSMHDSSMHD_NAME);
+        parse.setType(1);
+        parse.setUrl(BUILTIN_SSMHDSSMHD_URL);
+        return parse;
+    }
+
     public String getName() {
         return TextUtils.isEmpty(name) ? "" : name;
     }

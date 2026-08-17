@@ -9,6 +9,22 @@
 
 ## 最新更新
 
+### v5.6.9 · 2026-08-15 · 🆕 内置官方解析站「ssmhdssmhd-node」硬编码进二进制，没配远程 parses 也能一键解析播放
+
+**用户需求**：把 `http://114.134.184.91:1314/ssmhdssmhd/node.js?url=` 作为内置解析写死进 App，远程配置没配/拉取不到时，仍然有官方解析兜底。
+
+**落地要点**：
+
+| # | 位置 | 效果 |
+|---|------|------|
+| ① 新增 Parse 构造器 | [Parse.builtinSsmhdssmhd()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/bean/Parse.java#L83-L92) | 常量 `BUILTIN_SSMHDSSMHD_NAME="ssmhdssmhd-node"`、`BUILTIN_SSMHDSSMHD_URL="http://114.134.184.91:1314/ssmhdssmhd/node.js?url="`，返回 type=1 JSON HTTP 解析节点 |
+| ② 自动注入 + 自动去重 | [VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L204-L221) | God/Built-in 必插之后再扫一遍：现有 parses 里没有同名/同URL就补内置节点；远程已写官方节点就尊重远程（优先远程，可带 header/ext、换域名） |
+| ③ 现有解析链零改动直接生效 | [ParseJob.jsonParse](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L249-L275) | `item.getUrl()+webUrl` 正好拼成 `?url=<播放页>`，返回 {code,url} 或 {data:{url}} 都会被 checkResult 命中 → onParseSuccess → 开播 |
+
+**三种使用场景全覆盖**：①远程 parses 为空 → 自动有官方解析兜底；②远程 parses 已写官方节点 → 用远程那份（去重）；③远程 parses 有别的解析 + 没官方 → 官方节点补进去并发跑，谁先返回谁成功。
+
+版本号：versionCode 628 → **629** / versionName 5.6.8 → **5.6.9**
+
 ### v5.6.8 · 2026-08-15 · P0 修复：m3u8 跨域 TS 段 CDN sign 鉴权 403 → "Network Connection Failed" 白屏（cache.0567890.xyz:4433 → cdn.hls.one）
 
 **根因**：入口 M3U8（`https://cache.0567890.xyz:4433/...xxx.m3u8?vkey=65303439...`）能正常拉取，但里面 TS 段是**跨域绝对 URL**（`https://cdn.hls.one/...ts?sign=432位...`）。之前 `UrlUtil.mergeDefaultHeaders` 把**完整 playlist URL（含 ?vkey=400+位查询串）** 塞进 Referer，违反浏览器 Referer 标准（应不含 query）→ cdn.hls.one sign 鉴权把 TS 段请求**直接 403** → ExoPlayer HLS Extractor 段加载失败 → 上抛 `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED` → UI 白屏弹"Network Connection Failed"。

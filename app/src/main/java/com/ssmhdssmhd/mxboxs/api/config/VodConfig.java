@@ -205,6 +205,18 @@ public class VodConfig extends BaseConfig {
         if (!parses.isEmpty()) parses.add(0, Parse.god());
         boolean hasBuiltin = parses.stream().anyMatch(p -> p.getType() != null && p.getType() == 5);
         if (!hasBuiltin) parses.add(0, Parse.builtin());
+        // v5.6.9 新增：内置官方 ssmhdssmhd-node 解析（type=1 JSON HTTP 解析），
+        // 保证即使远程配置的 parses 为空/不包含官方解析站时，fallbackConcurrentParse
+        // 也会把这个接口作为并发解析源之一；jsonParse 通过 item.getUrl()+webUrl 直接
+        // 拼 url=http://114.134.184.91:1314/ssmhdssmhd/node.js?url=<播放页地址>，
+        // 返回 {"code":200,"url":"...m3u8"} 即被 checkResult 命中并回调成功。
+        //
+        // 去重：如果远程配置里的 parses 已经有同 name（ssmhdssmhd-node）或同 url
+        // （官方节点可能自己更新了 header/ext），就用远程那份，不重复插入。
+        boolean hasSsmhdssmhd = parses.stream().anyMatch(p ->
+                Parse.BUILTIN_SSMHDSSMHD_NAME.equals(p.getName())
+                        || Parse.BUILTIN_SSMHDSSMHD_URL.equals(p.getUrl()));
+        if (!hasSsmhdssmhd) parses.add(Parse.builtinSsmhdssmhd());
         this.parses = parses;
     }
 

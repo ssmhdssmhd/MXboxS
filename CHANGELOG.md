@@ -2,6 +2,53 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.9] - 2026-08-15 · 内置官方解析站「ssmhdssmhd-node」→ 没配远程 parses 也能一键解析播放
+
+### 需求背景（用户明确要求）
+
+> 内置解析增加 `http://114.134.184.91:1314/ssmhdssmhd/node.js?url=`
+
+之前所有解析站都依赖 VodConfig 远程配置下发的 `parses[]` 数组：一旦用户没配配置、网络异常拉不到远程配置、或者远程配置里忘记加官方解析站，那么「超级解析/内置嗅探」失败后就再也没有 JSON HTTP 解析兜底，播放页会直接弹"解析失败"。
+
+### 本版落地：硬编码内置官方解析站（解析链 type=1，并发跑）
+
+| # | 位置 | 做了啥 | 效果 |
+|---|------|--------|------|
+| ① 新增内置官方解析节点构造器 | [Parse.builtinSsmhdssmhd()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/bean/Parse.java#L83-L92) | 新增常量 `BUILTIN_SSMHDSSMHD_NAME="ssmhdssmhd-node"`、`BUILTIN_SSMHDSSMHD_URL="http://114.134.184.91:1314/ssmhdssmhd/node.js?url="`；`builtinSsmhdssmhd()` 返回 type=1 的 JSON HTTP 解析节点，正好被 fallbackConcurrentParse 按 type=1 一路并发 `jsonParse()` | 二进制级硬编码，远程配置再怎么动都不会丢 |
+| ② VodConfig.setParses() 自动注入 + 去重 | [VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L204-L221) | 在原本 God + Built-in 两条必插规则之后，新增判定：如果现有 parses 里**既没有同名（ssmhdssmhd-node）也没有同 url（官方节点）**，就 `add(Parse.builtinSsmhdssmhd())` 插进去；如果远程配置自己已经写了官方节点（可能带 header/ext、自己换了新域名），就尊重远程那份，不重复插入 | 三种情况全覆盖：<br>• 远程 parses 为空 → 自动有官方解析兜底<br>• 远程 parses 已经写了官方节点 → 用远程那份（优先远程）<br>• 远程 parses 有别的解析 + 没有官方 → 官方节点补进去并发跑 |
+| ③ 现有 jsonParse 天然支持 ?url= 拼接 | [ParseJob.jsonParse(Parse,String,boolean)](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L249-L275) | 本函数已经是 `item.getUrl() + webUrl` 直接拼接（正好命中官方接口 `?url=<播放页地址>` 格式）；返回 `{"code":200,"url":"...m3u8"}` 或 `{"data":{"url":"..."}}` 都会被 `Json.safeString(object, "url")` 抓出来，再经 `checkResult()` 命中 → `onParseSuccess()` 回调 → ExoPlayer 开始播放 | 不用改解析逻辑，零风险 |
+
+### 具体调用链路（从用户点"播放"到命中新接口）
+
+```
+用户点击选集
+  → ParseJob.startParse(webUrl)
+    → fallbackConcurrentParse(webUrl, preferWebviewFirst)
+      → 遍历 VodConfig.get().getParses()
+        → 收集所有 p.type==1 的解析（其中必然包含 ssmhdssmhd-node，除非远程显式写了同名/同url用远程）
+        → 并发线程池逐个 jsonParse(p, webUrl, false)
+          → OkHttp.newCall("http://114.134.184.91:1314/ssmhdssmhd/node.js?url=" + webUrl, headers)
+          → HTTP 200 + JSON.parse(raw)
+          → url = Json.safeString(object, "url") （或 object.data.url）
+          → checkResult(headers, url, "ssmhdssmhd-node", fatal=false)
+            → url 是 .m3u8/.mp4 → onParseSuccess()
+            → ExoPlayer 开播
+```
+
+### 增量兼容（完全保留旧行为）
+
+- 远程配置下发的 `parses[]` 仍然优先；内置节点只是兜底/补充，不会覆盖远程同名/同URL配置
+- Parse.equals / hashCode 仍然严格按 `name` 比较，List.distinct() 天然把重复节点去重
+- 解析并发数、WebView 嗅探、超级解析、内置嗅探的执行顺序完全不变
+- ssmhdssmhd-node 节点 type=1，和远程 parses 里的 type=1 节点走完全一致的代码路径，没有特判
+
+### 版本号
+
+- versionCode 628 → **629**
+- versionName 5.6.8 → **5.6.9**
+
+---
+
 ## [v5.6.8] - 2026-08-15 · 修复 m3u8 跨域 TS 段 CDN sign 鉴权 403 → "Network Connection Failed" 白屏（cache.0567890.xyz:4433 → cdn.hls.one 实测）
 
 ### P0 根因定位（复现：https://cache.0567890.xyz:4433/Cache/youku/xxx.m3u8?vkey=65303439... → Network Connection Failed）
