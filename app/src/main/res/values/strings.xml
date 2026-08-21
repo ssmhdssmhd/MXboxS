@@ -217,12 +217,16 @@
 
     <!-- 接口配置（内置解析线路） -->
     <string name="setting_cfg_title">接口配置（内置解析线路）</string>
-    <string name="setting_cfg_subtitle">每行一条内置解析接口，格式：名称|类型|地址。修改后重新加载接口或重启生效。</string>
-    <string name="setting_cfg_editor_hint">名称|类型|地址，例如：&#10;node-1314|1|http://114.134.184.91:1314/node.js?url=&#10;node-1315|1|http://114.134.184.91:1315/node.js?url=</string>
+    <string name="setting_cfg_subtitle">逐条配置内置解析接口（名称、类型、地址）。修改后重新加载接口或重启生效。</string>
+    <string name="setting_cfg_add">添加接口</string>
+    <string name="setting_cfg_line_name">名称</string>
+    <string name="setting_cfg_line_type">类型</string>
+    <string name="setting_cfg_line_url">地址</string>
+    <string name="setting_cfg_line_remove">删除此接口</string>
     <string name="setting_cfg_save">保存</string>
     <string name="setting_cfg_reset">恢复默认</string>
     <string name="setting_cfg_saved">已保存，重新加载接口或重启后生效</string>
-    <string name="setting_cfg_saved_error">格式错误：请按 名称|类型|地址 每行一条</string>
+    <string name="setting_cfg_saved_error">保存失败：名称或地址不能为空，地址需以 http 开头</string>
     <string name="setting_cfg_reset_done">已恢复默认内置解析线路</string>
 
     <!-- Backup & Restore -->

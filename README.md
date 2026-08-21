@@ -20,7 +20,7 @@
 - `node-1315` = `http://114.134.184.91:1315/node.js?url=`
 （[Parse.builtinNode1314/1315](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/bean/Parse.java#L78-L98) + [VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L208-L219)。）内置线路现共 5 条：God / 内置嗅探 / node-1314 / node-1315 / sniff-node（sniff 保留，仅按要求删了 ssmhdssmhd）。
 
-**新增「接口配置」**：高级设置（解锁后）新增「接口配置（内置解析线路）」卡片，可直接编辑内置解析接口（每行 `名称|类型|地址`），无需重新编译，支持保存校验与恢复默认，持久化到 [BuiltinParseSetting](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java)。修改后重新加载接口或重启生效。
+**新增「接口配置」**：高级设置（解锁后）新增「接口配置（内置解析线路）」卡片，可直接编辑内置解析接口。采用**结构化表单**逐条配置：每条接口包含 **名称** 输入框、**类型下拉选择**（1·JSON解析 / 2·JSON扩展 / 3·JSON混合 / 4·超级解析 / 5·内置嗅探）和 **地址** 输入框，支持添加 / 删除 / 保存校验 / 恢复默认，无需重新编译，持久化到 [BuiltinParseSetting](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java)。修改后重新加载接口或重启生效。
 
 > 若 1315 服务端本身无法完成解析（可能只支持特定站点/仍在开发），建议在设置里把当前解析切回 **ssmhdssmhd / God**。
 

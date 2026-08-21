@@ -3,10 +3,14 @@ package com.ssmhdssmhd.mxboxs.ui.activity;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.LinearLayout;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatSpinner;
 import androidx.appcompat.widget.Toolbar;
 
 import com.google.android.material.card.MaterialCardView;
@@ -14,6 +18,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 import com.ssmhdssmhd.mxboxs.R;
+import com.ssmhdssmhd.mxboxs.bean.Parse;
 import com.ssmhdssmhd.mxboxs.player.parse.ParseDiskCache;
 import com.ssmhdssmhd.mxboxs.player.parse.ParseJob;
 import com.ssmhdssmhd.mxboxs.setting.BuiltinParseSetting;
@@ -21,6 +26,9 @@ import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
 import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.ssmhdssmhd.mxboxs.utils.FeatureFlags;
 import com.ssmhdssmhd.mxboxs.utils.Notify;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 高级设置页面
@@ -61,7 +69,17 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private TextInputEditText llmEndpointEdit;
     private TextInputEditText llmKeyEdit;
     private TextInputEditText llmModelEdit;
-    private TextInputEditText cfgEditorEdit;
+    private LinearLayout cfgLinesContainer;
+
+    // 内置接口类型下拉：值与显示名一一对应
+    private static final int[] TYPE_VALUES = {1, 2, 3, 4, 5};
+    private static final String[] TYPE_LABELS = {
+            "1 · JSON解析",
+            "2 · JSON扩展",
+            "3 · JSON混合",
+            "4 · 超级解析",
+            "5 · 内置嗅探"
+    };
 
     private final String[] bufferModes = new String[]{"快起播", "流畅"};
     private final String[] qualityPrefs = new String[]{"自适应", "最高画质", "720P", "480P"};
@@ -101,7 +119,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         llmEndpointEdit = findViewById(R.id.llmEndpointEdit);
         llmKeyEdit = findViewById(R.id.llmKeyEdit);
         llmModelEdit = findViewById(R.id.llmModelEdit);
-        cfgEditorEdit = findViewById(R.id.cfgEditorEdit);
+        cfgLinesContainer = findViewById(R.id.cfgLinesContainer);
 
         if (toolbar != null) {
             toolbar.setNavigationOnClickListener(v -> finish());
@@ -155,7 +173,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         llmKeyEdit.setText(PlayerSetting.getLlmKey());
         llmModelEdit.setText(PlayerSetting.getLlmModel());
 
-        cfgEditorEdit.setText(BuiltinParseSetting.editorText());
+        rebuildLines();
     }
 
     private void setupListeners() {
@@ -261,20 +279,101 @@ public class SettingAdvancedActivity extends AppCompatActivity {
             Notify.show(R.string.setting_llm_saved);
         });
 
+        // 接口配置（内置解析线路）：添加接口
+        findViewById(R.id.cfgAddRow).setOnClickListener(v -> addLine(newLine(null)));
+
         // 接口配置（内置解析线路）：保存
         findViewById(R.id.cfgSaveRow).setOnClickListener(v -> {
-            CharSequence text = cfgEditorEdit.getText();
-            boolean ok = BuiltinParseSetting.saveText(text == null ? "" : text.toString());
+            List<Parse> list = collectLines();
+            if (list == null) {
+                Notify.show(R.string.setting_cfg_saved_error);
+                return;
+            }
+            boolean ok = BuiltinParseSetting.saveLines(list);
             Notify.show(ok ? R.string.setting_cfg_saved : R.string.setting_cfg_saved_error);
-            if (ok) cfgEditorEdit.setText(BuiltinParseSetting.editorText());
+            if (ok) rebuildLines();
         });
 
         // 接口配置（内置解析线路）：恢复默认
         findViewById(R.id.cfgResetRow).setOnClickListener(v -> {
             BuiltinParseSetting.reset();
-            cfgEditorEdit.setText(BuiltinParseSetting.editorText());
+            rebuildLines();
             Notify.show(R.string.setting_cfg_reset_done);
         });
+    }
+
+    // ===== 内置接口结构化表单 =====
+
+    private Parse newLine(Parse src) {
+        if (src == null) src = new Parse();
+        if (src.getName().isEmpty()) src.setName("");
+        if (src.getType() == null || src.getType() == 0) src.setType(1);
+        return src;
+    }
+
+    /** 按当前生效线路重建所有表单行。 */
+    private void rebuildLines() {
+        if (cfgLinesContainer == null) return;
+        cfgLinesContainer.removeAllViews();
+        for (Parse p : BuiltinParseSetting.effectiveLines()) {
+            addLine(p);
+        }
+    }
+
+    /** 追加一行接口；每个字段做预填。 */
+    private void addLine(Parse p) {
+        if (cfgLinesContainer == null) return;
+        p = newLine(p);
+        View row = LayoutInflater.from(this).inflate(R.layout.item_builtin_line, cfgLinesContainer, false);
+
+        TextInputEditText nameEdit = row.findViewById(R.id.cfgLineName);
+        TextInputEditText urlEdit = row.findViewById(R.id.cfgLineUrl);
+        AppCompatSpinner typeSpinner = row.findViewById(R.id.cfgLineType);
+        MaterialTextView removeBtn = row.findViewById(R.id.cfgLineRemove);
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_dropdown_item, TYPE_LABELS);
+        typeSpinner.setAdapter(adapter);
+        typeSpinner.setSelection(indexOfType(p.getType()));
+
+        nameEdit.setText(p.getName());
+        urlEdit.setText(p.getUrl());
+        removeBtn.setOnClickListener(v -> cfgLinesContainer.removeView(row));
+
+        cfgLinesContainer.addView(row);
+    }
+
+    private int indexOfType(int type) {
+        for (int i = 0; i < TYPE_VALUES.length; i++) {
+            if (TYPE_VALUES[i] == type) return i;
+        }
+        return 0;
+    }
+
+    /** 收集当前所有表单行；任一名称/地址非法返回 null。 */
+    private List<Parse> collectLines() {
+        if (cfgLinesContainer == null) return null;
+        List<Parse> out = new ArrayList<>();
+        for (int i = 0; i < cfgLinesContainer.getChildCount(); i++) {
+            View row = cfgLinesContainer.getChildAt(i);
+            TextInputEditText nameEdit = row.findViewById(R.id.cfgLineName);
+            TextInputEditText urlEdit = row.findViewById(R.id.cfgLineUrl);
+            AppCompatSpinner typeSpinner = row.findViewById(R.id.cfgLineType);
+            String name = nameEdit.getText() == null ? "" : nameEdit.getText().toString().trim();
+            String url = urlEdit.getText() == null ? "" : urlEdit.getText().toString().trim();
+            if (name.isEmpty() || url.isEmpty()
+                    || !(url.startsWith("http://") || url.startsWith("https://"))) {
+                return null;
+            }
+            int sel = typeSpinner.getSelectedItemPosition();
+            int type = TYPE_VALUES[Math.max(0, Math.min(sel, TYPE_VALUES.length - 1))];
+            Parse p = new Parse();
+            p.setName(name);
+            p.setType(type);
+            p.setUrl(url);
+            out.add(p);
+        }
+        return out.isEmpty() ? null : out;
     }
 
     /** 解析缓存分级清理：内存 / 磁盘 / 全部 */
