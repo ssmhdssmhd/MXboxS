@@ -2,6 +2,41 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.6.9] - 2026-08-21 · 新增「高级设置 → 接口配置（内置视频解析）」：可添加 / 删除 / 保存 / 恢复默认内置解析线路，类型仅两种（1 直接播放 / 2 JSON 解析）
+
+### 功能
+
+在「高级设置（版本号点 20 次解锁）」中新增 **接口配置（内置视频解析）** 卡片，把原本写死的内置解析线路改为可在界面上可视化管理：
+
+| 能力 | 说明 |
+|------|------|
+| 线路管理 | 每条线路可编辑「名称 + 类型 + 接口地址」，支持 **添加接口** / **删除此接口** / **保存** / **恢复默认** |
+| 类型选择（仅两种） | **1 · 直接播放**（`Parse.type=0`，把返回内容当直链/网页直接播）；**2 · JSON 解析**（`Parse.type=1`，从返回 JSON 里的 `url` 字段取播放地址） |
+| 持久化 | 线路以 JSON 数组写入 SharedPreferences（key：`builtin_parse_lines`），重启后仍生效 |
+| 默认线路 | 两条官方 node.js 多进程 JSON 解析线路（1314-node / 1315-node），「恢复默认」一键还原 |
+| 注入解析列表 | [VodConfig.setParses](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L205-L217) 加载配置时把生效线路并入解析器列表，按名称/地址去重，不影响原有解析器 |
+
+### 改动文件
+
+- 新增 [BuiltinParseSetting](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java)：默认线路 / 类型映射（`parseType`/`uiType`）/ 生效线路 / 存取 / 重置
+- 修改 [SettingAdvancedActivity](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java)：接口配置卡片 UI 绑定 + 添加/删除/保存/重置交互
+- 修改 [VodConfig](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L205-L217)：把内置线路去重后并入解析器列表
+- 新增布局 [item_builtin_line](file:///workspace/app/src/main/res/layout/item_builtin_line.xml)（单条线路编辑项）、修改 [activity_setting_advanced](file:///workspace/app/src/main/res/layout/activity_setting_advanced.xml)（接口配置卡片）
+- 修改 [strings.xml](file:///workspace/app/src/main/res/values/strings.xml#L169-L183)：接口配置相关文案
+
+### 兼容性
+
+- 原有解析器（直链/网页/JSON/嗅探）全部不变，内置线路仅在列表尾部追加
+- 未自定义时行为与旧版完全一致（自动使用默认两条线路）
+- 类型映射：UI「1 直接播放」→ `type=0`；UI「2 JSON 解析」→ `type=1`
+
+### 版本号
+
+- versionCode 628 → **629**
+- versionName 5.6.8 → **5.6.9**
+
+---
+
 ## [v5.6.8] - 2026-08-15 · 修复 m3u8 跨域 TS 段 CDN sign 鉴权 403 → "Network Connection Failed" 白屏（cache.0567890.xyz:4433 → cdn.hls.one 实测）
 
 ### P0 根因定位（复现：https://cache.0567890.xyz:4433/Cache/youku/xxx.m3u8?vkey=65303439... → Network Connection Failed）

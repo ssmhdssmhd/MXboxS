@@ -9,6 +9,22 @@
 
 ## 最新更新
 
+### v5.6.9 · 2026-08-21 · 新增「高级设置 → 接口配置（内置视频解析）」：线路可视化编辑，类型仅两种
+
+在「高级设置（版本号点 20 次解锁）」新增 **接口配置（内置视频解析）** 卡片，把内置解析线路改为可在界面上管理：
+
+| 能力 | 说明 |
+|------|------|
+| 线路管理 | 每条线路可编辑「名称 + 类型 + 接口地址」，支持 **添加接口** / **删除此接口** / **保存** / **恢复默认** |
+| 类型选择（仅两种） | **1 · 直接播放**（`Parse.type=0`）；**2 · JSON 解析**（`Parse.type=1`，从返回 JSON 的 `url` 字段取播放地址） |
+| 持久化 | 线路以 JSON 数组写入 SharedPreferences（key：`builtin_parse_lines`），重启后仍生效 |
+| 默认线路 | 两条官方 node.js JSON 解析线路（1314-node / 1315-node），「恢复默认」一键还原 |
+| 注入解析列表 | [VodConfig.setParses](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L205-L217) 把生效线路去重后并入解析器列表，原有解析器不受影响 |
+
+代码位置：[BuiltinParseSetting](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java) / [SettingAdvancedActivity](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java) / [item_builtin_line.xml](file:///workspace/app/src/main/res/layout/item_builtin_line.xml)
+
+版本号：versionCode 628 → **629** / versionName 5.6.8 → **5.6.9**
+
 ### v5.6.8 · 2026-08-15 · P0 修复：m3u8 跨域 TS 段 CDN sign 鉴权 403 → "Network Connection Failed" 白屏（cache.0567890.xyz:4433 → cdn.hls.one）
 
 **根因**：入口 M3U8（`https://cache.0567890.xyz:4433/...xxx.m3u8?vkey=65303439...`）能正常拉取，但里面 TS 段是**跨域绝对 URL**（`https://cdn.hls.one/...ts?sign=432位...`）。之前 `UrlUtil.mergeDefaultHeaders` 把**完整 playlist URL（含 ?vkey=400+位查询串）** 塞进 Referer，违反浏览器 Referer 标准（应不含 query）→ cdn.hls.one sign 鉴权把 TS 段请求**直接 403** → ExoPlayer HLS Extractor 段加载失败 → 上抛 `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED` → UI 白屏弹"Network Connection Failed"。
