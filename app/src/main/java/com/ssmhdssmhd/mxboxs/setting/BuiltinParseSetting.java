@@ -111,4 +111,19 @@ public final class BuiltinParseSetting {
     public static void reset() {
         Prefers.put(KEY, "");
     }
+
+    /** 直接保存一组内置线路（结构化表单用）。 */
+    public static boolean saveLines(List<Parse> list) {
+        if (list == null || list.isEmpty()) return false;
+        for (Parse p : list) {
+            String name = p.getName();
+            String url = p.getUrl();
+            if (TextUtils.isEmpty(name) || TextUtils.isEmpty(url)
+                    || !(url.startsWith("http://") || url.startsWith("https://"))) {
+                return false;
+            }
+        }
+        Prefers.put(KEY, App.gson().toJson(list));
+        return true;
+    }
 }

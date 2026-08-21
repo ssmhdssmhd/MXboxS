@@ -4,6 +4,10 @@
 
 ## [v5.7.1] - 2026-08-21 · 修复内置解析"一直转圈不播放"（sniff 接口挂起 + type=1 超时过久）
 
+### 同版本增量：内置线路类型下拉配置
+
+「高级设置 → 接口配置（内置解析线路）」由文本编辑器升级为**结构化表单**：每条接口含 **名称** 输入框、**类型下拉**（1·JSON解析 / 2·JSON扩展 / 3·JSON混合 / 4·超级解析 / 5·内置嗅探）和 **地址** 输入框，支持添加 / 删除 / 保存校验 / 恢复默认，无需手填数字。持久化逻辑在 [BuiltinParseSetting.saveLines()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java#L115-L128)，表单 UI 在 [SettingAdvancedActivity](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java)。
+
 ### 问题现象（结构）
 
 内置线路点播放后一直转圈、不出画面。

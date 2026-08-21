@@ -889,28 +889,35 @@
                         android:textSize="12sp"
                         android:text="@string/setting_cfg_subtitle" />
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <LinearLayout
+                        android:id="@+id/cfgLinesContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:layout_marginEnd="12dp"
-                        android:layout_marginTop="4dp"
-                        android:hint="@string/setting_cfg_editor_hint">
+                        android:orientation="vertical" />
 
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/cfgEditorEdit"
-                            android:layout_width="match_parent"
+                    <LinearLayout
+                        android:id="@+id/cfgAddRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="10dp"
+                        android:paddingBottom="10dp"
+                        android:background="@drawable/shape_item"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:backgroundTint="@color/white_10"
-                            android:gravity="top|start"
-                            android:hint="@string/setting_cfg_editor_hint"
-                            android:inputType="text|textMultiLine"
-                            android:minLines="5"
-                            android:padding="8dp"
+                            android:layout_weight="1"
                             android:textColor="@color/white"
-                            android:textColorHint="@color/white_70"
-                            android:textSize="13sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                            android:textSize="15sp"
+                            android:text="@string/setting_cfg_add" />
+                    </LinearLayout>
 
                     <LinearLayout
                         android:id="@+id/cfgResetRow"
