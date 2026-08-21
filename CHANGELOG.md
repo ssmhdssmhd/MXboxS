@@ -2,6 +2,50 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.1] - 2026-08-21 · 修复内置解析"一直转圈不播放"（sniff 接口挂起 + type=1 超时过久）
+
+### 问题现象（结构）
+
+内置线路点播放后一直转圈、不出画面。
+
+### 排查结论（为什么转圈）
+
+| 检查项 | 结果 |
+|--------|------|
+| sniff-node `114.134.184.91:1315` 端口 | ✅ 在线，`/` 秒回 200 |
+| `/sniff?url=<坏链接>` | ✅ 秒回 `{"code":400,"msg":"链接格式不正确"}` |
+| `/sniff?url=腾讯/爱奇艺/斗鱼` | ❌ **25s 超时、0 字节**（接口收到真实播放页后挂起） |
+| 对照 ssmhdssmhd `:1314` | ✅ 正常 |
+| `OkHttp` 默认超时 | ⚠️ 顶层 `TIMEOUT=30s`（connect/read/write 各 30s） |
+
+**根因**：type=1 解析走 [jsonParse](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L249-L275) 用 `OkHttp` 默认 30s 超时；当 sniff(1315) 接口对真实播放页挂起时，被选中为当前解析（fatal 直连路径）就会卡满约 30s 再失败，表现为"一直转圈不播放"。
+
+### 修复
+
+1. [OkHttp.newCall(url, headers, connectMs, readMs)](file:///workspace/catvod/src/main/java/com/github/catvod/net/OkHttp.java#L163-L175)：新增带独立网络超时的重载。
+2. [jsonParse](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L251) 改用该重载，**connect 8s / read 15s**：坏线路最多 ~15s 即失败返回，正常解析站秒回不受影响。
+3. 配合 `fallbackConcurrentParse` 的 15s 门限 + `done` 短路，其余线路（ssmhdssmhd/God/内置嗅探）正常竞速选最快。
+
+> 说明：若 1315 服务端本身无法把目标站点解析完成（可能仅支持特定站点或仍在开发），建议在 App 设置里把当前解析切回 ssmhdssmhd / God。
+
+### 同版本内置线路调整（用户实测「多进程 node.js 最快且可播放」）
+
+- **移除** 内置 `ssmhdssmhd` 线路（旧 `http://114.134.184.91:1314/ssmhdssmhd/node.js?url=`）。
+- **替换 / 新增** 两条多进程解析线路（type=1）：
+  - `node-1314` = `http://114.134.184.91:1314/node.js?url=`
+  - `node-1315` = `http://114.134.184.91:1315/node.js?url=`
+- 实测两者 `?url=test` 均秒回 `{"code":400,"msg":"链接格式不正确"}`，服务在线；`node.js` 采用多进程解析，速度与可播放率最好。
+- 位置：[Parse.builtinNode1314/builtinNode1315](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/bean/Parse.java#L78-L98) + [VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L208-L219)。
+- 现**内置线路共 5 条**：God(4) / 内置嗅探 builtin(5) / node-1314(1) / node-1315(1) / sniff-node(1，保留，你只要求删 ssmhdssmhd)。
+
+### 功能新增：高级设置 → 接口配置（内置解析线路）
+
+- **入口**：主设置页点击版本号解锁高级设置后，新增「接口配置」卡片。
+- **能力**：直接编辑内置解析线路（解析接口），无需重新编译；每行一条 `名称|类型|地址`。
+- **持久化**：[BuiltinParseSetting](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java) 存 SharedPreferences；[VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L204-L219) 读取，未配置时回退默认三路。
+- 支持「保存」校验（格式/地址非 http 提示错误）与「恢复默认」。
+- 修改后**重新加载接口或重启生效**。
+
 ## [v5.7.0] - 2026-08-21 · 手机端播放器五角星（收藏）旁新增「视频链接」胶囊，一键查看/复制/打开播放链接
 
 ### 需求背景（用户明确要求）

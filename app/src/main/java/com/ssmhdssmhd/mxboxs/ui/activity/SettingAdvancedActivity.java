@@ -16,6 +16,7 @@ import com.google.android.material.textview.MaterialTextView;
 import com.ssmhdssmhd.mxboxs.R;
 import com.ssmhdssmhd.mxboxs.player.parse.ParseDiskCache;
 import com.ssmhdssmhd.mxboxs.player.parse.ParseJob;
+import com.ssmhdssmhd.mxboxs.setting.BuiltinParseSetting;
 import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
 import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.ssmhdssmhd.mxboxs.utils.FeatureFlags;
@@ -39,6 +40,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private MaterialCardView aiOptCard;
     private MaterialCardView aiExpCard;
     private MaterialCardView llmCard;
+    private MaterialCardView netCfgCard;
 
     private SwitchMaterial cacheWriteSwitch;
     private SwitchMaterial adaptiveSwitch;
@@ -59,6 +61,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private TextInputEditText llmEndpointEdit;
     private TextInputEditText llmKeyEdit;
     private TextInputEditText llmModelEdit;
+    private TextInputEditText cfgEditorEdit;
 
     private final String[] bufferModes = new String[]{"快起播", "流畅"};
     private final String[] qualityPrefs = new String[]{"自适应", "最高画质", "720P", "480P"};
@@ -78,6 +81,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         aiOptCard = findViewById(R.id.aiOptCard);
         aiExpCard = findViewById(R.id.aiExpCard);
         llmCard = findViewById(R.id.llmCard);
+        netCfgCard = findViewById(R.id.netCfgCard);
 
         cacheWriteSwitch = findViewById(R.id.cacheWriteSwitch);
         adaptiveSwitch = findViewById(R.id.adaptiveSwitch);
@@ -97,6 +101,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         llmEndpointEdit = findViewById(R.id.llmEndpointEdit);
         llmKeyEdit = findViewById(R.id.llmKeyEdit);
         llmModelEdit = findViewById(R.id.llmModelEdit);
+        cfgEditorEdit = findViewById(R.id.cfgEditorEdit);
 
         if (toolbar != null) {
             toolbar.setNavigationOnClickListener(v -> finish());
@@ -119,6 +124,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         aiOptCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
         aiExpCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
         llmCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
+        netCfgCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
         if (unlocked) refreshValues();
     }
 
@@ -148,6 +154,8 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         llmEndpointEdit.setText(PlayerSetting.getLlmEndpoint());
         llmKeyEdit.setText(PlayerSetting.getLlmKey());
         llmModelEdit.setText(PlayerSetting.getLlmModel());
+
+        cfgEditorEdit.setText(BuiltinParseSetting.editorText());
     }
 
     private void setupListeners() {
@@ -251,6 +259,21 @@ public class SettingAdvancedActivity extends AppCompatActivity {
             PlayerSetting.putLlmKey(key == null ? "" : key.toString().trim());
             PlayerSetting.putLlmModel(model == null ? "" : model.toString().trim());
             Notify.show(R.string.setting_llm_saved);
+        });
+
+        // 接口配置（内置解析线路）：保存
+        findViewById(R.id.cfgSaveRow).setOnClickListener(v -> {
+            CharSequence text = cfgEditorEdit.getText();
+            boolean ok = BuiltinParseSetting.saveText(text == null ? "" : text.toString());
+            Notify.show(ok ? R.string.setting_cfg_saved : R.string.setting_cfg_saved_error);
+            if (ok) cfgEditorEdit.setText(BuiltinParseSetting.editorText());
+        });
+
+        // 接口配置（内置解析线路）：恢复默认
+        findViewById(R.id.cfgResetRow).setOnClickListener(v -> {
+            BuiltinParseSetting.reset();
+            cfgEditorEdit.setText(BuiltinParseSetting.editorText());
+            Notify.show(R.string.setting_cfg_reset_done);
         });
     }
 
