@@ -25,6 +25,8 @@
 
 **交互效果**：五角星（☆收藏）右侧多了一个「🔗 站点名」胶囊 → 点击弹出视频链接卡片（剧名/站点/真实播放地址，可打开/复制）；长按五角星直接复制当前播放链接。
 
+**同版本新增 · 内置解析线路升为 4 条**：原 God / 内置嗅探 / ssmhdssmhd-node 之外，新增内置嗅探线路 `sniff-node = http://114.134.184.91:1315/sniff?url=`（type=1，[Parse.builtinSniff()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/bean/Parse.java#L106-L112) + [VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L220-L225)）。解析时所有 type=1 线路**并发竞速，谁先成功用谁（自动选最快）**。
+
 版本号：versionCode 629 → **630** / versionName 5.6.9 → **5.7.0**
 
 ### v5.6.9 · 2026-08-15 · 🆕 内置官方解析站「ssmhdssmhd-node」硬编码进二进制，没配远程 parses 也能一键解析播放

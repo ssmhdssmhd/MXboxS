@@ -217,6 +217,12 @@ public class VodConfig extends BaseConfig {
                 Parse.BUILTIN_SSMHDSSMHD_NAME.equals(p.getName())
                         || Parse.BUILTIN_SSMHDSSMHD_URL.equals(p.getUrl()));
         if (!hasSsmhdssmhd) parses.add(Parse.builtinSsmhdssmhd());
+        // v5.7.0 新增：内置嗅探线路 http://114.134.184.91:1315/sniff?url= （type=1 JSON HTTP 解析）。
+        // 同 ssmhdssmhd-node，远程配置里若有同名/同 url 就尊重远程那份，否则补内置，自动参与并发竞速选最快。
+        boolean hasSniff = parses.stream().anyMatch(p ->
+                Parse.BUILTIN_SNIFF_NAME.equals(p.getName())
+                        || Parse.BUILTIN_SNIFF_URL.equals(p.getUrl()));
+        if (!hasSniff) parses.add(Parse.builtinSniff());
         this.parses = parses;
     }
 

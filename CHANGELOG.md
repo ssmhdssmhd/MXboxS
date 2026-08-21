@@ -23,6 +23,11 @@
 
 **交互效果一览**：播放器顶部五角星（☆收藏）右侧多了一个「🔗 站点名」胶囊 → 点它弹出视频链接卡片（剧名 / 站点 / 真实播放地址，可点击打开、长按复制）；长按五角星直接复制当前播放链接并提示已收藏。
 
+**同版本额外新增 · 内置解析线路升级为 4 条**：在原有 God(4) / 内置嗅探 builtin(5) / ssmhdssmhd-node(1) 之外，**新增内置嗅探线路「sniff-node」= `http://114.134.184.91:1315/sniff?url=`（type=1）**。
+- 位置：[Parse.builtinSniff()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/bean/Parse.java#L106-L112) + [VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L220-L225)。
+- 处理方式与 ssmhdssmhd-node 完全一致：`item.getUrl()+webUrl` 拼成 `?url=<播放页>`；远程配置里有同名/同 url 就尊重远程，否则补内置去重。
+- 「选最快一条解析播放」无需额外逻辑：`ParseJob.fallbackConcurrentParse` 会把**所有 type=1 解析并发 `jsonParse`，谁先成功回调谁生效**，本线路自动参与竞速，谁快用谁。
+
 版本号：versionCode 629 → **630** / versionName 5.6.9 → **5.7.0**
 
 ## [v5.6.9] - 2026-08-15 · 内置官方解析站「ssmhdssmhd-node」→ 没配远程 parses 也能一键解析播放

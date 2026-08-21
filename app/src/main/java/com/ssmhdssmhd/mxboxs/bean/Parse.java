@@ -91,6 +91,26 @@ public class Parse implements Diffable<Parse> {
         return parse;
     }
 
+    /**
+     * 内置嗅探解析线路（type = 1，JSON HTTP 解析）。
+     *
+     * v5.7.0 新增：用户请求加入「http://114.134.184.91:1315/sniff?url=」作为内置解析线路。
+     * 处理方式与 ssmhdssmhd-node 完全一致：注册为 type=1 内置节点，会被
+     * ParseJob.fallbackConcurrentParse 与其它 type=1 解析一起并发 jsonParse；
+     * jsonParse 里直接 item.getUrl() + webUrl 拼接成 ?url=<播放页地址>，
+     * 返回 {code:200,url:"...m3u8"} 即被 checkResult 判定成功并回调，谁先成功用谁（自动选最快线路）。
+     */
+    public static final String BUILTIN_SNIFF_NAME = "sniff-node";
+    public static final String BUILTIN_SNIFF_URL  = "http://114.134.184.91:1315/sniff?url=";
+
+    public static Parse builtinSniff() {
+        Parse parse = new Parse();
+        parse.setName(BUILTIN_SNIFF_NAME);
+        parse.setType(1);
+        parse.setUrl(BUILTIN_SNIFF_URL);
+        return parse;
+    }
+
     public String getName() {
         return TextUtils.isEmpty(name) ? "" : name;
     }
