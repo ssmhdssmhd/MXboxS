@@ -9,6 +9,21 @@
 
 ## 最新更新
 
+### v5.7.1 · 2026-08-21 · 同步上游 FongMi/TV 新更新：播放结束状态 / 老电视后台化兜底 / 播放错误恢复 / Chrome UA / DoH 校验
+
+对比上游 `fongmi` 分支 10 个新提交，评估后**集成 5 项、排除 5 项**（mpv 相关因本项目 mpv 为桩实现而排除，其余业务提交与 MXboxS 定制冲突或收益低）：
+
+| 上游提交 | 内容 | 结论 |
+|---------|------|------|
+| `b04c63ce6` | 老电视固件 `moveTaskToBack` 兜底 | ✅ [Util.moveToBackground](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Util.java#L68-L75) |
+| `42b3824ca` | 播放结束状态处理（seek 到结尾不再自动播放） | ✅ [PlaybackActivity.seekTo](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L216-L224) |
+| `954299e20` | 播放错误恢复时不误删回调（mpv 部分除外） | ✅ [PlayerManager.onPlayerError](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L647-L669) |
+| 共享模块 | Chrome UA 138 → 151 | ✅ [catvod Util](file:///workspace/catvod/src/main/java/com/github/catvod/utils/Util.java#L28) |
+| 共享模块 | DoH 无效地址校验 | ✅ [OkDns](file:///workspace/catvod/src/main/java/com/github/catvod/net/OkDns.java#L30-L33) |
+| `954299e20` mpv 部分 | HLS 伪装重试（mpv 桩不可用） | ❌ 排除 |
+
+版本号：versionCode 629 → **630** / versionName 5.6.9 → **5.7.1**
+
 ### v5.6.9 · 2026-08-21 · 新增「高级设置 → 接口配置（内置视频解析）」：线路可视化编辑，类型仅两种
 
 在「高级设置（版本号点 20 次解锁）」新增 **接口配置（内置视频解析）** 卡片，把内置解析线路改为可在界面上管理：

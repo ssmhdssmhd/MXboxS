@@ -1383,7 +1383,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
         @Override
         public void onAudio() {
-            moveTaskToBack(true);
+            Util.moveToBackground(VideoActivity.this);
             setAudioOnly(true);
         }
     };
@@ -1445,6 +1445,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
                 hideProgress();
                 setR1Callback();
                 mVod.playbackEnded();
+                updatePlayControl(false);
                 mClock.setCallback(null);
                 break;
         }
@@ -1452,13 +1453,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     @Override
     protected void onPlayingChanged(boolean isPlaying) {
-        if (isPlaying) {
-            mPiP.update(this, true);
-            mBinding.control.play.setImageResource(androidx.media3.ui.R.drawable.exo_icon_pause);
-        } else if (isPaused()) {
-            mPiP.update(this, false);
-            mBinding.control.play.setImageResource(androidx.media3.ui.R.drawable.exo_icon_play);
-        }
+        if (isPlaying || isPaused()) updatePlayControl(isPlaying);
+    }
+
+    private void updatePlayControl(boolean isPlaying) {
+        mBinding.control.play.setImageResource(isPlaying ? androidx.media3.ui.R.drawable.exo_icon_pause : androidx.media3.ui.R.drawable.exo_icon_play);
+        mPiP.update(this, isPlaying);
     }
 
     @Override

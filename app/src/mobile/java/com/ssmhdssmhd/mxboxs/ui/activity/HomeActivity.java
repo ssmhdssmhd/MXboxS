@@ -47,6 +47,7 @@ import com.ssmhdssmhd.mxboxs.utils.KamiUtil;
 import com.ssmhdssmhd.mxboxs.utils.Notify;
 import com.ssmhdssmhd.mxboxs.utils.PermissionUtil;
 import com.ssmhdssmhd.mxboxs.utils.UrlUtil;
+import com.ssmhdssmhd.mxboxs.utils.Util;
 import com.github.catvod.net.OkHttp;
 import com.google.android.material.navigation.NavigationBarView;
 
@@ -240,7 +241,7 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
         } else if (mManager.isVisible(1)) {
             change(0);
         } else if (mManager.canBack(0)) {
-            if (PlaybackService.isRunning()) moveTaskToBack(true);
+            if (PlaybackService.isRunning()) Util.moveToBackground(this);
             else super.onBackInvoked();
         }
     }

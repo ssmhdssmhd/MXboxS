@@ -2,6 +2,47 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.1] - 2026-08-21 · 同步上游 FongMi/TV fongmi 分支新更新：播放结束状态处理 / 老电视后台化兜底 / 播放错误恢复、Chrome UA、DoH 校验
+
+### 上游同步概览
+
+对比上游 [FongMi/TV](https://github.com/FongMi/TV) `fongmi` 分支（基线起共 10 个新提交），评估后**集成 5 项**、**排除 5 项**：
+
+| 上游提交 | 内容 | 结论 |
+|---------|------|------|
+| `1a19fee2` | 共享工具类 Chrome UA 更新 138 → 151 | ✅ 集成（[catvod Util](file:///workspace/catvod/src/main/java/com/github/catvod/utils/Util.java#L28)） |
+| （共享模块） | DoH URL 校验（无效地址不再崩溃） | ✅ 集成（[OkDns](file:///workspace/catvod/src/main/java/com/github/catvod/net/OkDns.java#L30-L33)） |
+| `b04c63ce6` | 老电视固件 moveTaskToBack 兜底 | ✅ 集成（[Util.moveToBackground](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Util.java#L68-L75) + Home/Live/Video） |
+| `42b3824ca` | 播放结束状态处理（seek 到结尾不再自动播放） | ✅ 集成（[PlaybackActivity.seekTo](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L216-L224) + Live/Video） |
+| `954299e20` | PlayerManager 错误恢复时不误删回调（mpv 部分除外） | ✅ 集成（[PlayerManager.onPlayerError](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L647-L669)） |
+| `954299e20` 中 mpv 部分 | MpvPlayerEngine/MpvUtil HLS 伪装重试 | ❌ 排除（项目 mpv 为桩实现，isAvailable() 恒 false） |
+| 其余 3 个提交 | 业务功能 / 高风险改动 | ❌ 排除（与 MXboxS 定制冲突或收益低） |
+
+### 变更明细
+
+**1. 播放结束状态处理（42b3824ca）**
+- [PlaybackActivity.seekTo](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L216-L224)：seek 到结尾时直接 seek 到 durationMs 且**不再自动 play**（避免结尾跳帧后继续播放），返回是否 seek 到结尾
+- 四个播放页统一 `updatePlayControl(boolean)`，`STATE_ENDED` 时把播放按钮切回"播放"态：leanback/mobile [LiveActivity](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/LiveActivity.java#L507-L521)、mobile [VideoActivity](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/VideoActivity.java#L1444-L1462)
+- leanback [VideoActivity.onSeekEnd](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/VideoActivity.java#L1430-L1435)：seek 成功才收起中心控制
+
+**2. 老电视固件后台化兜底（b04c63ce6）**
+- [Util.moveToBackground](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Util.java#L68-L75)：`moveTaskToBack` 抛 NullPointerException 时改为拉起 HOME Intent
+- HomeActivity（leanback/mobile）返回键、LiveActivity/VideoActivity（mobile）音频模式按钮全部改用该方法
+
+**3. 播放错误恢复（954299e20，仅 PlayerManager 部分）**
+- [onPlayerError](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L647-L669)：引擎返回 `RECOVERED`（自行恢复）时不取消定时回调，避免误删正在运行的切换任务
+
+**4. 共享模块（上游同步）**
+- [catvod Util](file:///workspace/catvod/src/main/java/com/github/catvod/utils/Util.java#L28)：Chrome UA 138 → 151
+- [OkDns.setDoh](file:///workspace/catvod/src/main/java/com/github/catvod/net/OkDns.java#L30-L33)：`HttpUrl.parse` 校验无效 DoH 地址
+
+### 版本号
+
+- versionCode 629 → **630**
+- versionName 5.6.9 → **5.7.1**
+
+---
+
 ## [v5.6.9] - 2026-08-21 · 新增「高级设置 → 接口配置（内置视频解析）」：可添加 / 删除 / 保存 / 恢复默认内置解析线路，类型仅两种（1 直接播放 / 2 JSON 解析）
 
 ### 功能

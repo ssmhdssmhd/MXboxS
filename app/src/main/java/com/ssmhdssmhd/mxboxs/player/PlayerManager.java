@@ -646,20 +646,24 @@ public class PlayerManager implements ParseCallback {
 
         @Override
         public void onPlayerError(@NonNull PlaybackException e) {
-            App.removeCallbacks(runnable);
             if (spec == null) return;
             if (engine == null) {
+                App.removeCallbacks(runnable);
                 callback.onError(e.getMessage() != null ? e.getMessage() : "播放器错误");
                 return;
             }
             try {
-                switch (engine.handleError(e)) {
+                PlayerEngine.ErrorAction action = engine.handleError(e);
+                // 引擎已自行恢复（如重试成功）时不取消定时回调，避免误删正在运行的切换任务
+                if (action != PlayerEngine.ErrorAction.RECOVERED) App.removeCallbacks(runnable);
+                switch (action) {
                     case DECODE -> handleDecodeError(e);
                     case RECOVERED -> setDanmakus(spec.getDanmakus());
                     case FATAL -> callback.onError(engine.getErrorMessage(e));
                 }
             } catch (Throwable t) {
                 // 引擎处理错误时本身出错，兜底报错避免崩溃
+                App.removeCallbacks(runnable);
                 callback.onError(t.getMessage() != null ? t.getMessage() : "播放器内部错误");
             }
         }

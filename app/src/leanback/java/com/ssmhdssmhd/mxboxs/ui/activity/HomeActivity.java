@@ -68,6 +68,7 @@ import com.ssmhdssmhd.mxboxs.utils.Notify;
 import com.ssmhdssmhd.mxboxs.utils.PermissionUtil;
 import com.ssmhdssmhd.mxboxs.utils.ResUtil;
 import com.ssmhdssmhd.mxboxs.utils.UrlUtil;
+import com.ssmhdssmhd.mxboxs.utils.Util;
 import com.github.catvod.net.OkHttp;
 import com.google.common.collect.Lists;
 
@@ -477,7 +478,7 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
         } else if (mBinding.recycler.getSelectedPosition() != 0) {
             mBinding.recycler.scrollToPosition(0);
         } else {
-            if (PlaybackService.isRunning()) moveTaskToBack(true);
+            if (PlaybackService.isRunning()) Util.moveToBackground(this);
             else super.onBackInvoked();
         }
     }

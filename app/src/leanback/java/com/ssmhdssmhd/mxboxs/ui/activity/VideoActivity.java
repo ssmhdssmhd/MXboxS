@@ -1429,8 +1429,8 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     public void onSeekEnd(long time) {
+        if (seekTo(time)) hideCenter();
         mKeyDown.reset();
-        seekTo(time);
         if (mBinding != null) mBinding.widget.framePreview.setVisibility(View.GONE);
     }
 
