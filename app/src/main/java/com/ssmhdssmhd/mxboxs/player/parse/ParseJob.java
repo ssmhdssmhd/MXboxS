@@ -248,7 +248,7 @@ public class ParseJob implements ParseCallback {
 
     private void jsonParse(Parse item, String webUrl, boolean fatal) throws Exception {
         Map<String, String> headers = UrlUtil.mergeDefaultHeaders(item.getHeader(), item.getUrl());
-        try (Response res = OkHttp.newCall(item.getUrl() + webUrl, headers).execute()) {
+        try (Response res = OkHttp.newCall(item.getUrl() + webUrl, headers, 8000L, 15000L).execute()) {
             if (!res.isSuccessful() || res.body() == null) {
                 if (fatal) onParseError();
                 return;

@@ -9,6 +9,14 @@
 
 ## 最新更新
 
+### v5.7.1 · 2026-08-21（未发布补丁）· 🐞 修复内置解析"一直转圈不播放"
+
+**原因**：新增的内置嗅探线路 `sniff-node`（`114.134.184.91:1315/sniff?url=`）接口收到真实播放页后**挂起 ≥25s 不返回**；而 type=1 `jsonParse` 走 `OkHttp` 默认 **30s** 超时，被选为当前解析时就会卡满约 30s 再失败，表现为一直转圈。
+
+**修复**：给 type=1 解析的 HTTP 请求加独立超时（[OkHttp.newCall](file:///workspace/catvod/src/main/java/com/github/catvod/net/OkHttp.java#L163-L175) 新重载 + [jsonParse](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L251) 接入，**connect 8s / read 15s**），坏线路最多 ~15s 即让位，正常线路不受影响，配合并发兜底 15s 门限继续"自动选最快"。
+
+> 若 1315 服务端本身无法完成解析（可能只支持特定站点/仍在开发），建议在设置里把当前解析切回 **ssmhdssmhd / God**。
+
 ### v5.7.0 · 2026-08-21 · 🆕 播放器五角星（收藏）旁新增「🔗 链接胶囊」，一键查看/复制/打开视频播放链接
 
 **用户需求**：在播放器控制栏的五角星（收藏）旁边加一个形状，用来显示视频链接和合适的内容。

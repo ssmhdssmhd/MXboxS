@@ -160,6 +160,20 @@ public class OkHttp {
         return client().newCall(new Request.Builder().url(url).headers(Headers.of(headers)).post(body).build());
     }
 
+    /**
+     * 带独立网络超时的 GET（JSON 解析站专用）。
+     * v5.7.0 修复：type=1 解析站（如 sniff-node）接口挂起时，默认 TIMEOUT=30s 会让用户"一直转圈"。
+     * 这里用更硬的 connect/read 超时，坏线路最多 connectTimeout(8s) + readTimeout(15s) 即返回失败，
+     * 正常解析站秒回，不受影响。
+     */
+    public static Call newCall(String url, Map<String, String> headers, long connectTimeoutMs, long readTimeoutMs) {
+        OkHttpClient.Builder builder = getBuilder();
+        builder.connectTimeout(connectTimeoutMs, TimeUnit.MILLISECONDS)
+                .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
+                .writeTimeout(readTimeoutMs, TimeUnit.MILLISECONDS);
+        return builder.build().newCall(new Request.Builder().url(url).headers(Headers.of(headers)).build());
+    }
+
     public static Call newCall(String url, RequestBody body, String tag) {
         return client().newCall(new Request.Builder().url(url).post(body).tag(tag).build());
     }
