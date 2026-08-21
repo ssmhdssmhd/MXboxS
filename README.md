@@ -15,6 +15,11 @@
 
 **修复**：给 type=1 解析的 HTTP 请求加独立超时（[OkHttp.newCall](file:///workspace/catvod/src/main/java/com/github/catvod/net/OkHttp.java#L163-L175) 新重载 + [jsonParse](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L251) 接入，**connect 8s / read 15s**），坏线路最多 ~15s 即让位，正常线路不受影响，配合并发兜底 15s 门限继续"自动选最快"。
 
+**同版本内置线路调整**：弃用旧内置 `ssmhdssmhd` 线路，改为两条**多进程 node.js 解析**（实测最快且可播放，均在线）：
+- `node-1314` = `http://114.134.184.91:1314/node.js?url=`
+- `node-1315` = `http://114.134.184.91:1315/node.js?url=`
+（[Parse.builtinNode1314/1315](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/bean/Parse.java#L78-L98) + [VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L208-L219)。）内置线路现共 5 条：God / 内置嗅探 / node-1314 / node-1315 / sniff-node（sniff 保留，仅按要求删了 ssmhdssmhd）。
+
 > 若 1315 服务端本身无法完成解析（可能只支持特定站点/仍在开发），建议在设置里把当前解析切回 **ssmhdssmhd / God**。
 
 ### v5.7.0 · 2026-08-21 · 🆕 播放器五角星（收藏）旁新增「🔗 链接胶囊」，一键查看/复制/打开视频播放链接
