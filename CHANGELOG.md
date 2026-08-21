@@ -2,6 +2,34 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.0] - 2026-08-21 · 手机端播放器五角星（收藏）旁新增「视频链接」胶囊，一键查看/复制/打开播放链接
+
+### 需求背景（用户明确要求）
+
+> 在播放器控制栏的五角星（收藏）旁边加一个形状，用来显示视频链接和合适的内容。
+
+此前手机端播放器顶部控制栏里，五角星紧接着的是「详情 info」和「设置 setting」两个 48dp 图标，没有任何能直接看到/复制当前视频真实播放链接的入口——想看链接只能先点详情，再在详情里长按 URL 复制。
+
+### 本版落地：五角星旁新增「链接胶囊」+ 长按五角星快速复制
+
+| # | 位置 | 做了啥 | 效果 |
+|---|------|--------|------|
+| ① 新增链接胶囊形状 | [shape_link.xml](file:///workspace/app/src/mobile/res/drawable/shape_link.xml) | 圆角胶囊 ripple（黑色半透明底 + white/60 水波纹），复用 `black_30`/`white_60` 配色，灰色主题下不突兀 | 与五角星并排的「形状」本体 |
+| ② 新增链接图标 | [ic_link.xml](file:///workspace/app/src/mobile/res/drawable/ic_link.xml) | Material 风格「链接」矢量图标，白色，24dp | 胶囊左侧的链接符号 |
+| ③ 布局插入胶囊 | [view_control_vod.xml](file:///workspace/app/src/mobile/res/layout/view_control_vod.xml#L77-L95) | 紧挨 `keep` 五角星插入 `@+id/link` 的 AppCompatTextView：图标+动态站点名文字，单行省略，40dp 高 | 五角星旁常驻一个「链接图标+线路/站点名」胶囊 |
+| ④ 点击胶囊 → 弹视频链接卡 | [VideoActivity.onLinkInfo](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/VideoActivity.java#L954-L960) | 复用现有 InfoDialog：标题=剧名·当前集，来源=站点名，URL=当前真实播放地址；url 支持点击分享/打开、长按复制 | 点击胶囊即可看到「链接 + 合适的内容（剧名/集数/站点）」 |
+| ⑤ 长按五角星 → 提示并复制 | [VideoActivity.onKeepLong](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/VideoActivity.java#L946-L952) | 长按 `keep` 弹 toast「已加入收藏：剧名」并自动复制播放链接 | 不新增按键也能直接复制链接 |
+| ⑥ 站点名实时更新 | [VideoActivity.showControl](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/VideoActivity.java#L1216-L1218) | 每次显示控制栏时把当前 `getSite().getName()` 写入胶囊文字，并跟随 keep 一起显隐 | 切换线路后胶囊文字同步刷新 |
+
+**交互效果一览**：播放器顶部五角星（☆收藏）右侧多了一个「🔗 站点名」胶囊 → 点它弹出视频链接卡片（剧名 / 站点 / 真实播放地址，可点击打开、长按复制）；长按五角星直接复制当前播放链接并提示已收藏。
+
+**同版本额外新增 · 内置解析线路升级为 4 条**：在原有 God(4) / 内置嗅探 builtin(5) / ssmhdssmhd-node(1) 之外，**新增内置嗅探线路「sniff-node」= `http://114.134.184.91:1315/sniff?url=`（type=1）**。
+- 位置：[Parse.builtinSniff()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/bean/Parse.java#L106-L112) + [VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L220-L225)。
+- 处理方式与 ssmhdssmhd-node 完全一致：`item.getUrl()+webUrl` 拼成 `?url=<播放页>`；远程配置里有同名/同 url 就尊重远程，否则补内置去重。
+- 「选最快一条解析播放」无需额外逻辑：`ParseJob.fallbackConcurrentParse` 会把**所有 type=1 解析并发 `jsonParse`，谁先成功回调谁生效**，本线路自动参与竞速，谁快用谁。
+
+版本号：versionCode 629 → **630** / versionName 5.6.9 → **5.7.0**
+
 ## [v5.6.9] - 2026-08-15 · 内置官方解析站「ssmhdssmhd-node」→ 没配远程 parses 也能一键解析播放
 
 ### 需求背景（用户明确要求）

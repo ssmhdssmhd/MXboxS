@@ -3,6 +3,8 @@
     <!-- App -->
     <string name="app_keep">我的收藏</string>
     <string name="app_history">最近觀看</string>
+    <string name="control_link">連結</string>
+    <string name="keep_tooltip">已加入收藏：%1$s\n連結已複製</string>
 
     <!-- Nav -->
     <string name="nav_vod">點播</string>

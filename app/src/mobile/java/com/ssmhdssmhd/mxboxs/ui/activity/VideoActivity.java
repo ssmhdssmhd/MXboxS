@@ -331,6 +331,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.control.cast.setOnClickListener(view -> onCast());
         mBinding.control.info.setOnClickListener(view -> onInfo());
         mBinding.control.keep.setOnClickListener(view -> onKeep());
+        mBinding.control.keep.setOnLongClickListener(view -> onKeepLong());
+        mBinding.control.link.setOnClickListener(view -> onLinkInfo());
         mBinding.control.play.setOnClickListener(view -> checkPlay());
         mBinding.control.next.setOnClickListener(view -> checkNext());
         mBinding.control.prev.setOnClickListener(view -> checkPrev());
@@ -941,6 +943,22 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         checkKeepImg();
     }
 
+    private boolean onKeepLong() {
+        CharSequence vodName = getVodName();
+        String url = player().getUrl();
+        Notify.show(getString(R.string.keep_tooltip, TextUtils.isEmpty(vodName) ? getHistoryKey() : vodName) + "\n" + url);
+        if (!TextUtils.isEmpty(url)) Util.copy(url);
+        return true;
+    }
+
+    private void onLinkInfo() {
+        if (player() == null || player().isEmpty()) return;
+        CharSequence clip = mBinding.control.title.getText();
+        CharSequence vodName = getVodName();
+        CharSequence title = TextUtils.isEmpty(vodName) ? clip : TextUtils.isEmpty(clip) || clip.equals(vodName) ? vodName : vodName + " · " + clip;
+        InfoDialog.create().title(getString(R.string.detail_site, getSite().getName()) + "\n" + title).headers(player().getHeaders()).url(player().getUrl()).show(this);
+    }
+
     private void checkPlay() {
         setR1Callback();
         if (player().isPlaying()) onPaused();
@@ -1212,6 +1230,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         mBinding.control.setting.setVisibility(mHistory == null || isFullscreen() ? View.GONE : View.VISIBLE);
         mBinding.control.right.rotate.setVisibility(isFullscreen() && !isLock() ? View.VISIBLE : View.GONE);
         mBinding.control.keep.setVisibility(mHistory == null || isFullscreen() ? View.GONE : View.VISIBLE);
+        mBinding.control.link.setVisibility(mHistory == null || isFullscreen() ? View.GONE : View.VISIBLE);
+        mBinding.control.link.setText(getSite().getName());
         mBinding.control.action.getRoot().setVisibility(isFullscreen() ? View.VISIBLE : View.GONE);
         mBinding.control.right.lock.setVisibility(isFullscreen() ? View.VISIBLE : View.GONE);
         mBinding.control.action.parse.setVisibility(isUseParse() ? View.VISIBLE : View.GONE);

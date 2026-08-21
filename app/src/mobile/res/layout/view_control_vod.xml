@@ -71,7 +71,28 @@
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:scaleType="center"
-                android:src="@drawable/ic_control_keep_off" />
+                android:src="@drawable/ic_control_keep_off"
+                android:contentDescription="@string/keep_add" />
+
+            <androidx.appcompat.widget.AppCompatTextView
+                android:id="@+id/link"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/shape_link"
+                android:drawableStart="@drawable/ic_link"
+                android:drawablePadding="4dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:maxWidth="132dp"
+                android:minWidth="64dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:singleLine="true"
+                android:text="@string/control_link"
+                android:textColor="@color/white"
+                android:textSize="13sp" />
 
             <androidx.appcompat.widget.AppCompatImageView
                 android:id="@+id/setting"

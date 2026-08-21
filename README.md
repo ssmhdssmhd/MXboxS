@@ -9,6 +9,26 @@
 
 ## 最新更新
 
+### v5.7.0 · 2026-08-21 · 🆕 播放器五角星（收藏）旁新增「🔗 链接胶囊」，一键查看/复制/打开视频播放链接
+
+**用户需求**：在播放器控制栏的五角星（收藏）旁边加一个形状，用来显示视频链接和合适的内容。
+
+**落地要点**：
+
+| # | 位置 | 效果 |
+|---|------|------|
+| ① 链接胶囊形状 | [shape_link.xml](file:///workspace/app/src/mobile/res/drawable/shape_link.xml) + [ic_link.xml](file:///workspace/app/src/mobile/res/drawable/ic_link.xml) | 圆角胶囊 + Material「链接」图标，黑底半透明、白色水波纹 |
+| ② 布局插入五角星旁 | [view_control_vod.xml](file:///workspace/app/src/mobile/res/layout/view_control_vod.xml#L77-L95) | 紧挨 `keep` 收藏星插入 `@+id/link` 胶囊，显示「链接图标 + 当前站点名」 |
+| ③ 点击弹视频链接卡 | [VideoActivity.onLinkInfo](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/VideoActivity.java#L954-L960) | 复用 InfoDialog：剧名·集数 / 站点 / 真实播放地址；URL 可点击打开、长按复制 |
+| ④ 长按五角星复制链接 | [VideoActivity.onKeepLong](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/VideoActivity.java#L946-L952) | 长按收藏星 → toast「已加入收藏：剧名」并自动复制链接 |
+| ⑤ 站点名实时同步 | [VideoActivity.showControl](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/VideoActivity.java#L1216-L1218) | 显示控制栏时写入当前站点名，切换线路自动刷新 |
+
+**交互效果**：五角星（☆收藏）右侧多了一个「🔗 站点名」胶囊 → 点击弹出视频链接卡片（剧名/站点/真实播放地址，可打开/复制）；长按五角星直接复制当前播放链接。
+
+**同版本新增 · 内置解析线路升为 4 条**：原 God / 内置嗅探 / ssmhdssmhd-node 之外，新增内置嗅探线路 `sniff-node = http://114.134.184.91:1315/sniff?url=`（type=1，[Parse.builtinSniff()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/bean/Parse.java#L106-L112) + [VodConfig.setParses()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java#L220-L225)）。解析时所有 type=1 线路**并发竞速，谁先成功用谁（自动选最快）**。
+
+版本号：versionCode 629 → **630** / versionName 5.6.9 → **5.7.0**
+
 ### v5.6.9 · 2026-08-15 · 🆕 内置官方解析站「ssmhdssmhd-node」硬编码进二进制，没配远程 parses 也能一键解析播放
 
 **用户需求**：把 `http://114.134.184.91:1314/ssmhdssmhd/node.js?url=` 作为内置解析写死进 App，远程配置没配/拉取不到时，仍然有官方解析兜底。

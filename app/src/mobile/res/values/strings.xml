@@ -3,6 +3,8 @@
     <!-- App -->
     <string name="app_keep">Keep</string>
     <string name="app_history">History</string>
+    <string name="control_link">Link</string>
+    <string name="keep_tooltip">In keep: %1$s\nLink copied</string>
 
     <!-- Nav -->
     <string name="nav_vod">Vod</string>
