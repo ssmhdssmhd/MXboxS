@@ -9,6 +9,16 @@
 
 ## 最新更新
 
+### v5.7.3 · 2026-08-21 · 🐛 修复内置（视频解析）播放失败：超时回调 + 内置/超级解析 WebView 嗅探兜底
+
+**问题**：内置解析线路（内置解析 / 超级解析 / node.js 等）点播放后**一直转圈不播放**或**播放失败无提示**。
+
+**两个根因**：
+1. **超时回调发不出去**：[ParseJob.execute()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L200-L212) 原来先 `stop()` 再 `onParseError()`，`stop()` 把 `done` 置 true、`callback` 置 null，导致 `onParseError()` 的 CAS 失败返回 → 播放器永远收不到"解析失败"，只能一直转圈。
+2. **type 4/5 的 WebView 嗅探兜底永不启动**：[fallbackConcurrentParse()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L606,L637) 只对 type 0 启 WebView 嗅探，type 4（超级解析）/ type 5（内置解析）url 为空、只能靠 WebView 对页面直接嗅探（如 `jx.xmflv.cc` 这类 JS 渲染嗅探站返回的包装 URL），原来走 else 直接放弃 → 必然失败。
+
+**修复**：超时取消 Future 后直接 `onParseError()`（内部自己 CAS `done` + 通知回调 + `stop()` 清理，失败必达）；`fallbackConcurrentParse()` 抢跑与普通两个分支条件均改为 `type == 0 || type == 4 || type == 5` 才走 `startWeb()` 页面嗅探。版本号递增至 **5.7.3**（versionCode 633）保证自动更新能下发修复包。
+
 ### v5.7.2 · 2026-08-21 · 📦 递增版本号重新发布（让自动更新能下发类型下拉新包）
 
 **原因**：新增的内置嗅探线路 `sniff-node`（`114.134.184.91:1315/sniff?url=`）接口收到真实播放页后**挂起 ≥25s 不返回**；而 type=1 `jsonParse` 走 `OkHttp` 默认 **30s** 超时，被选为当前解析时就会卡满约 30s 再失败，表现为一直转圈。

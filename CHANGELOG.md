@@ -2,6 +2,29 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.3] - 2026-08-21 · 修复内置（视频解析）播放失败：超时回调 + 内置/超级解析 WebView 嗅探兜底
+
+### 问题现象
+
+内置解析线路（`内置解析`/`超级解析`/`node.js` 等）点播放后**一直转圈不播放**，或直接**播放失败无提示**。
+
+### 排查结论（两个根因）
+
+| # | 根因 | 影响 |
+|---|------|------|
+| ① | 解析超时后回调永远发不出去 | [execute()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L200-L212) 里原来先 `stop()` 再 `onParseError()`；`stop()` 会把 `done` 置 true、`callback` 置 null，导致 `onParseError()` 的 `done.compareAndSet(false,true)` 直接失败返回 → 播放器永远收不到"解析失败"，表现为**一直转圈不播放 / 播放失败无提示** |
+| ② | type 4（超级解析）/ type 5（内置解析）WebView 嗅探兜底永不启动 | [fallbackConcurrentParse()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L606,L637) 只对 type 0 启 WebView 嗅探；type 4/5 的 url 为空，只有 WebView 对页面直接嗅探才能解 `jx.xmflv.cc` 这类 JS 渲染嗅探站返回的包装 URL，原来走到 else 直接 `countDownAll` → WebView 一路不启动，**内置/超级解析必然失败** |
+
+### 修复
+
+1. **超时回调链路**：[execute()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L208-L210) 超时取消 Future 后直接 `onParseError()`；`onParseError()` 内部自己 CAS `done`、`App.post` 通知回调、再 `stop()` 清理 WebView/线程，保证"解析失败"一定能送达播放器。
+2. **内置/超级解析 WebView 嗅探兜底**：`fallbackConcurrentParse()` 的「抢跑」与「普通」两个分支条件均改为 `type == 0 || type == 4 || type == 5` 才走 `startWeb()` 页面嗅探，其余类型维持原逻辑（1/2/3 走 JSON 解析）。
+
+### 验证
+
+- 修改后 `ParseJob.java` 编译通过、无报错。
+- 版本号 5.7.2 → 5.7.3（versionCode 632 → 633），保证自动更新能下发本次修复包。
+
 ## [v5.7.2] - 2026-08-21 · 递增版本号：修复内置解析类型下拉功能无法被 App 检测更新的问题
 
 同版本号冲突导致 App 判定"已是最新"而收不到这次改动，故版本号 5.7.1 → 5.7.2（versionCode 631 → 632）重新发布，确保自动更新能下发「高级设置→接口配置→内置解析类型下拉」新包。

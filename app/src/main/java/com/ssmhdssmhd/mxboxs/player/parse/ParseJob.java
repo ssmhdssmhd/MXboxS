@@ -200,9 +200,12 @@ public class ParseJob implements ParseCallback {
     private void execute(Result result, String cacheKey) {
         Future<?> task = SHARED_PARSE_EXECUTOR.submit(getTask(result, cacheKey));
         Task.schedule(() -> {
-            // 超时：先 cancel Future，再走 stop 清理 WebView/线程，最后 onParseError
+            // 超时：cancel Future 后直接走 onParseError()。
+            // v5.7.2 修复：原来这里先 stop() 再 onParseError() —— stop() 会把 done 置 true、
+            // callback 置 null，导致 onParseError() 的 done.compareAndSet(false,true) 直接失败返回，
+            // 回调永远收不到"解析失败"，播放器表现为"一直转圈不播放 / 播放失败无提示"。
+            // onParseError() 内部会自己 CAS done、App.post 通知回调、再 stop() 清理 WebView/线程。
             if (task.cancel(true)) {
-                stop();
                 onParseError();
             }
         }, Constant.TIMEOUT_PARSE_DEF, TimeUnit.MILLISECONDS);
@@ -596,7 +599,12 @@ public class ParseJob implements ParseCallback {
                 fs.add(svc.submit(() -> {
                     if (done.get()) { countDownAll(latch, 1); return; }
                     try {
-                        if (defaultP.getType() == 0) startWeb(latch, defaultP, webUrl);
+                        // v5.7.2 修复：type 4（God/超级解析）与 type 5（内置解析）也要能启 WebView 嗅探。
+                        // 这两类的 url 为空 → startWeb 直接对 webUrl 页面嗅探，是唯一能解
+                        // jx.xmflv.cc 这类 JS 渲染嗅探站（qcb 返回的包装 URL）的路径；
+                        // 原来走到 else 只 countDown，WebView 一路永远不启动 → 内置解析必然失败。
+                        if (defaultP.getType() == 0 || defaultP.getType() == 4 || defaultP.getType() == 5)
+                            startWeb(latch, defaultP, webUrl);
                         else if (defaultP.getType() == 1) { jsonParse(defaultP, webUrl, false); countDownAll(latch, 1); }
                         else if (defaultP.getType() == 2) { jsonExtend(webUrl); countDownAll(latch, 1); }
                         else if (defaultP.getType() == 3) { jsonMix(webUrl, ""); countDownAll(latch, 1); }
@@ -624,7 +632,10 @@ public class ParseJob implements ParseCallback {
                     fs.add(svc.submit(() -> {
                         if (done.get()) { countDownAll(latch, 1); return; }
                         try {
-                            if (defaultP.getType() == 0) startWeb(latch, defaultP, webUrl);
+                            // v5.7.2 修复：与上面抢跑分支一致，type 4/5 也要走 WebView 嗅探，
+                            // 否则普通路径（非 HTML 嗅探接口）下内置解析/超级解析的 WebView 兜底永远不启动。
+                            if (defaultP.getType() == 0 || defaultP.getType() == 4 || defaultP.getType() == 5)
+                                startWeb(latch, defaultP, webUrl);
                             else if (defaultP.getType() == 1) { jsonParse(defaultP, webUrl, false); countDownAll(latch, 1); }
                             else if (defaultP.getType() == 2) { jsonExtend(webUrl); countDownAll(latch, 1); }
                             else if (defaultP.getType() == 3) { jsonMix(webUrl, ""); countDownAll(latch, 1); }
