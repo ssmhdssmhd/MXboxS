@@ -263,34 +263,44 @@ public class UrlUtil {
         if (TextUtils.isEmpty(url)) return false;
         try {
             String lc = url.toLowerCase();
-            // 视频直链直接放过
-            if (lc.contains(".m3u8") || lc.contains(".mp4") || lc.contains(".flv")
+            // 是否"把目标页/目标 m3u8 作为查询参数"的嗅探包装结构：?url= / &url= / ?v= / &v=
+            boolean hasWrapParam = lc.contains("?url=") || lc.contains("&url=")
+                    || lc.contains("?v=") || lc.contains("&v=");
+            // 是否为视频直链后缀（即使带参也算直链）
+            boolean videoExt = lc.contains(".m3u8") || lc.contains(".mp4") || lc.contains(".flv")
                     || lc.contains(".m4v") || lc.contains(".ts") || lc.contains(".mkv")
-                    || lc.contains(".webm") || lc.contains(".mov")) return false;
-            // 特征 1：?url= / &url= / ?v= 这类"把目标页作为参数"的结构
-            if (lc.contains("?url=") || lc.contains("&url=") || lc.contains("?v=") || lc.contains("&v=")) {
-                // 再排除一些正常图片/静态资源 CDN 里带 url 参数的场景
-                if (!lc.contains(".jpg") && !lc.contains(".png") && !lc.contains(".gif")
-                        && !lc.contains(".css") && !lc.contains(".js")) return true;
-            }
-            // 特征 2：路径里带典型嗅探脚本名
-            String[] sniffScripts = {
-                    "jiexi.php", "jiexi.php", "api.php", "jx.php", "parse.php", "player.php",
-                    "json.php", "getVideo", "play.php", "index.php"
-            };
-            for (String s : sniffScripts) if (lc.contains(s)) return true;
-            // 特征 3：host 命中公开嗅探域名关键字
-            String[] sniffHostHints = {
-                    "xmflv", "qq.com", "duopian", "cfss", "zf.com", "boosj", "player",
-                    "jx.", "jiexi", "sohu", "letv", "bilibili", "mgtv", "iqiyi"
-            };
+                    || lc.contains(".webm") || lc.contains(".mov");
+            boolean imgStatic = lc.contains(".jpg") || lc.contains(".png") || lc.contains(".gif")
+                    || lc.contains(".css") || lc.contains(".js");
+            // 路径里带典型嗅探脚本名
+            boolean sniffScript = lc.contains("jiexi.php") || lc.contains("api.php")
+                    || lc.contains("jx.php") || lc.contains("parse.php")
+                    || lc.contains("player.php") || lc.contains("json.php")
+                    || lc.contains("getvideo") || lc.contains("play.php");
+            // host 是否命中强嗅探域名关键字（只保留辨识度高的，避免把纯直链视频站误判）
+            boolean sniffHost = false;
             int q = lc.indexOf("://");
             if (q > 0) {
                 String hostPart = lc.substring(q + 3);
                 int slash = hostPart.indexOf('/');
                 String host = slash > 0 ? hostPart.substring(0, slash) : hostPart;
-                for (String h : sniffHostHints) if (host.contains(h)) return true;
+                for (String h : new String[]{"xmflv", "duopian", "cfss", "zf.com", "boosj", "jiexi", "jx."}) {
+                    if (host.contains(h)) { sniffHost = true; break; }
+                }
             }
+            // 1) 纯直链（无 wrapping 参数）→ 直接放过，交给播放器
+            if (videoExt && !hasWrapParam) return false;
+            // 2) 有 wrapping 参数（?url= 等）：即使参数值里带 .m3u8，返回的仍是嗅探页 HTML，不能当直链
+            if (hasWrapParam) {
+                if (imgStatic) return false;
+                // 是嗅探脚本/嗅探域名（如 jx.xmflv.cc/?url=...）→ 一定按嗅探接口处理
+                if (sniffScript || sniffHost) return true;
+                // 未知包装 + 参数里带视频后缀 → 大概率是直链带参，放行
+                if (videoExt) return false;
+                return true; // 有拼接目标参数又没视频后缀，按嗅探处理更稳
+            }
+            // 3) 无 wrapping 参数：只有路径嗅探脚本名才算（host 命中已并入上一步/前面判断）
+            return sniffScript;
         } catch (Throwable ignored) {}
         return false;
     }

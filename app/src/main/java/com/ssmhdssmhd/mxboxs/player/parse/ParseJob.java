@@ -199,13 +199,27 @@ public class ParseJob implements ParseCallback {
 
     private void execute(Result result, String cacheKey) {
         Future<?> task = SHARED_PARSE_EXECUTOR.submit(getTask(result, cacheKey));
+        // v5.7.3 修复：WebView 嗅探（type 0）或 HTML 嗅探接口（如 jx.xmflv.cc/?url=）需要等页面 JS
+        // 初始化出真实 m3u8，给足 45s（与 CustomWebView 内部 TIMEOUT_PARSE_WEB 一致）；
+        // 其余 JSON / AI 直链解析仍用默认 15s。旧代码对所有类型一刀切 15s，
+        // xmflv/xj 这类混淆 JS + 多段 noscdn 脚本的站还没跑完就被抢先杀掉 → 拿不到 m3u8 → 无法播放。
+        long timeout;
+        Parse p = parse;
+        boolean webviewParse = p != null && p.getType() == 0;
+        boolean htmlSniffer = com.ssmhdssmhd.mxboxs.utils.UrlUtil.isLikelyHtmlSniffer(result.getUrl().v());
+        if (webviewParse || htmlSniffer) {
+            timeout = Constant.TIMEOUT_PARSE_WEB;
+        } else {
+            timeout = Constant.TIMEOUT_PARSE_DEF;
+        }
+        final long tf = timeout;
         Task.schedule(() -> {
             // 超时：先 cancel Future，再走 stop 清理 WebView/线程，最后 onParseError
             if (task.cancel(true)) {
                 stop();
                 onParseError();
             }
-        }, Constant.TIMEOUT_PARSE_DEF, TimeUnit.MILLISECONDS);
+        }, tf, TimeUnit.MILLISECONDS);
     }
 
     private Runnable getTask(Result result, String cacheKey) {
@@ -226,7 +240,10 @@ public class ParseJob implements ParseCallback {
                 startWeb(key, parse, webUrl);
                 break;
             case 1:
-                jsonParse(parse, webUrl, true);
+                // v5.7.3：内置线路被误配成 JSON 类型、但其实是 HTML 嗅探接口（jx/jiexi/xmflv 等）时，
+                // 自动改走 WebView 嗅探（上游 FongMi 对 ?url= 万能解析就是 WebView 嗅探）；JSON 解析站才走 jsonParse。
+                if (com.ssmhdssmhd.mxboxs.utils.UrlUtil.isLikelyHtmlSniffer(parse.getUrl())) startWeb(key, parse, webUrl);
+                else jsonParse(parse, webUrl, true);
                 break;
             case 2:
                 jsonExtend(webUrl);
@@ -640,7 +657,9 @@ public class ParseJob implements ParseCallback {
                     } finally { countDownAll(latch, 1); }
                 }));
             } else countDownAll(latch, 1);
-            try { latch.await(15000L, TimeUnit.MILLISECONDS); } catch (Throwable ignored) {}
+            // v5.7.3：HTML 嗅探接口的本路 WebView 需要等页面 JS 出真实 m3u8，给足 45s；其余 15s
+            long latchTimeout = preferWebviewFirst ? Constant.TIMEOUT_PARSE_WEB : Constant.TIMEOUT_PARSE_DEF;
+            try { latch.await(latchTimeout, TimeUnit.MILLISECONDS); } catch (Throwable ignored) {}
         } finally {
             // svc 是共享池，只能 cancel 本批次的 futures，不能 shutdownNow()
             for (Future<?> f : fs) try { f.cancel(true); } catch (Throwable ignored) {}

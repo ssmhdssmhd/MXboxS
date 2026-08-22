@@ -2,11 +2,45 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
-## [v5.7.3] - 2026-08-21 · 版本号升级（5.7.1 → 5.7.3），内容与 v5.7.1 一致
+## [v5.7.4] - 2026-08-22 · 修复内置解析（?url= 万能嗅探，如 jx.xmflv.cc）不能播放、一直 0KB/s 转圈
+
+### 根因
+
+用户把 `https://jx.xmflv.cc/?url=` 放进「内置」解析线路后无法播放，播放器一直 0KB/s 转圈。定位到两处：
+
+1. **[UrlUtil.isLikelyHtmlSniffer](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java#L262-L306) 漏判**：整条 URL 一旦带 `.m3u8`（如 `jx.xmflv.cc/?url=xxx.m3u8`）就直接被当成直链放行，丢给 ExoPlayer；而 jx 返回的是 HTML 嗅探页 → ExoPlayer 把 HTML 当视频解析 → 0KB/s 永久转圈。
+2. **[ParseJob.execute](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L200-L224) 超时不匹配**：外层对所有解析类型一刀切 15s 超时，把 WebView 嗅探一票砍掉；`xmflv/xj` 这类混淆 JS + 多段 noscdn 脚本的站还没跑出真实 m3u8 就被杀，与 CustomWebView 内部 45s 超时的意图自相矛盾。
+
+### 修复（借鉴上游 FongMi 对 ?url= 万能解析走 WebView 嗅探的做法）
+
+- `isLikelyHtmlSniffer`：`?url=` 包装结构的 URL（尤其带 sniff 脚本/域名，如 `jx.xmflv`）即使参数里带 `.m3u8` 也仍判定为 HTML 嗅探接口，不再当直链放行；纯直链（无 wrapping 参数）仍正常放行。
+- `execute()`：解析类型为 WebView（type 0）或 URL 是 HTML 嗅探接口时，超时给足 `TIMEOUT_PARSE_WEB`(45s)；其余仍 15s。
+- `doInBackground` case 1：内置线路被误配成 JSON 类型但实为 HTML 嗅探接口时，自动改走 WebView 嗅探。
+- `fallbackConcurrentParse`：当 `preferWebviewFirst=true`（嗅探接口抢跑 WebView）时，latch 等待对齐 45s，不再被 15s 掐断。
+
+### 版本号
+
+- versionCode 631 → **632**
+- versionName 5.7.3 → **5.7.4**
+
+## [v5.7.3] - 2026-08-21 · 深度修复不能播放问题（DRM 授权 & 弱网重试，播放方式借鉴上游）
 
 ### 说明
 
-v5.7.1 已包含全部上游同步与人工 port 变更，本版仅将版本号调整为 **5.7.3**（versionCode **631**），功能与 v5.7.1 完全一致，用于版本号策略调整。
+在版本号升级基础上，深度修复播放器「不能播放」的核心问题。
+
+### 根因
+
+[MediaSourceFactory](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java) 的 `createMediaSource()` 每次用 `new DefaultMediaSourceFactory(...)` 重建工厂，丢弃了 ExoPlayer 注入的 **DRM 授权管理器**（`DrmSessionManagerProvider`）与 **错误重试策略**（`LoadErrorHandlingPolicy`）：
+
+- DRM 加密视频 license 授权被丢弃 → 无法播放；
+- HLS/DASH 段失败重试次数退回默认 1 次 → 高延迟 / 偶发 403 源白屏报 Network Connection Failed。
+
+### 修复
+
+- 缓存外部注入的 `DrmSessionManagerProvider` 与 `LoadErrorHandlingPolicy` 到字段；
+- `createMediaSource()` 构建 per-item 工厂（保留 v5.6.8 播放专用 Referer/UA headers 与跨域 Referer 修正）时一并透传；
+- DRM 授权与段失败至少重试 3 次的策略全部生效，不再被丢弃。
 
 ### 版本号
 

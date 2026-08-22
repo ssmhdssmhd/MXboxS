@@ -9,9 +9,17 @@
 
 ## 最新更新
 
-### v5.7.3 · 2026-08-21 · 版本号升级（5.7.1 → 5.7.3），功能与 v5.7.1 一致
+### v5.7.4 · 2026-08-22 · 修复内置解析（jx.xmflv.cc 这种「?url= 万能嗅探」）不能播放、一直 0KB/s 转圈
 
-v5.7.1 已包含全部上游同步与人工 port 变更，本版仅将版本号调整为 **5.7.3**（versionCode **631**）。
+- **根因一**：`?url=` 嗅探接口即便参数值里带 `.m3u8`，返回的仍是 HTML 嗅探页，不是直链；旧判定会当直链丢给播放器 → 拉到 HTML → 0KB/s 永久转圈。已修正 [UrlUtil.isLikelyHtmlSniffer](app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java) 的漏判。
+- **根因二**：解析外层固定的 15s 超时把 WebView 嗅探一票砍掉，`xmflv/xj` 这类混淆 JS 多段脚本还没跑完就被杀。已按上游 FongMi 的 WebView 嗅探做法，对嗅探接口/直放类型给足 **45s**（与 WebView 内部一致），并让被误配成 JSON 类型的嗅探接口**自动改走 WebView 嗅探**。
+- 播放器构建核心修复继承自 v5.7.3（DRM 授权 & 弱网重试透传）。
+
+版本号：versionCode 631 → **632** / versionName 5.7.3 → **5.7.4**
+
+### v5.7.3 · 2026-08-21 · 深度修复不能播放问题（DRM 授权 & 弱网重试，播放方式借鉴上游）
+
+- 修复 [MediaSourceFactory](app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java)：`createMediaSource` 曾丢弃 ExoPlayer 注入的 DRM 授权管理器与错误重试策略，导致 DRM 加密流无法播放、弱网源 403 后只重试 1 次白屏。现于 per-item 工厂透传两者。
 
 版本号：versionCode 630 → **631** / versionName 5.7.1 → **5.7.3**
 
