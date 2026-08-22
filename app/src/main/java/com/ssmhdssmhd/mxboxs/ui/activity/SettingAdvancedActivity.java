@@ -50,6 +50,10 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private MaterialCardView llmCard;
     private MaterialCardView netCfgCard;
     private ViewGroup cfgLinesContainer;
+    private View cfgSourceModeRow;
+    private MaterialTextView cfgSourceModeText;
+    private View cfgFileHintRow;
+    private View cfgRefreshRow;
 
     private SwitchMaterial cacheWriteSwitch;
     private SwitchMaterial adaptiveSwitch;
@@ -92,6 +96,10 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         llmCard = findViewById(R.id.llmCard);
         netCfgCard = findViewById(R.id.netCfgCard);
         cfgLinesContainer = findViewById(R.id.cfgLinesContainer);
+        cfgSourceModeRow = findViewById(R.id.cfgSourceModeRow);
+        cfgSourceModeText = findViewById(R.id.cfgSourceModeText);
+        cfgFileHintRow = findViewById(R.id.cfgFileHintRow);
+        cfgRefreshRow = findViewById(R.id.cfgRefreshRow);
 
         cacheWriteSwitch = findViewById(R.id.cacheWriteSwitch);
         adaptiveSwitch = findViewById(R.id.adaptiveSwitch);
@@ -275,6 +283,15 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         });
 
         // ===== 接口配置（内置视频解析线路）=====
+        if (cfgSourceModeRow != null) {
+            cfgSourceModeRow.setOnClickListener(v -> showParseSourceModeDialog());
+        }
+        if (cfgRefreshRow != null) {
+            cfgRefreshRow.setOnClickListener(v -> {
+                BuiltinParseSetting.refreshFileCache();
+                Notify.show(R.string.setting_cfg_refresh_done);
+            });
+        }
         findViewById(R.id.cfgAddRow).setOnClickListener(v -> addLine(new Parse()));
         findViewById(R.id.cfgSaveRow).setOnClickListener(v -> saveLines());
         findViewById(R.id.cfgResetRow).setOnClickListener(v -> {
@@ -285,6 +302,48 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     }
 
     // ===== 接口配置（内置视频解析线路）=====
+
+    /** 弹出接口来源模式选择：文件调用（GitHub）/ 自定义线路。 */
+    private void showParseSourceModeDialog() {
+        final String[] items = {
+                getString(R.string.setting_cfg_source_file),
+                getString(R.string.setting_cfg_source_custom)
+        };
+        int cur = Setting.getParseSourceMode();
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.setting_cfg_source_mode)
+                .setSingleChoiceItems(items, Math.max(0, Math.min(cur, items.length - 1)),
+                        (d, which) -> {
+                            Setting.putParseSourceMode(which == 0
+                                    ? Setting.PARSE_SOURCE_FILE
+                                    : Setting.PARSE_SOURCE_CUSTOM);
+                            applyParseSourceMode();
+                            Notify.show(R.string.setting_playopt_apply_hint);
+                            d.dismiss();
+                        })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** 根据当前来源模式切换接口配置区域的显隐与文案。 */
+    private void applyParseSourceMode() {
+        boolean fileMode = Setting.isParseSourceFile();
+        if (cfgSourceModeText != null) {
+            cfgSourceModeText.setText(fileMode
+                    ? getString(R.string.setting_cfg_source_file)
+                    : getString(R.string.setting_cfg_source_custom));
+        }
+        if (cfgFileHintRow != null) cfgFileHintRow.setVisibility(fileMode ? View.VISIBLE : View.GONE);
+        if (cfgRefreshRow != null) cfgRefreshRow.setVisibility(fileMode ? View.VISIBLE : View.GONE);
+        if (cfgLinesContainer != null) cfgLinesContainer.setVisibility(fileMode ? View.GONE : View.VISIBLE);
+        View addRow = findViewById(R.id.cfgAddRow);
+        View saveRow = findViewById(R.id.cfgSaveRow);
+        View resetRow = findViewById(R.id.cfgResetRow);
+        if (addRow != null) addRow.setVisibility(fileMode ? View.GONE : View.VISIBLE);
+        if (saveRow != null) saveRow.setVisibility(fileMode ? View.GONE : View.VISIBLE);
+        if (resetRow != null) resetRow.setVisibility(fileMode ? View.GONE : View.VISIBLE);
+        if (!fileMode) rebuildLines();
+    }
 
     /** 重建整个线路列表：清空容器后从持久化线路逐条填充。 */
     private void rebuildLines() {

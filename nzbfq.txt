@@ -1,0 +1,4 @@
+# nzbfq.txt —— 播放器解析线路（一行一个，type 0）
+# 播放时「先」调用本文件的播放器线路，全部失败后才调用 nzbfqjson.txt 的 JSON 接口。
+# 注释以 # 开头会被跳过；每行为一个形如 http(s)://host/path 的解析地址，末尾不要带 ?url=。
+# 分片/嗅探式播放器地址（如 xxxlz、jx import 型）也放这里。

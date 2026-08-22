@@ -35,6 +35,9 @@ public class Github {
     public static final String API_LATEST = "https://api.github.com/repos/" + REPO + "/releases/latest";
     public static final String API_LIST = "https://api.github.com/repos/" + REPO + "/releases?per_page=10";
 
+    /** 仓库 main 分支根目录的 raw 文件基址（用于拉取 nzbfq.txt / nzbfqjson.txt 等一行一个的线路文件）。 */
+    public static final String RAW_BASE = "https://raw.githubusercontent.com/" + REPO + "/main/";
+
     public static final String MIRROR_DIRECT = "";
     public static final String MIRROR_GHPROXY = "https://ghproxy.com";
     public static final String MIRROR_MIRROR_GHPROXY = "https://mirror.ghproxy.com";
@@ -601,6 +604,68 @@ public class Github {
             char c0 = first.charAt(0);
             if (c0 != '{' && c0 != '[') return null;
             return json;
+        } catch (Throwable ignored) {
+            return null;
+        } finally {
+            if (res != null) try { res.close(); } catch (Throwable ignored) {}
+        }
+    }
+
+    /**
+     * 拉取仓库 main 分支根目录下的纯文本文档（一行一个的线路文件）。
+     * 走「直连 + 全镜像兜底」，与版本检测/更新同一套国内镜像方案，解决国内访问不到 GitHub 的问题。
+     *
+     * @param fileName 仓库根目录文件名，如 nzbfq.txt / nzbfqjson.txt
+     * @return 文件全文；失败返回空串
+     */
+    public static String getRawFile(String fileName) {
+        if (fileName == null || fileName.isEmpty()) return "";
+        return getRawText(RAW_BASE + fileName);
+    }
+
+    /**
+     * 直连 + 全镜像兜底的纯文本拉取（不要求返回体必须是 JSON，适用于 nzbfq.txt 这类行文本）。
+     * 直连失败后自动依次尝试用户首选镜像 + MIRROR_POOL 全部非空镜像，
+     * 仅接受非空且非 HTML 错误页的响应。解决国内访问不到 raw.githubusercontent.com 的问题。
+     */
+    private static String getRawText(String url) {
+        if (url == null || url.isEmpty()) return "";
+        okhttp3.OkHttpClient c = OkHttp.client(8000L);
+        String direct = fetchTextBody(c, url);
+        if (direct != null) return direct;
+        LinkedHashSet<String> mirrors = new LinkedHashSet<>();
+        String preferred = getMirror();
+        if (preferred != null && !preferred.isEmpty()) mirrors.add(preferred);
+        for (String m : MIRROR_POOL) if (m != null && !m.isEmpty()) mirrors.add(m);
+        for (String m : mirrors) {
+            String candidate = m + "/" + url;
+            String body = fetchTextBody(c, candidate);
+            if (body != null) return body;
+        }
+        return "";
+    }
+
+    /** GET 一个 URL，仅当返回体非空且非典型 HTML 错误页时返回该字符串，否则返回 null（跳过，继续下一个镜像）。 */
+    private static String fetchTextBody(okhttp3.OkHttpClient c, String url) {
+        if (url == null || url.isEmpty()) return null;
+        okhttp3.Response res = null;
+        try {
+            res = c.newCall(new okhttp3.Request.Builder().url(url).build()).execute();
+            if (!res.isSuccessful()) return null;
+            okhttp3.ResponseBody b = res.body();
+            if (b == null) return null;
+            String s = b.string();
+            if (s == null || s.isEmpty()) return null;
+            String first = s.trim();
+            if (first.isEmpty()) return null;
+            // 拒绝镜像/网关返回的 HTML 错误页或 404 短文本
+            String lowerFirst = first.length() > 60 ? first.substring(0, 60) : first;
+            lowerFirst = lowerFirst.toLowerCase(java.util.Locale.ROOT);
+            if (lowerFirst.startsWith("<!doctype") || lowerFirst.startsWith("<html")
+                    || lowerFirst.contains("<title>") || s.length() < 4) {
+                return null;
+            }
+            return s;
         } catch (Throwable ignored) {
             return null;
         } finally {

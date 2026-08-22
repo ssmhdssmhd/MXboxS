@@ -1,0 +1,4 @@
+# nzbfqjson.txt —— JSON 解析接口（一行一个，type 1）
+# 当 nzbfq.txt 里的播放器线路全部播放失败后，才调用本文件的 JSON 接口。
+# 注释以 # 开头会被跳过；每行为一个形如 http(s)://host/parse?url= 的 JSON 接口地址，
+# 末尾需带 ?url=（App 会在其后拼接源视频地址），返回 JSON 中取 url 字段作为播放地址。

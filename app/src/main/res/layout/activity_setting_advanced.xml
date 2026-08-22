@@ -889,6 +889,85 @@
                         android:textSize="12sp"
                         android:text="@string/setting_cfg_subtitle" />
 
+                    <!-- 接口来源模式：文件调用（GitHub） / 自定义 -->
+                    <LinearLayout
+                        android:id="@+id/cfgSourceModeRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="12dp"
+                        android:background="@drawable/shape_item"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/setting_cfg_source_mode"
+                            android:textColor="@color/white"
+                            android:textSize="15sp" />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/cfgSourceModeText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:gravity="end"
+                            android:textColor="@color/colorAccent"
+                            android:textSize="14sp"
+                            tools:text="文件调用" />
+                    </LinearLayout>
+
+                    <!-- 文件调用模式下：提示 + 刷新并生效 -->
+                    <LinearLayout
+                        android:id="@+id/cfgFileHintRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="4dp">
+                        <com.google.android.material.textview.MaterialTextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setting_cfg_source_file_hint"
+                            android:textColor="@color/white_70"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <!-- 刷新并生效（文件模式） -->
+                    <LinearLayout
+                        android:id="@+id/cfgRefreshRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="12dp"
+                        android:background="@drawable/shape_item"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:visibility="gone">
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/setting_cfg_refresh"
+                            android:textColor="@color/white"
+                            android:textStyle="bold"
+                            android:textSize="15sp"/>
+                    </LinearLayout>
+
                     <!-- 动态线路列表容器 -->
                     <LinearLayout
                         android:id="@+id/cfgLinesContainer"

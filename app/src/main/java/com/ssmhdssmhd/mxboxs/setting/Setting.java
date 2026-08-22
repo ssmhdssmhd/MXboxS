@@ -209,6 +209,27 @@ public class Setting {
         return t;
     }
 
+    // ---------------- 解析线路来源模式（高级设置 → 接口配置）----------------
+
+    /** 从 GitHub 仓库文件拉取线路：nzbfq.txt（播放器）先调、全失败后再调 nzbfqjson.txt（JSON 接口）。默认模式。 */
+    public static final int PARSE_SOURCE_FILE = 0;
+    /** 使用自定义线路（高级设置里手动添加/编辑）。 */
+    public static final int PARSE_SOURCE_CUSTOM = 1;
+
+    /** 解析线路来源模式：默认 0=文件调用（从 GitHub 拉取 nzbfq.txt / nzbfqjson.txt）。 */
+    public static int getParseSourceMode() {
+        return Prefers.getInt("parse_source_mode", PARSE_SOURCE_FILE);
+    }
+
+    public static void putParseSourceMode(int mode) {
+        Prefers.put("parse_source_mode", mode);
+    }
+
+    /** 是否处于「文件调用」模式（从 GitHub 拉取线路）。 */
+    public static boolean isParseSourceFile() {
+        return getParseSourceMode() == PARSE_SOURCE_FILE;
+    }
+
     public static void putParseServerPrefix(String prefix) {
         Prefers.put("parse_server_prefix", prefix == null ? "" : prefix.trim());
     }

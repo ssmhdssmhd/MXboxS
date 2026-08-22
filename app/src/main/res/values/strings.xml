@@ -167,7 +167,7 @@
 
     <!-- 接口配置（内置视频解析线路）-->
     <string name="setting_cfg_title">接口配置（内置视频解析）</string>
-    <string name="setting_cfg_subtitle">内置解析线路：类型 1 直接播放；类型 2 从 JSON 返回的 url 中取播放地址</string>
+    <string name="setting_cfg_subtitle">默认从 GitHub 拉取线路文件；也可切换为自定义线路</string>
     <string name="setting_cfg_add">添加接口</string>
     <string name="setting_cfg_save">保存</string>
     <string name="setting_cfg_reset">恢复默认</string>
@@ -181,6 +181,13 @@
     <string name="setting_cfg_reset_done">已恢复默认接口配置</string>
     <string name="setting_cfg_empty">请至少保留一个有效接口</string>
     <string name="setting_cfg_need_url">第 %d 条缺少接口地址</string>
+    <string name="setting_cfg_source_mode">接口来源</string>
+    <string name="setting_cfg_source_file">文件调用（GitHub）</string>
+    <string name="setting_cfg_source_custom">自定义线路</string>
+    <string name="setting_cfg_source_file_hint">从 GitHub 仓库 main 分支根目录拉取线路：先调用 nzbfq.txt 播放器，全部失败后才调用 nzbfqjson.txt 的 JSON 接口；文件线路播放时自动启用 AI 去广告。国内无法访问 GitHub 时自动走镜像加速。</string>
+    <string name="setting_cfg_refresh">刷新文件线路并生效</string>
+    <string name="setting_cfg_refresh_done">已刷新文件线路</string>
+    <string name="setting_cfg_source_custom_hint">手动添加/编辑解析线路，保存在本机</string>
 
     <!-- 播放优化（高级设置）-->
     <string name="setting_playopt_title">播放优化</string>

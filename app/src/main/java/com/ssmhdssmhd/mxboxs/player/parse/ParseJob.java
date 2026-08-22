@@ -10,6 +10,7 @@ import com.ssmhdssmhd.mxboxs.bean.Parse;
 import com.ssmhdssmhd.mxboxs.bean.Result;
 import com.ssmhdssmhd.mxboxs.impl.ParseCallback;
 import com.ssmhdssmhd.mxboxs.server.Server;
+import com.ssmhdssmhd.mxboxs.setting.BuiltinParseSetting;
 import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.ssmhdssmhd.mxboxs.ui.custom.CustomWebView;
 import com.ssmhdssmhd.mxboxs.utils.Task;
@@ -564,6 +565,11 @@ public class ParseJob implements ParseCallback {
      */
     private void builtinParse(String webUrl) {
         if (done.get()) return;
+        // 文件调用模式：从 GitHub 仓库文件拉取线路（先 nzbfq.txt 播放器，全失败后再 nzbfqjson.txt JSON 接口）
+        if (Setting.isParseSourceFile()) {
+            builtinFileParse(webUrl);
+            return;
+        }
         if (hasQcbParseServer() && qcbJiexiParse(webUrl)) return;
         if (aiSmartParseFallback(webUrl)) return;
         // v5.6.4 修复：不再在这里 App.post 独立起一路 CustomWebView（避免 3 个 bug）：
@@ -577,6 +583,69 @@ public class ParseJob implements ParseCallback {
         boolean likelySniffer = UrlUtil.isLikelyHtmlSniffer(webUrl);
         fallbackConcurrentParse(webUrl, webviewDefaultOn && likelySniffer);
         if (!done.get()) onParseError();
+    }
+
+    /**
+     * 文件调用模式的内置解析：
+     *  第一阶段：先依次调用 nzbfq.txt 里的播放器线路（type 0，GET url+webUrl 直接播 / AI 嗅探）；
+     *  第二阶段：全部播放器失败后，才调用 nzbfqjson.txt 里的 JSON 解析接口（type 1）。
+     * 只要一路命中即 onParseSuccess；两阶段全失败才 onParseError。
+     * 调用文件线路播放时强制启用 AI 去广告（过滤非正片内容）。
+     */
+    private void builtinFileParse(String webUrl) {
+        if (done.get()) return;
+        // 文件线路播放：启用 AI 去广告
+        Setting.putAdblock(true);
+        List<Parse> lines = BuiltinParseSetting.effectiveLines();
+        // 第一阶段：播放器线路（先调）
+        for (Parse p : lines) {
+            if (done.get()) return;
+            if (p != null && p.getType() == 0) {
+                if (tryParsePlayerLine(p, webUrl)) return;
+            }
+        }
+        // 第二阶段：JSON 解析接口（全部播放器失败后才调）
+        for (Parse p : lines) {
+            if (done.get()) return;
+            if (p != null && p.getType() == 1) {
+                try { jsonParse(p, webUrl, false); } catch (Throwable ignored) {}
+                if (done.get()) return;
+            }
+        }
+        if (!done.get()) onParseError();
+    }
+
+    /**
+     * 尝试用一个「播放器」线路解析 webUrl（type 0）：
+     *  1) 先把 url+webUrl 当直链 probe，命中直接播；
+     *  2) 否则 GET 该地址正文，用 AI 嗅探扫出视频候选并并发 probe。
+     * 任一命中即 onParseSuccess 并返回 true；失败返回 false。
+     */
+    private boolean tryParsePlayerLine(Parse player, String webUrl) {
+        if (done.get() || player == null) return false;
+        final String endpoint;
+        try { endpoint = player.getUrl() + webUrl; } catch (Throwable t) { return false; }
+        if (TextUtils.isEmpty(endpoint)) return false;
+        Map<String, String> base = player.getHeader();
+        Map<String, String> headers = UrlUtil.mergeDefaultHeaders(base, endpoint);
+        // 1) 直链 probe
+        if (probeVideoUrl(endpoint, headers)) {
+            onParseSuccess(headers, endpoint, player.getName());
+            return true;
+        }
+        // 2) GET 正文 + AI 嗅探候选并发 probe
+        String body = safeGetBody(endpoint, headers);
+        if (body != null && !body.isEmpty()) {
+            List<String> candidates = UrlUtil.sniffVideoCandidates(body, endpoint, 8,
+                    "m3u8", "mp4", "flv", "m4v", "index.m3u8", "playlist.m3u8", "ts");
+            String matched = concurrentProbeCandidates(candidates, base);
+            if (matched != null && !done.get()) {
+                Map<String, String> ch = UrlUtil.mergeDefaultHeaders(base, matched);
+                onParseSuccess(ch, matched, player.getName() + "+sniff");
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

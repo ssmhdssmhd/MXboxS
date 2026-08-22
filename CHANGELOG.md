@@ -2,6 +2,26 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.7] - 2026-08-22 · 解析线路改为从仓库根目录文件拉取，接口配置支持文件/自定义切换
+
+### 背景
+
+「内置解析线路」应当是一份可在发布后随时增删的云端配置，而不是写死在 APK 里。本次把内置线路改为从当前 GitHub 仓库 main 分支根目录的文本文件拉取（一行一个），并允许用户在「文件调用」与「自定义线路」之间手动切换。
+
+### 新增 / 变更
+
+- **接口来源切换（[Setting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java) / [SettingAdvancedActivity.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java)）**：高级设置→接口配置顶部新增「接口来源」，可手动选择「文件调用（GitHub）」或「自定义线路」。文件模式隐藏自定列表/保存/还原，显示提示与刷新入口；自定义模式恢复原编辑列表。
+- **仓库根目录线路文件**：新增 `nzbfq.txt`（播放器线路，type 0）与 `nzbfqjson.txt`（JSON 接口，type 1），一行一个，`#` 开头为注释。
+- **拉取与优先级（[BuiltinParseSetting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java) / [Github.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java)）**：从 `raw.githubusercontent.com/<repo>/main/` 拉取，先 `nzbfq.txt` 播放器、全部失败后才 `nzbfqjson.txt` JSON 接口；带 10 分钟内存缓存，可手动「刷新文件线路并生效」。
+- **播放流程 + 去广告（[ParseJob.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java)）**：文件模式下先依次尝试播放器直链/嗅探，全失败再依次调 JSON 接口；调用文件线路播放时强制启用 AI 去广告（过滤 OP/ED 等非正片内容）。
+- **布局对齐播放设置**：高级设置页接口配置区改为与播放设置一致的横向条目布局（标题→子标题→来源模式→提示→刷新→列表/按钮）。
+- **国内访问优化**：GitHub 直连失败自动依次尝试全部镜像池（同 OTA 更新一套机制），无需额外配置。
+
+### 版本号
+
+- versionCode 634 → **635**
+- versionName 5.7.6 → **5.7.7**
+
 ## [v5.7.6] - 2026-08-22 · 同步优化：已输入激活码时（更新中 / 运行中）的闪退问题
 
 ### 背景
