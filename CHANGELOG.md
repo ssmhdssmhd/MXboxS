@@ -2,11 +2,26 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
-## [v5.7.3] - 2026-08-21 · 版本号升级（5.7.1 → 5.7.3），内容与 v5.7.1 一致
+## [v5.7.3] - 2026-08-22 · 深度修复不能播放问题（DRM 授权 & 弱网重试，播放方式借鉴上游）
 
 ### 说明
 
-v5.7.1 已包含全部上游同步与人工 port 变更，本版仅将版本号调整为 **5.7.3**（versionCode **631**），功能与 v5.7.1 完全一致，用于版本号策略调整。
+本版在版本号升级（5.7.1 → 5.7.3，versionCode **631**）基础上，深度修复播放器**不能播放**的核心问题。
+
+### 根因
+
+对比上游 [FongMi/TV](https://github.com/FongMi/TV) `fongmi` 分支发现 [MediaSourceFactory](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java) 存在关键缺陷：
+
+- ExoPlayer 通过 `setDrmSessionManagerProvider` 注入 **DRM 授权管理器**、`ExoUtil` 通过 `setLoadErrorHandlingPolicy` 注入**弱网重试策略**，这些配置只作用于构造时的 `defaultMediaSourceFactory`；
+- 但 `createMediaSource()` 每次用 `new DefaultMediaSourceFactory(...)`**重新创建**一个没有任何配置的工厂，导致 DRM 授权丢失、段加载重试次数退回默认 1 次。
+
+结果：**DRM 加密视频无法获取 license 无法播放；高延迟/偶发 403 的 HLS/DASH 源白屏报 Network Connection Failed**。
+
+### 修复（借鉴上游复用配置工厂的做法）
+
+- 缓存外部注入的 `DrmSessionManagerProvider` 与 `LoadErrorHandlingPolicy` 到字段；
+- `createMediaSource()` 构建 per-item 工厂（保留 v5.6.8 的播放专用 Referer/UA headers + 跨域 Referer 修正）时，将两者**一并透传**给实际用于播放的 `DefaultMediaSourceFactory`；
+- 由此 DRM license 授权与段失败至少重试 3 次的策略全部生效，不再被丢弃。
 
 ### 版本号
 

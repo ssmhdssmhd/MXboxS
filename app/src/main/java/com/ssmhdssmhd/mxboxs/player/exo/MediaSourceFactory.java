@@ -40,18 +40,18 @@ public class MediaSourceFactory implements MediaSource.Factory {
     private static Cache cache;
 
     private final DefaultMediaSourceFactory defaultMediaSourceFactory;
+    // v5.7.3 修复：缓存外部注入的 DRM 管理器与错误重试策略。此前 setDrmSessionManagerProvider /
+    // setLoadErrorHandlingPolicy 只作用在 defaultMediaSourceFactory 上，而 createMediaSource() 又
+    // 每次 new 一个全新的 DefaultMediaSourceFactory，导致 DRM 授权与弱网重试全部丢失 → DRM 视频
+    // 不能播放、高延迟源偶发 403 重试次数退回默认 1 次后 Network Connection Failed。
+    private DrmSessionManagerProvider drmSessionManagerProvider;
+    private LoadErrorHandlingPolicy loadErrorHandlingPolicy;
     private HttpDataSource.Factory httpDataSourceFactory;
     private DataSource.Factory dataSourceFactory;
     private ExtractorsFactory extractorsFactory;
 
     public MediaSourceFactory() {
         defaultMediaSourceFactory = new DefaultMediaSourceFactory(getDataSourceFactory(), getExtractorsFactory());
-    }
-
-    static DataSource.Factory createUpstreamDataSourceFactory(Map<String, String> headers) {
-        HttpDataSource.Factory factory = new OkHttpDataSource.Factory(OkHttp.player());
-        factory.setDefaultRequestProperties(headers);
-        return new DefaultDataSource.Factory(App.get(), factory);
     }
 
     static synchronized Cache getCache() {
@@ -75,6 +75,8 @@ public class MediaSourceFactory implements MediaSource.Factory {
     @NonNull
     @Override
     public MediaSource.Factory setDrmSessionManagerProvider(@NonNull DrmSessionManagerProvider drmSessionManagerProvider) {
+        // v5.7.3：必须同时缓存到字段，createMediaSource 构造新工厂时再透传，避免 DRM 授权丢失
+        this.drmSessionManagerProvider = drmSessionManagerProvider;
         defaultMediaSourceFactory.setDrmSessionManagerProvider(drmSessionManagerProvider);
         return this;
     }
@@ -82,6 +84,8 @@ public class MediaSourceFactory implements MediaSource.Factory {
     @NonNull
     @Override
     public MediaSource.Factory setLoadErrorHandlingPolicy(@NonNull LoadErrorHandlingPolicy loadErrorHandlingPolicy) {
+        // v5.7.3：同上，缓存后透传给 per-item 工厂，保证段失败至少重试 3 次
+        this.loadErrorHandlingPolicy = loadErrorHandlingPolicy;
         defaultMediaSourceFactory.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy);
         return this;
     }
@@ -95,8 +99,14 @@ public class MediaSourceFactory implements MediaSource.Factory {
     @NonNull
     @Override
     public MediaSource createMediaSource(@NonNull MediaItem mediaItem) {
-        DataSource.Factory dataSourceFactory = createDataSourceFactory(mediaItem);
-        return new DefaultMediaSourceFactory(dataSourceFactory, getExtractorsFactory()).createMediaSource(mediaItem);
+        // v5.7.3 深度修复（借鉴上游 FongMi 复用配置工厂的做法）：per-item 工厂需要单独构建以注入
+        // 播放专用 headers（Referer/UA）到 OkHttpDataSource，但必须把外部注入的 DRM 管理器与
+        // LoadErrorHandlingPolicy 一并透传，不能像旧代码那样丢弃 → DRM 授权 & 弱网重试全部保留。
+        DataSource.Factory perItemDataSourceFactory = createDataSourceFactory(mediaItem);
+        DefaultMediaSourceFactory factory = new DefaultMediaSourceFactory(perItemDataSourceFactory, getExtractorsFactory());
+        if (drmSessionManagerProvider != null) factory.setDrmSessionManagerProvider(drmSessionManagerProvider);
+        if (loadErrorHandlingPolicy != null) factory.setLoadErrorHandlingPolicy(loadErrorHandlingPolicy);
+        return factory.createMediaSource(mediaItem);
     }
 
     private DataSource.Factory createDataSourceFactory(MediaItem mediaItem) {
