@@ -49,6 +49,8 @@ public class KamiActivity extends AppCompatActivity {
     private MaterialButton logoutBtn;
 
     private boolean verifying;
+    /** 防重入：避免激活成功 / 返回键 / 进入按钮并发触发多次跳转导致崩溃 */
+    private boolean entering;
 
     public static void start(Activity activity) {
         Intent intent = new Intent(activity, KamiActivity.class);
@@ -133,6 +135,7 @@ public class KamiActivity extends AppCompatActivity {
         Task.execute(() -> {
             boolean ok = KamiUtil.verifyFresh(input);
             runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || entering) return;
                 verifying = false;
                 activateBtn.setEnabled(true);
                 setStatus("", false);
@@ -198,22 +201,39 @@ public class KamiActivity extends AppCompatActivity {
     }
 
     private void onLogout() {
+        entering = false;
         KamiUtil.clearActivation();
         Notify.show(R.string.kami_logout_done);
         showInput();
     }
 
     private void enterHome() {
-        Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
-        if (intent != null) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
+        if (entering) return;
+        entering = true;
+        try {
+            Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+            } else {
+                Notify.show(getString(R.string.kami_launch_fail));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        finishAffinity();
+        try {
+            finishAffinity();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void exitApp() {
-        finishAffinity();
+        try {
+            finishAffinity();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     // ---------------- 工具 ----------------

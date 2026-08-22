@@ -2,6 +2,25 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.6] - 2026-08-22 · 同步优化：已输入激活码时（更新中 / 运行中）的闪退问题
+
+### 背景
+
+激活码提前输入/保存后，应用在「更新对话框保存激活码」或「运行中激活成功跳转首页」等路径存在多处潜在的崩溃点：`getLaunchIntentForPackage` 可能返回空、`finishAffinity` 在个别系统可能抛异常、后台校验回调可能作用于已销毁的 Activity、`HomeActivity` 未激活跳转激活页后仍继续执行后续初始化等。
+
+### 修复（[KamiActivity.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/KamiActivity.java) / [UpdateDialog.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/dialog/UpdateDialog.java) / [BaseActivity.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/base/BaseActivity.java)）
+
+- KamiActivity：`enterHome()` 增加 `entering` 防重入标记，`getLaunchIntentForPackage()` 判空兜底（空则提示，不再空指针），`finishAffinity()` / `exitApp()` 用 try-catch 包裹，避免跳转主链路上闪退。
+- KamiActivity：后台卡密校验回调增加 `isFinishing()/isDestroyed()` 守护，用户在验证过程中退出应用时不再在已销毁界面上更新 UI / 触发跳转。
+- KamiActivity：注销后重置 `entering`，支持同一实例内重新激活。
+- UpdateDialog（mobile + leanback 两版）：`saveLicenseCode()` 整体 try-catch，更新对话框里保存/清空已输入激活码时若发生异常也不会拖垮更新流程。
+- BaseActivity（mobile + leanback 两版）：`initView` 中提前 `finish()`（未激活跳转激活页、直接退出）时跳过 `setBackCallback()` / `initEvent()` 等后续初始化，避免已退出 Activity 继续绑定控件导致崩溃。
+
+### 版本号
+
+- versionCode 633 → **634**
+- versionName 5.7.5 → **5.7.6**
+
 ## [v5.7.5] - 2026-08-22 · 优化国内 OTA 更新：版本检测也走多镜像兜底
 
 ### 背景

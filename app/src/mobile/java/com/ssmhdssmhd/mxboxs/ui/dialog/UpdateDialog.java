@@ -110,13 +110,17 @@ public class UpdateDialog extends BaseAlertDialog {
     }
 
     private void saveLicenseCode() {
-        if (binding == null || binding.licenseCode == null) return;
-        String code = binding.licenseCode.getText() == null ? "" : binding.licenseCode.getText().toString().trim();
-        Setting.putKami(code);
-        // 简单标记：非空即视为已激活（后续若接入在线核验，可在此替换为在线校验逻辑）
-        Setting.putKamiActivated(!TextUtils.isEmpty(code));
-        refreshLicenseUi();
-        Notify.show(TextUtils.isEmpty(code) ? "已清空激活码" : "激活码已保存");
+        try {
+            if (binding == null || binding.licenseCode == null) return;
+            String code = binding.licenseCode.getText() == null ? "" : binding.licenseCode.getText().toString().trim();
+            Setting.putKami(code);
+            // 简单标记：非空即视为已激活（后续若接入在线核验，可在此替换为在线校验逻辑）
+            Setting.putKamiActivated(!TextUtils.isEmpty(code));
+            refreshLicenseUi();
+            Notify.show(TextUtils.isEmpty(code) ? "已清空激活码" : "激活码已保存");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

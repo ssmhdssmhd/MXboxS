@@ -344,6 +344,7 @@
     <string name="kami_purchase_fail">Failed to load card key, please check your network and retry.</string>
     <string name="kami_purchase_msg">Purchase successful.\nYour card key (please copy and keep it safe):\n\n<xliff:g name="name">%s</xliff:g>\n\nPaste it into the input box and tap Activate.</string>
     <string name="kami_copy_and_activate">Copy &amp; activate</string>
+    <string name="kami_launch_fail">Failed to launch app, please try again</string>
 
     <!-- Crash -->
     <string name="crash_info">An unexpected error occurred.\nSorry for the inconvenience.</string>

@@ -38,6 +38,7 @@ public abstract class BaseActivity extends AppCompatActivity {
         setContentView(getBinding().getRoot());
         EventBus.getDefault().register(this);
         initView(savedInstanceState);
+        if (isFinishing()) return;
         setBackCallback();
         initEvent();
     }
