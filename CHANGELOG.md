@@ -2,6 +2,24 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.5] - 2026-08-22 · 优化国内 OTA 更新：版本检测也走多镜像兜底
+
+### 背景
+
+下载链路早已「先测速选最快镜像再下载 + 失败自动切源 + 完整性校验」，但**版本检测**（请求 `api.github.com` 拿新版本号）旧逻辑失败后只回退「用户首选的那一个镜像」。当默认镜像为「GitHub 直连」（空串）时，国内 `api.github.com` 被墙 / DNS 解析异常 → 版本检测永远失败 → 用户永远提示「未连上 GitHub API」，也就永远检测不到新版本。
+
+### 修复（[Github.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java)）
+
+- 新增 `getStringViaMirrors(url)`：直连失败后，自动依次尝试镜像池（`MIRROR_POOL`：ghproxy.com / mirror.ghproxy.com / ghproxy.net / gh.mirai.org / gh.1ms.run / gh.tmoe.me / gh.dmirror.xyz / gh.api.99988866.xyz / ghps.cambridgecs.com）全部非空镜像。
+- 新增 `fetchJsonBody(url)`：只把**合法 JSON**（`{`/`[` 开头）的响应当成功，拒绝镜像/网关返回的 HTML 错误页或纯文本，避免“假 200 错误页”中断兜底循环。
+- `getLatestRelease()` / `getHighestRelease()` 均改为走该兜底链路；每个请求（含直连）用 8s 限时客户端，DNS 挂的镜像秒回、不阻塞。
+- 下载阶段保持原有「先测速选最优 + 断点 + host 黑名单 + 下载后长度/结构双重校验」，避免下载失败与损坏 APK。
+
+### 版本号
+
+- versionCode 632 → **633**
+- versionName 5.7.4 → **5.7.5**
+
 ## [v5.7.4] - 2026-08-22 · 修复内置解析（?url= 万能嗅探，如 jx.xmflv.cc）不能播放、一直 0KB/s 转圈
 
 ### 根因

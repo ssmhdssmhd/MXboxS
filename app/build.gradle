@@ -19,8 +19,8 @@ android {
         applicationId "com.ssmhdssmhd.mxboxs"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 632
-        versionName "5.7.4"
+        versionCode 633
+        versionName "5.7.5"
         // v5.6.5 体积优化：resConfigs 只打包 3 种常用语言，其它 values-xx 的 system strings 不进 APK
         // （App 自己的中文资源文件在 values-zh-rCN / values-zh-rTW，不会被排除）
         resConfigs "zh-rCN", "zh-rTW", "en"

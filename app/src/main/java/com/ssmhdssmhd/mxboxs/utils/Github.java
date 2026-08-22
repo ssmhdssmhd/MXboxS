@@ -554,22 +554,68 @@ public class Github {
         return API_LATEST;
     }
 
-    public static JSONObject getLatestRelease() {
-        String url = getApiUrl();
-        String mirror = getMirror();
+    /**
+     * 版本检测专用的「直连 + 全镜像兜底」JSON 拉取。
+     *
+     * 背景（国内更新连不上 GitHub）：
+     *   用户默认镜像若为「GitHub 直连」(空串)，api.github.com 在国内常被墙 / DNS 解析异常。
+     *   旧逻辑失败后只回退「用户首选的那一个镜像」；直连为默认时根本没有镜像可回退，
+     *   → 版本检测永远失败，弹「未连上 GitHub API」，拿不到新版本号 = 无法触发更新。
+     *
+     * 修复：直连失败后，依次尝试 MIRROR_POOL 里所有非空镜像（每个 8s 短超时，DNS 挂的秒回），
+     *   谁先返回合法响应就用谁。下载阶段已有「先测速选最优」逻辑，这里只负责先拿到版本信息。
+     */
+    private static String getStringViaMirrors(String url) {
+        if (url == null || url.isEmpty()) return "";
+        okhttp3.OkHttpClient c = OkHttp.client(8000L);
+        // 1) 直连优先（走限时 client，避免本地直连能通但慢的场景被默认长超时卡很久）
+        String direct = fetchJsonBody(c, url);
+        if (direct != null) return direct;
+        // 2) 全镜像兜底：首选 + MIRROR_POOL，去重后逐个试；只有真正是 JSON 的响应才算成功
+        LinkedHashSet<String> mirrors = new LinkedHashSet<>();
+        String preferred = getMirror();
+        if (preferred != null && !preferred.isEmpty()) mirrors.add(preferred);
+        for (String m : MIRROR_POOL) if (m != null && !m.isEmpty()) mirrors.add(m);
+        for (String m : mirrors) {
+            String candidate = m + "/" + url;
+            String json = fetchJsonBody(c, candidate);
+            if (json != null) return json;
+        }
+        return "";
+    }
+
+    /** GET 一个 URL，仅当返回体是合法 JSON（对象或数组）时返回该字符串，否则返回 null（跳过，继续下一个镜像）。 */
+    private static String fetchJsonBody(okhttp3.OkHttpClient c, String url) {
+        if (url == null || url.isEmpty()) return null;
+        okhttp3.Response res = null;
         try {
-            String json = OkHttp.string(url);
+            res = c.newCall(new okhttp3.Request.Builder().url(url).build()).execute();
+            if (!res.isSuccessful()) return null;
+            okhttp3.ResponseBody b = res.body();
+            if (b == null) return null;
+            String json = b.string();
+            if (json == null || json.isEmpty()) return null;
+            // 必须是合法 JSON 结构（{...} 或 [...]），拒绝镜像/网关返回的 HTML 错误页或纯文本
+            String first = json.trim();
+            if (first.isEmpty()) return null;
+            char c0 = first.charAt(0);
+            if (c0 != '{' && c0 != '[') return null;
+            return json;
+        } catch (Throwable ignored) {
+            return null;
+        } finally {
+            if (res != null) try { res.close(); } catch (Throwable ignored) {}
+        }
+    }
+
+    public static JSONObject getLatestRelease() {
+        try {
+            String json = getStringViaMirrors(getApiUrl());
+            if (json == null || json.isEmpty()) return null;
             return new JSONObject(json);
         } catch (Exception e) {
-            if (!mirror.isEmpty()) {
-                try {
-                    String json = OkHttp.string(mirror + "/" + url);
-                    return new JSONObject(json);
-                } catch (Exception ignored) {
-                }
-            }
+            return null;
         }
-        return null;
     }
 
     /**
@@ -579,19 +625,13 @@ public class Github {
      * 取 APK asset 文件名中版本号最高的 release。
      */
     public static JSONObject getHighestRelease() {
-        String mirror = getMirror();
         String listUrl = API_LIST;
         JSONArray arr = null;
-        try {
-            String json = OkHttp.string(listUrl);
-            arr = new JSONArray(json);
-        } catch (Exception e) {
-            if (!mirror.isEmpty()) {
-                try {
-                    String json = OkHttp.string(mirror + "/" + listUrl);
-                    arr = new JSONArray(json);
-                } catch (Exception ignored) {
-                }
+        String json = getStringViaMirrors(listUrl);
+        if (json != null && !json.isEmpty()) {
+            try {
+                arr = new JSONArray(json);
+            } catch (Exception ignored) {
             }
         }
         if (arr == null || arr.length() == 0) return null;

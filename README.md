@@ -9,6 +9,14 @@
 
 ## 最新更新
 
+### v5.7.5 · 2026-08-22 · 优化国内 OTA 更新：版本源也走多镜像兜底，避免「连不上 GitHub 就永远检测不到更新」
+
+- **背景**：下载阶段早已「先测速选最快镜像再下载 + 失败自动切源 + 完整性校验」；但**版本检测**（查 `api.github.com` 拿新版本号）旧逻辑只回退「用户首选的那一个镜像」。默认镜像为「GitHub 直连」时，国内 `api.github.com` 被墙/DNS 异常 → 版本检测永远失败 → 弹「未连上 GitHub API」、拿不到任何新版本。
+- **修复** [Github.java](app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java)：版本检测直连失败后，自动依次尝试镜像池（ghproxy.com / mirror.ghproxy.com / ghproxy.net / gh.mirai.org / gh.1ms.run / gh.tmoe.me 等）全部可用镜像，谁先返回**合法 JSON** 就用谁（拒绝镜像/网关返回的 HTML 错误页）。下载链路保持原有「测速选优 + 断点 + 黑名单 + 双重校验」。
+- 国内用户默认配置即可检测到更新；也可在「设置 → 更新源」手动切换首选项。
+
+版本号：versionCode 632 → **633** / versionName 5.7.4 → **5.7.5**
+
 ### v5.7.4 · 2026-08-22 · 修复内置解析（jx.xmflv.cc 这种「?url= 万能嗅探」）不能播放、一直 0KB/s 转圈
 
 - **根因一**：`?url=` 嗅探接口即便参数值里带 `.m3u8`，返回的仍是 HTML 嗅探页，不是直链；旧判定会当直链丢给播放器 → 拉到 HTML → 0KB/s 永久转圈。已修正 [UrlUtil.isLikelyHtmlSniffer](app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java) 的漏判。
