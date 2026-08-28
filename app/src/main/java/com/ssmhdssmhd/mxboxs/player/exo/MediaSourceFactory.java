@@ -61,7 +61,7 @@ public class MediaSourceFactory implements MediaSource.Factory {
     /** 构造时绑定好 dataSourceFactory + extractorsFactory + DRM/LoadError 策略的默认工厂 —— 永远复用。 */
     private final DefaultMediaSourceFactory defaultMediaSourceFactory;
     /** 单例 httpDataSourceFactory：createMediaSource 时只更新它的 headers / playlistUrl。 */
-    private HttpDataSource.Factory httpDataSourceFactory;
+    private OkHttpDataSource.Factory httpDataSourceFactory;
     /** 懒加载：闭包绑定了单例 httpDataSourceFactory，headers/playlistUrl 更新后自动生效。 */
     private DataSource.Factory dataSourceFactory;
     private ExtractorsFactory extractorsFactory;
@@ -193,7 +193,7 @@ public class MediaSourceFactory implements MediaSource.Factory {
     }
 
     /** 单例 OkHttpDataSource.Factory —— createMediaSource 时只更新它的 headers / playlistUrl。 */
-    private HttpDataSource.Factory getHttpDataSourceFactory() {
+    private OkHttpDataSource.Factory getHttpDataSourceFactory() {
         if (httpDataSourceFactory == null) httpDataSourceFactory = new OkHttpDataSource.Factory(OkHttp.player());
         return httpDataSourceFactory;
     }
