@@ -578,6 +578,49 @@ public class PlayerManager implements ParseCallback {
         // 三道兜底都是补缺式（不覆盖已有值），不会污染解析器精确指定的 headers。
         if (spec != null) spec.setHeaders(headers);
         if (spec != null) spec.setUrl(url);
+
+        // ======= v5.7.8 新增：CDN 健康检测（后台并发，不阻塞播放主链路）=======
+        // 背景：解析器可能返回指向已被墙/已下线 CDN 的 URL（如 xgzycdn.com / cdn2.com），
+        // 播放器拿到 URL 去连会一直在 STATE_BUFFERING 转圈圈。
+        // 设计：播放器先 startCurrent() prepare（正常起播路径不受影响），
+        // healthCheck 在后台 5s 超时 probe URL 可达性。如果 probe 明确失败，
+        // 再检查播放器状态：已 STATE_READY → 忽略（probe 假阳性）；
+        // 还在 STATE_BUFFERING → 弹 Toast 明确告诉用户是什么问题（CDN 挂 / URL 404 / DNS 被墙 / 防盗链 403）。
+        // 这样正常 CDN 存活场景下 Toast 不会出现，只有真有问题才提示。
+        final String healthUrl = url;
+        final Map<String, String> healthHeaders = headers != null ? new HashMap<>(headers) : new HashMap<>();
+        Thread healthThread = new Thread(() -> {
+            try {
+                com.ssmhdssmhd.mxboxs.utils.UrlUtil.HealthResult hr =
+                        com.ssmhdssmhd.mxboxs.utils.UrlUtil.healthCheck(healthUrl, healthHeaders);
+                if (hr == com.ssmhdssmhd.mxboxs.utils.UrlUtil.HealthResult.OK) return; // CDN 正常，静默退出
+                // probe 失败 → 回到主线程检查播放器当前状态再决定要不要提示
+                App.post(() -> {
+                    if (player == null) return;
+                    int state = player.getPlaybackState();
+                    // 播放器已经 STATE_READY/ENDED → probe 假阳性（可能 probe 期间 CDN 恢复了），忽略
+                    if (state == Player.STATE_READY || state == Player.STATE_ENDED) return;
+                    // 还在 IDLE / BUFFERING → 确实有问题，提示用户
+                    String reason = switch (hr) {
+                        case CDN_DEAD -> "视频源 CDN 暂时不可用 (502/503)，请切换线路";
+                        case NOT_FOUND -> "视频源地址不存在 (404)，可能已失效";
+                        case BLOCKED -> "视频源被防盗链拦截 (403)，请切换线路";
+                        case DNS_FAIL -> "视频源 CDN 域名被墙或 DNS 被污染";
+                        case TIMEOUT -> "视频源连接超时，请切换线路或检查网络";
+                        case NETWORK_ERROR -> "视频源网络连接失败，请切换线路";
+                        case NOT_VIDEO -> "视频源返回了 HTML/JSON，不是视频文件";
+                        default -> "视频源可能有问题，请切换线路";
+                    };
+                    Notify.show(reason);
+                });
+            } catch (Throwable ignored) {
+                // healthCheck 内部已经 catch 了 IOException / UnknownHostException，
+                // 这里兜底防止 Thread 直接崩溃
+            }
+        }, "cdn-health-probe");
+        healthThread.setDaemon(true);
+        healthThread.start();
+
         startCurrent(pendingStartPositionMs);
         pendingStartPositionMs = C.TIME_UNSET;
     }

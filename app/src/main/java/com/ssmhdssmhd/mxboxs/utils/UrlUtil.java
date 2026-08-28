@@ -5,18 +5,29 @@ import android.text.TextUtils;
 import android.util.Base64;
 
 import com.ssmhdssmhd.mxboxs.server.Server;
+import com.github.catvod.net.OkHttp;
 import com.github.catvod.utils.UriUtil;
 import com.google.common.net.HttpHeaders;
 
+import java.io.Closeable;
 import java.io.File;
+import java.net.SocketTimeoutException;
 import java.net.URLDecoder;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import okhttp3.Headers;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class UrlUtil {
 
@@ -647,5 +658,145 @@ public class UrlUtil {
             } catch (Throwable ignored) {}
         }
         return out;
+    }
+
+    // ===================== CDN 健康检测 =====================
+
+    /** URL 可达性检测结果 —— 供播放器 / 解析器快速判断 CDN 是否存活。 */
+    public enum HealthResult {
+        OK,              // HEAD 成功 (2xx / 3xx 跳转到 2xx)
+        CDN_DEAD,        // 502 / 503 / 504 / nginx upstream 挂了
+        NOT_FOUND,       // 404 / 410 —— URL 路径不存在或 CDN 上没缓存
+        BLOCKED,         // 403 —— UA / Referer 不对或被防盗链封
+        METHOD_BLOCKED,  // 405 —— CDN 不支持 HEAD（保守信任，走 GET）
+        TIMEOUT,         // 连接超时 / 读超时
+        DNS_FAIL,        // UnknownHostException —— CDN 域名被墙 / DNS 被污染
+        NETWORK_ERROR,   // 其他网络错误（SSL、连接重置等）
+        NOT_VIDEO        // HEAD 返回成功但 Content-Type 明显不是视频 (text/html, application/json)
+    }
+
+    /**
+     * 轻量级 CDN 健康检测 —— 用 HEAD 请求判断 URL 可达性。
+     *
+     * <p>设计目标：
+     * <ul>
+     *   <li>**不阻塞播放主链路**：调用方应在后台线程执行（OkHttp 自带线程池）；</li>
+     *   <li>**5s 超时**：宁可误报也不要让"已知挂的 CDN"在播放器里白等 30s；</li>
+     *   <li>**失败类型细分**：区分 CDN 挂 (502) / URL 不存在 (404) / DNS 被墙 / UA 不对 (403)，
+     *       给 UI 弹 Toast 时能说清楚到底是什么问题。</li>
+     * </ul>
+     *
+     * @param url     待检测 URL
+     * @param headers 请求头（UA / Referer 等）
+     * @return HealthResult 枚举 —— {@link HealthResult#OK} 表示 CDN 存活，其他值表示具体问题类型
+     */
+    public static HealthResult healthCheck(String url, Map<String, String> headers) {
+        if (TextUtils.isEmpty(url)) return HealthResult.NETWORK_ERROR;
+        String lc = url.toLowerCase();
+        boolean hasVideoSuffix = lc.endsWith(".m3u8") || lc.contains(".m3u8?")
+                || lc.endsWith(".mp4")   || lc.contains(".mp4?")
+                || lc.endsWith(".flv")   || lc.contains(".flv?")
+                || lc.endsWith(".m4v")   || lc.contains(".m4v?")
+                || lc.endsWith(".ts")    || lc.contains(".ts?")
+                || lc.endsWith(".mkv")   || lc.contains(".mkv?")
+                || lc.endsWith(".webm")  || lc.contains(".webm?");
+
+        // —— 第一段：HEAD 请求，5s 超时 ——
+        try {
+            Request.Builder headBuilder = new Request.Builder().url(url).method("HEAD", null);
+            Map<String, String> h = headers != null ? headers : new HashMap<>();
+            if (!h.isEmpty()) headBuilder.headers(Headers.of(h));
+            // connect + read 都 5s，避免已知挂的 CDN 白等
+            try (Response res = OkHttp.client(5_000L).newCall(headBuilder.build()).execute()) {
+                int code = res.code();
+
+                // 3xx 重定向：跟随跳转看最终状态（最多跟随 5 次，OkHttp 默认支持）
+                if (code >= 300 && code < 400 && res.body() == null) {
+                    // HEAD 3xx 通常是 CDN 的临时重定向，跟随一次
+                    String location = res.header("Location");
+                    if (!TextUtils.isEmpty(location)) {
+                        // 递归调用自己跟随跳转（防止循环）
+                        return healthCheck(location, headers);
+                    }
+                }
+
+                // ✅ 2xx 成功
+                if (code >= 200 && code < 300) {
+                    String ct = res.header(HttpHeaders.CONTENT_TYPE);
+                    if (!TextUtils.isEmpty(ct)) {
+                        String ctLc = ct.toLowerCase();
+                        // 明确是 HTML / JSON / 纯文本 —— 肯定不是视频
+                        if (ctLc.contains("text/html") || ctLc.contains("application/json")
+                                || ctLc.contains("text/plain") || ctLc.contains("text/css")) {
+                            // 但如果 URL 有视频后缀（.m3u8 被错误返回 HTML），也标记为 NOT_VIDEO
+                            return HealthResult.NOT_VIDEO;
+                        }
+                    }
+                    return HealthResult.OK;
+                }
+
+                // ❌ CDN 挂了
+                if (code == 502 || code == 503 || code == 504) {
+                    return HealthResult.CDN_DEAD;
+                }
+                // ❌ URL 不存在
+                if (code == 404 || code == 410) {
+                    return HealthResult.NOT_FOUND;
+                }
+                // ❌ 防盗链
+                if (code == 403 || code == 401) {
+                    return HealthResult.BLOCKED;
+                }
+                // ❌ HEAD 不支持（CDN 老 nginx）— 走 GET
+                if (code == 405) {
+                    // fall through 到下面的 GET Range 检测
+                }
+            }
+        } catch (Throwable t) {
+            // 网络层异常分类
+            if (t instanceof UnknownHostException) {
+                return HealthResult.DNS_FAIL;
+            }
+            if (t instanceof SocketTimeoutException) {
+                return HealthResult.TIMEOUT;
+            }
+            String msg = t.getMessage();
+            if (msg != null) {
+                String mlc = msg.toLowerCase();
+                if (mlc.contains("timeout") || mlc.contains("timed out")) {
+                    return HealthResult.TIMEOUT;
+                }
+                if (mlc.contains("unable to resolve") || mlc.contains("unknown host")) {
+                    return HealthResult.DNS_FAIL;
+                }
+                if (mlc.contains("connection reset") || mlc.contains("refused")) {
+                    return HealthResult.NETWORK_ERROR;
+                }
+            }
+            return HealthResult.NETWORK_ERROR;
+        }
+
+        // —— 第二段：HEAD 不支持 (405)，用 GET Range: bytes=0-0 兜底 ——
+        try {
+            Map<String, String> rangeHeaders = new HashMap<>(headers != null ? headers : new HashMap<>());
+            rangeHeaders.put(HttpHeaders.RANGE, "bytes=0-0");
+            Request.Builder getBuilder = new Request.Builder().url(url).get();
+            if (!rangeHeaders.isEmpty()) getBuilder.headers(Headers.of(rangeHeaders));
+            try (Response res = OkHttp.client(5_000L).newCall(getBuilder.build()).execute()) {
+                int code = res.code();
+                if (code >= 200 && code < 300 || code == 416) {
+                    return HealthResult.OK;
+                }
+                if (code == 502 || code == 503 || code == 504) return HealthResult.CDN_DEAD;
+                if (code == 404 || code == 410) return HealthResult.NOT_FOUND;
+                if (code == 403 || code == 401) return HealthResult.BLOCKED;
+            }
+        } catch (Throwable ignored) {
+            // GET 也失败，看看 URL 有没有视频后缀做保守判断
+            if (hasVideoSuffix) return HealthResult.OK; // 保守：视频后缀 URL 网络失败算可播
+        }
+
+        // 兜底：HEAD 405 但 URL 有视频后缀，保守信任
+        return hasVideoSuffix ? HealthResult.OK : HealthResult.METHOD_BLOCKED;
     }
 }
