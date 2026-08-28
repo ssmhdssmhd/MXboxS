@@ -12,11 +12,11 @@ import android.text.TextUtils;
 import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MimeTypes;
-import androidx.media3.common.util.Util;
 
 import com.ssmhdssmhd.mxboxs.App;
 import com.ssmhdssmhd.mxboxs.BuildConfig;
 import com.ssmhdssmhd.mxboxs.utils.FileUtil;
+import com.ssmhdssmhd.mxboxs.utils.UrlUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +27,9 @@ import java.util.function.LongConsumer;
 public class PlayerHelper {
 
     public static String getDefaultUa() {
-        return Util.getUserAgent(App.get(), BuildConfig.APPLICATION_ID);
+        // 不再用 ExoPlayer 的 Util.getUserAgent()（返回 ExoPlayer/<version> 格式，多数 CDN 拒绝），
+        // 改成从 UA 池里拿最通用的手机 Chrome UA，确保兜底也能过 CDN 反爬校验。
+        return UrlUtil.defaultUA();
     }
 
     public static String getSubtitleMimeType(String path) {

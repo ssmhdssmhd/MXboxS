@@ -20,7 +20,109 @@ import java.util.regex.Pattern;
 
 public class UrlUtil {
 
-    private static final String DEFAULT_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36";
+    // ===================== User-Agent 候选池 =====================
+    // 覆盖手机 / 平板 / TV / PC 四大场景，浏览器涵盖 Chrome / Safari / Edge / Firefox / 国内浏览器。
+    // 优先级：Setting.getUa() 用户自定义 > 解析器返回的 headers > 这里 UA 池（按 URL 场景选择）
+    //   → 全都没有时从池里随机选一个（避免单一 UA 被 CDN 识别为 bot 批量封锁）。
+
+    /** 手机端 Chrome / Edge —— 最通用，绝大多数 CDN 和解析站都放行 */
+    public static final String UA_MOBILE_CHROME = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
+    public static final String UA_MOBILE_EDGE   = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 EdgA/131.0.0.0";
+
+    /** 手机端 Safari —— 部分 iOS 专属视频源需要 */
+    public static final String UA_MOBILE_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1";
+
+    /** 国内 Android 浏览器（华为浏览器 / 小米浏览器） —— 部分国内视频站只认这些 */
+    public static final String UA_MOBILE_HUAWEI  = "Mozilla/5.0 (Linux; Android 14; HUAWEI Pura 70 Pro Build/HWBRP) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 HUAWEIBrowser/16.0";
+    public static final String UA_MOBILE_XIAOMI  = "Mozilla/5.0 (Linux; Android 14; 24069PN5C Build/UKQ1.230804.001) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 MIUIBrowser/14.0";
+
+    /** Android TV 端 —— 电视类源/直播源（IPTV）一般只放行 TV UA */
+    public static final String UA_TV_ANDROID = "Mozilla/5.0 (Linux; Android 13; ONEMI X96 Air Build/TP1A.220624.014) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+    public static final String UA_TV_FIRETV  = "Mozilla/5.0 (Linux; Android 11; Fire TV Stick 4K Max Build/PQ1A.211205.017.A1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+    public static final String UA_TV_COOKIE  = "Mozilla/5.0 (Linux; Android 12; TV Box Build/SQ1A.221205.008) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 TV Android SDK 31";
+
+    /** PC 端 Chrome / Edge / Firefox —— PC 类源（如某些 DASH/HLS 官方源）需要 */
+    public static final String UA_PC_CHROME   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    public static final String UA_PC_EDGE     = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0";
+    public static final String UA_PC_FIREFOX  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0";
+    public static final String UA_PC_SAFARI   = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
+
+    /** 播放引擎 UA（VLC / IINA / ffmpeg）—— 某些源给桌面播放器特殊优待 */
+    public static final String UA_ENGINE_VLC  = "VLC/3.0.20 LibVLC/3.0.20";
+    public static final String UA_ENGINE_MPV  = "mpv/0.38.0";
+
+    /** UA 池 —— 池第一个是兼容旧版本的默认值（Pixel 7 Chrome），保持向后兼容。 */
+    private static final String[] UA_POOL = {
+            UA_MOBILE_CHROME,       // 默认
+            UA_MOBILE_EDGE,
+            UA_MOBILE_SAFARI,
+            UA_MOBILE_HUAWEI,
+            UA_MOBILE_XIAOMI,
+            UA_TV_ANDROID,
+            UA_TV_FIRETV,
+            UA_TV_COOKIE,
+            UA_PC_CHROME,
+            UA_PC_EDGE,
+            UA_PC_FIREFOX,
+            UA_PC_SAFARI,
+            UA_ENGINE_VLC,
+            UA_ENGINE_MPV,
+    };
+
+    /** 向后兼容：旧代码还在用 DEFAULT_UA 常量 → 映射到池第一个（兼容 Pixel 7 Chrome） */
+    private static final String DEFAULT_UA = UA_MOBILE_CHROME;
+
+    /** 随机种子池 —— 用于从 UA 池选一个，避免 CDN 发现单一 UA 异常。 */
+    private static final java.util.Random UA_RNG = new java.util.Random();
+
+    /**
+     * 按「URL 场景」挑一个合适的 UA：
+     *   - URL 包含 /tv/、/iptv/、/androidtv/、/firetv 等 → 优先 TV UA
+     *   - URL 包含 /mobile/、/app/、/ios/、/android 等 → 优先手机 UA
+     *   - URL 包含 /pc/、/desktop/、/web/、/chrome/ → 优先 PC UA
+     *   - 啥都没匹配上 → 手机 Chrome（最通用）
+     *
+     * 优先命中的场景池内随机，避免 CDN 对单一 UA 做指纹封锁。
+     */
+    public static String pickUaByUrl(String url) {
+        java.util.List<String> pool = new java.util.ArrayList<>();
+        if (!TextUtils.isEmpty(url)) {
+            String lower = url.toLowerCase();
+            // TV 类
+            if (lower.contains("/tv") || lower.contains("androidtv") || lower.contains("firetv")
+                    || lower.contains("/iptv") || lower.contains("box") || lower.contains("ott")
+                    || lower.contains("hbo") || lower.contains("disney") || lower.contains("primevideo")) {
+                pool.add(UA_TV_ANDROID); pool.add(UA_TV_FIRETV); pool.add(UA_TV_COOKIE);
+            }
+            // PC 类
+            if (lower.contains("/pc") || lower.contains("desktop") || lower.contains("/web/")
+                    || lower.contains("netflix") || lower.contains("spotify") || lower.contains("youtube.com/watch")) {
+                pool.add(UA_PC_CHROME); pool.add(UA_PC_EDGE); pool.add(UA_PC_FIREFOX); pool.add(UA_PC_SAFARI);
+            }
+            // 手机类（显式标记）
+            if (lower.contains("/mobile") || lower.contains("/app") || lower.contains("ios") || lower.contains("/android")) {
+                pool.add(UA_MOBILE_CHROME); pool.add(UA_MOBILE_EDGE); pool.add(UA_MOBILE_SAFARI);
+            }
+        }
+        // 场景池没挑出来 → 兜底手机 Chrome（最通用）
+        if (pool.isEmpty()) return UA_MOBILE_CHROME;
+        return pool.get(UA_RNG.nextInt(pool.size()));
+    }
+
+    /** 从完整 UA 池里随机选一个 —— 用于每次重解析/重试时换一个 UA 尝试。 */
+    public static String pickRandomUa() {
+        return UA_POOL[UA_RNG.nextInt(UA_POOL.length)];
+    }
+
+    /** 返回 UA 池 —— 供 PlayerHelper / 设置界面等外部调用。 */
+    public static String[] getUaPool() {
+        return UA_POOL.clone();
+    }
+
+    /** 默认 UA（向后兼容旧代码） */
+    public static String defaultUA() {
+        return DEFAULT_UA;
+    }
 
     /**
      * 有些第三方解析站会把真实视频页面 URL 包成「假本地代理 URL」返回，形如：
@@ -152,8 +254,9 @@ public class UrlUtil {
             for (java.util.Map.Entry<String, String> e : userHeaders.entrySet())
                 if (e != null && e.getKey() != null) out.put(fixHeader(e.getKey()), e.getValue() == null ? "" : e.getValue());
         }
+        // 解析链路 UA 补缺：按 refererUrl 场景挑一个合适的 UA（手机/TV/PC）
         if (!out.containsKey(HttpHeaders.USER_AGENT) || TextUtils.isEmpty(out.get(HttpHeaders.USER_AGENT))) {
-            out.put(HttpHeaders.USER_AGENT, DEFAULT_UA);
+            out.put(HttpHeaders.USER_AGENT, pickUaByUrl(refererUrl));
         }
         if (!TextUtils.isEmpty(refererUrl) && !out.containsKey(HttpHeaders.REFERER)) {
             out.put(HttpHeaders.REFERER, refererUrl);
@@ -225,8 +328,11 @@ public class UrlUtil {
             for (java.util.Map.Entry<String, String> e : userHeaders.entrySet())
                 if (e != null && e.getKey() != null) out.put(fixHeader(e.getKey()), e.getValue() == null ? "" : e.getValue());
         }
+        // UA 补缺：按播放 URL 场景匹配合适的 UA（手机/TV/PC/引擎），
+        // 场景池内随机避免 CDN 识别单一 UA 为 bot。
+        // 如果用户自定义 Setting.getUa() 已有值，这里不会走到（被 PlaySpec.checkUa 先补上了）。
         if (!out.containsKey(HttpHeaders.USER_AGENT) || TextUtils.isEmpty(out.get(HttpHeaders.USER_AGENT))) {
-            out.put(HttpHeaders.USER_AGENT, DEFAULT_UA);
+            out.put(HttpHeaders.USER_AGENT, pickUaByUrl(playbackUrl));
         }
         // 播放链路：用户传进来的 Referer 已经有了就保留（有些解析站会精确指定 Referer，不要覆盖）
         if (!out.containsKey(HttpHeaders.REFERER) || TextUtils.isEmpty(out.get(HttpHeaders.REFERER))) {

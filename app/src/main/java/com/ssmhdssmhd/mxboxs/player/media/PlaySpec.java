@@ -111,7 +111,18 @@ public class PlaySpec {
 
     public PlaySpec checkUa() {
         if (headers == null) headers = new HashMap<>();
-        if (headers.keySet().stream().noneMatch(HttpHeaders.USER_AGENT::equalsIgnoreCase)) headers.put(HttpHeaders.USER_AGENT, Setting.getUa().isEmpty() ? PlayerHelper.getDefaultUa() : Setting.getUa());
+        // UA 优先级链：
+        //   1) headers 里已有 UA（解析器精确指定的，不覆盖）
+        //   2) Setting.getUa() 用户自定义 UA
+        //   3) UrlUtil.pickUaByUrl() 按当前播放 URL 场景从 UA 池选（手机/TV/PC/引擎）
+        //      → 兜底不会再走到 ExoPlayer 默认 UA（ExoPlayer/xxx 格式被多数 CDN 拒绝）
+        if (headers.keySet().stream().noneMatch(HttpHeaders.USER_AGENT::equalsIgnoreCase)) {
+            String ua = Setting.getUa();
+            if (ua == null || ua.isEmpty()) {
+                ua = com.ssmhdssmhd.mxboxs.utils.UrlUtil.pickUaByUrl(url);
+            }
+            headers.put(HttpHeaders.USER_AGENT, ua);
+        }
         return this;
     }
 
