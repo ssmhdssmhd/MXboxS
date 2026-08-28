@@ -1,0 +1,272 @@
+From 3f9df59287ca24725b1133cb91fd155fb4560886 Mon Sep 17 00:00:00 2001
+From: ssmhdssmhd <ssmhdssmhd@users.noreply.github.com>
+Date: Fri, 28 Aug 2026 17:12:51 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20=E5=88=86=E6=9E=90=E5=B9=B6=E4=BF=AE?=
+ =?UTF-8?q?=E5=A4=8D=E6=9C=AC=E5=9C=B0=E6=92=AD=E6=94=BE=E6=96=B9=E6=B3=95?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-authored-by: traeagent <traeagent@users.noreply.github.com>
+---
+ CHANGELOG.md                                  | 40 +++++++++
+ app/build.gradle                              |  4 +-
+ .../mxboxs/player/PlayerManager.java          | 13 +--
+ .../mxboxs/player/exo/MediaSourceFactory.java | 88 +++++++++++++++----
+ 4 files changed, 121 insertions(+), 24 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 458a0926b..bf318289b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,46 @@
+ 
+ 格式：`[版本号] - YYYY-MM-DD`
+ 
++## [v5.7.6] - 2026-08-28 · 深度修复播放失败（同步上游 FongMi/TV 的 MediaSourceFactory 设计）
++
++### 背景
++
++长期存在「上游 FongMi/TV 能播、本地 MXboxS 不能播」的问题，尤其是 DRM 加密视频无法播放、HLS/DASH 弱网卡顿白屏等场景。根因藏在 `MediaSourceFactory.createMediaSource()` 每次都 `new DefaultMediaSourceFactory(...)`，把 ExoPlayer.Builder.setMediaSourceFactory() 注入的 `DrmSessionManagerProvider`（DRM 授权管理器）和 `LoadErrorHandlingPolicy`（段失败重试 3 次策略）全丢了。这两处修复在上游代码里早有体现：上游的 `ExoMediaSourceFactory.createMediaSource()` 只更新单例 httpDataSourceFactory 的 headers，永远复用构造时绑定好的 defaultMediaSourceFactory。
++
++### 根因定位（3 处）
++
++| # | 位置 | 问题 | 后果 |
++|---|------|------|------|
++| 1 | `MediaSourceFactory.createMediaSource()` | 每次 `new DefaultMediaSourceFactory(dataSourceFactory, extractorsFactory)` | setDrmSessionManagerProvider / setLoadErrorHandlingPolicy 注入的 DRM 授权和段重试策略全丢 |
++| 2 | `MediaSourceFactory.createDataSourceFactory()`（已删除） | 每次 new 临时 OkHttpDataSource.Factory，用完就扔 | setPlaylistUrl 跨域 Referer 修正根本没串到后续 DefaultMediaSourceFactory 的实际请求链路 |
++| 3 | `PlayerManager.onParseSuccess()` | 额外调 mergeDefaultHeadersForPlayback 覆盖了解析器返回的精确 headers | 可能导致解析器特意指定的 Referer/UA 被二次推导值替代 |
++
++### 修复（参考上游 FongMi/TV 的 ExoMediaSourceFactory 设计）
++
++**[MediaSourceFactory.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java)**：
++- 构造时一次性 `new DefaultMediaSourceFactory(getDataSourceFactory(), getExtractorsFactory())` 存到成员变量 `defaultMediaSourceFactory`；`setDrmSessionManagerProvider()` / `setLoadErrorHandlingPolicy()` 转发给它后**永不复用不再丢**。
++- `createMediaSource()` 改为**只更新单例 `httpDataSourceFactory` 的 headers 和 playlistUrl**（支持 fluent 链式调用），然后直接委托 `defaultMediaSourceFactory.createMediaSource(mediaItem)`。
++- `getDataSourceFactory()` 懒加载闭包绑定了单例 httpDataSourceFactory：每次 DefaultMediaSourceFactory 需要打开连接时，闭包内重新调用 `getHttpDataSourceFactory()` 拿到的是**最新 headers/playlistUrl** 的实例 —— 跨域 Referer 修正（setPlaylistUrl + OkHttpDataSource.open() 动态降级为 ORIGIN 级 Referer）终于正确串到了实际请求链路。
++- `mergeDefaultHeadersForPlayback` 保留补缺式语义（只在缺 Referer/UA/Accept 时才补，不覆盖已有值），三道兜底链路（PlaySpec.checkUa() → MediaSourceFactory.merge → OkHttpDataSource 跨域动态修正）各司其职互不干扰。
++
++**[PlayerManager.onParseSuccess()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L544-L583)**：
++- 去掉重复的 mergeDefaultHeadersForPlayback 调用，像上游那样直接信任解析器返回的 headers（仅移除 RANGE）。UA/Referer 兜底由后续的 PlaySpec.checkUa() + MediaSourceFactory.merge + OkHttpDataSource 跨域修正三道链路补齐，都是补缺式不污染。
++- 保留本地独有的 `unwrapFakeLocalProxy` 重跑防护（解析站返回伪造本地代理 URL 时自动还原真实 URL 重跑 parse）。
++
++### 效果预期
++
++- DRM 加密视频（如 Netflix/Widevine/PlayReady 保护的 DASH/HLS）license 授权恢复正常 → 能播；
++- HLS/DASH 弱网偶发 403/5xx 段失败能自动重试 3 次 → 白屏率下降；
++- 跨域 CDN（如 cdn.hls.one、cache.xxx.xyz 源）TS 段 Referer 修正恢复生效 → Network Connection Failed 减少；
++- 解析器精确指定的 Referer/UA 不再被二次 merge 污染 → 反爬严格的源能播。
++
++### 版本号
++
++- versionCode 633 → **634**
++- versionName 5.7.5 → **5.7.6**
++
++---
++
+ ## [v5.7.5] - 2026-08-22 · 优化国内 OTA 更新：版本检测也走多镜像兜底
+ 
+ ### 背景
+diff --git a/app/build.gradle b/app/build.gradle
+index 5dbe3627b..78d67a05f 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -19,8 +19,8 @@ android {
+         applicationId "com.ssmhdssmhd.mxboxs"
+         minSdk libs.versions.minSdk.get().toInteger()
+         targetSdk libs.versions.targetSdk.get().toInteger()
+-        versionCode 633
+-        versionName "5.7.5"
++        versionCode 634
++        versionName "5.7.6"
+         // v5.6.5 体积优化：resConfigs 只打包 3 种常用语言，其它 values-xx 的 system strings 不进 APK
+         // （App 自己的中文资源文件在 values-zh-rCN / values-zh-rTW，不会被排除）
+         resConfigs "zh-rCN", "zh-rTW", "en"
+diff --git a/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java b/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java
+index 8603807ce..118e44ff5 100644
+--- a/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java
++++ b/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java
+@@ -546,7 +546,7 @@ public class PlayerManager implements ParseCallback {
+         // 第三道防线：第三方解析站有时会返回伪造本地代理 URL（http://127.0.0.1:非9978端口/p/.../base64/index.m3u8），
+         // 这些端口根本没有服务器，播放器去连会直接 Network Connection Failed。
+         // 如果检测到这种 URL：用还原出的真实 URL 再次触发 parse（走 WebView + AI 嗅探流程挖出真实 m3u8）。
+-        // 修复 v5.5.42：重跑 parse 时要从当前 spec 拷贝 drm / subs / danmaku / format 信息，不然 reparse 后会丢失字幕/弹幕/DRM。
++        // 重跑 parse 时要从当前 spec 拷贝 drm / subs / danmaku / format 信息，不然 reparse 后会丢失字幕/弹幕/DRM。
+         String unwrapped = com.ssmhdssmhd.mxboxs.utils.UrlUtil.unwrapFakeLocalProxy(url);
+         if (!TextUtils.isEmpty(unwrapped)) {
+             if (from != null && !from.endsWith("+reparse")) {
+@@ -571,11 +571,12 @@ public class PlayerManager implements ParseCallback {
+         }
+         if (!TextUtils.isEmpty(from)) Notify.show(ResUtil.getString(R.string.parse_from, from));
+         if (headers != null) headers.remove(HttpHeaders.RANGE);
+-        // 修复 v5.6.1：解析成功出口统一 mergeDefaultHeaders（补 Referer/UA 兜底）
+-        // 修复 v5.6.8：改用 mergeDefaultHeadersForPlayback（Referer = playlist 目录，不带 query 乱码），
+-        // 否则请求 cdn.hls.one 跨域 TS 绝对段时 Referer 包含 cache.0567890.xyz?vkey=xxx 导致 sign 鉴权 403 → Network Connection Failed。
+-        Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeadersForPlayback(headers, url);
+-        if (spec != null) spec.setHeaders(safeHeaders);
++        // 参考上游 FongMi/TV：信任解析器返回的 headers，直接存入 spec。
++        // UA/Referer 兜底由后续链路保证：
++        //   PlaySpec.checkUa() → MediaSourceFactory.createMediaSource() 中的 mergeDefaultHeadersForPlayback()
++        //   → OkHttpDataSource.open() 跨域动态 Referer 修正
++        // 三道兜底都是补缺式（不覆盖已有值），不会污染解析器精确指定的 headers。
++        if (spec != null) spec.setHeaders(headers);
+         if (spec != null) spec.setUrl(url);
+         startCurrent(pendingStartPositionMs);
+         pendingStartPositionMs = C.TIME_UNSET;
+diff --git a/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java b/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java
+index 8fd4dc8ef..d1fcc0e5d 100644
+--- a/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java
++++ b/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java
+@@ -32,6 +32,25 @@ import com.github.catvod.utils.Path;
+ import java.io.File;
+ import java.util.Map;
+ 
++/**
++ * MediaSource 工厂 —— 参考上游 FongMi/TV 的 ExoMediaSourceFactory 实现。
++ *
++ * <p>关键设计：构造时用 {@link #getDataSourceFactory()}（懒加载、绑定单例 httpDataSourceFactory）
++ * 和 {@link #getExtractorsFactory()} 一次性初始化好 {@link #defaultMediaSourceFactory}。后续
++ * {@link #createMediaSource(MediaItem)} 只更新单例 httpDataSourceFactory 的 headers 和 playlistUrl，
++ * 然后直接委托 defaultMediaSourceFactory 创建 MediaSource。
++ *
++ * <p>这样保证：
++ * <ul>
++ *   <li>ExoPlayer.Builder.setMediaSourceFactory() 注入的 DrmSessionManagerProvider /
++ *       LoadErrorHandlingPolicy 不会被每次 new DefaultMediaSourceFactory 丢弃 —— 修复 DRM 加密视频
++ *       无法播放、HLS/DASH 段失败不重试的问题；</li>
++ *   <li>跨域 CDN Referer 修正（setPlaylistUrl）能正确生效 —— 因为 httpDataSourceFactory 是单例，
++ *       createMediaSource 更新后，getDataSourceFactory() 闭包下次 createDataSource() 自然使用
++ *       更新后的 headers/playlistUrl；</li>
++ *   <li>OKHttp 的完整配置（信任所有证书、自定义 DNS/DoH、拦截器）通过 OkHttp.player() 贯穿始终。</li>
++ * </ul>
++ */
+ public class MediaSourceFactory implements MediaSource.Factory {
+ 
+     private static final int CACHE_SPACE_PERCENT = 80;
+@@ -39,15 +58,22 @@ public class MediaSourceFactory implements MediaSource.Factory {
+     private static StandaloneDatabaseProvider databaseProvider;
+     private static Cache cache;
+ 
++    /** 构造时绑定好 dataSourceFactory + extractorsFactory + DRM/LoadError 策略的默认工厂 —— 永远复用。 */
+     private final DefaultMediaSourceFactory defaultMediaSourceFactory;
++    /** 单例 httpDataSourceFactory：createMediaSource 时只更新它的 headers / playlistUrl。 */
+     private HttpDataSource.Factory httpDataSourceFactory;
++    /** 懒加载：闭包绑定了单例 httpDataSourceFactory，headers/playlistUrl 更新后自动生效。 */
+     private DataSource.Factory dataSourceFactory;
+     private ExtractorsFactory extractorsFactory;
+ 
+     public MediaSourceFactory() {
+-        defaultMediaSourceFactory = new DefaultMediaSourceFactory(getDataSourceFactory(), getExtractorsFactory());
++        this.defaultMediaSourceFactory = new DefaultMediaSourceFactory(getDataSourceFactory(), getExtractorsFactory());
+     }
+ 
++    /**
++     * 供 Preload / 预下载链路使用的便捷工厂：按 headers 创建一个独立的 DataSource.Factory。
++     * 播放主链路不使用此方法，以保持单例 httpDataSourceFactory 的 headers/playlistUrl 生命周期。
++     */
+     static DataSource.Factory createUpstreamDataSourceFactory(Map<String, String> headers) {
+         HttpDataSource.Factory factory = new OkHttpDataSource.Factory(OkHttp.player());
+         factory.setDefaultRequestProperties(headers);
+@@ -72,6 +98,11 @@ public class MediaSourceFactory implements MediaSource.Factory {
+         return Math.min(PreloadSetting.getPreloadSizeBytes(), storageBudget);
+     }
+ 
++    /**
++     * ExoPlayer.Builder.setMediaSourceFactory() 会调用本方法注入 DRM 授权管理器。
++     * 我们把它转交给 defaultMediaSourceFactory（构造时已绑定好 dataSourceFactory），
++     * 然后 createMediaSource 永远复用 defaultMediaSourceFactory —— 保证 DRM 不会丢失。
++     */
+     @NonNull
+     @Override
+     public MediaSource.Factory setDrmSessionManagerProvider(@NonNull DrmSessionManagerProvider drmSessionManagerProvider) {
+@@ -79,6 +110,10 @@ public class MediaSourceFactory implements MediaSource.Factory {
+         return this;
+     }
+ 
++    /**
++     * ExoPlayer.Builder.setMediaSourceFactory() 会调用本方法注入 LoadErrorHandlingPolicy（段失败重试等）。
++     * 同上：转发给 defaultMediaSourceFactory，createMediaSource 复用时策略不会丢失。
++     */
+     @NonNull
+     @Override
+     public MediaSource.Factory setLoadErrorHandlingPolicy(@NonNull LoadErrorHandlingPolicy loadErrorHandlingPolicy) {
+@@ -92,27 +127,39 @@ public class MediaSourceFactory implements MediaSource.Factory {
+         return defaultMediaSourceFactory.getSupportedTypes();
+     }
+ 
++    /**
++     * 核心方法：为给定 MediaItem 创建 MediaSource。
++     *
++     * <p>参考上游 FongMi/TV 的做法：
++     * <ol>
++     *   <li>从 MediaItem 的 requestMetadata.extras 提取 headers（由 MediaItemFactory 放入）；</li>
++     *   <li>调用 UrlUtil.mergeDefaultHeadersForPlayback() 仅做「补缺」而非覆盖 —— 信任解析器返回的
++     *       Referer/UA，只在确实缺失时才补兜底值；</li>
++     *   <li>更新单例 httpDataSourceFactory 的 headers 和 playlistUrl（跨域 Referer 修正）；</li>
++     *   <li>委托构造时已绑定好 dataSourceFactory + extractorsFactory + DRM + LoadError 的
++     *       defaultMediaSourceFactory 创建 MediaSource。</li>
++     * </ol>
++     *
++     * <p>之前每次 new DefaultMediaSourceFactory(dataSourceFactory, ...) 的写法会把
++     * setDrmSessionManagerProvider / setLoadErrorHandlingPolicy 注入的内容全丢了 —— 这就是
++     * 「上游能播、本地不能播」的最严重根因。
++     */
+     @NonNull
+     @Override
+     public MediaSource createMediaSource(@NonNull MediaItem mediaItem) {
+-        DataSource.Factory dataSourceFactory = createDataSourceFactory(mediaItem);
+-        return new DefaultMediaSourceFactory(dataSourceFactory, getExtractorsFactory()).createMediaSource(mediaItem);
+-    }
+-
+-    private DataSource.Factory createDataSourceFactory(MediaItem mediaItem) {
+-        // v5.6.8 修复：MediaItem 里可能没 header 或 header 的 Referer 仍是旧版 mergeDefaultHeaders 版
+-        // （含 ?vkey=xx 长 query），这里再强制走一遍播放专用 headers 流程；并把 MediaItem URL 作为
+-        // playlistUrl 灌给 OkHttpDataSource.Factory，用于跨域 TS 段动态修正 Referer。
+-        // 解决 cache.0567890.xyz:4433 → cdn.hls.one Network Connection Failed。
+-        String playbackUrl = mediaItem != null && mediaItem.localConfiguration != null
+-                ? (mediaItem.localConfiguration.uri != null ? mediaItem.localConfiguration.uri.toString() : "")
++        String playbackUrl = mediaItem.localConfiguration != null && mediaItem.localConfiguration.uri != null
++                ? mediaItem.localConfiguration.uri.toString()
+                 : "";
++        // 1. 从 MediaItem.requestMetadata.extras 提取 headers（由 MediaItemFactory 放入）
+         Map<String, String> headers = ExoUtil.extractHeaders(mediaItem);
++        // 2. 补缺式 merge —— 信任解析器返回的 headers，只在缺 Referer/UA 时补兜底值
+         Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeadersForPlayback(headers, playbackUrl);
+-        OkHttpDataSource.Factory httpFactory = new OkHttpDataSource.Factory(OkHttp.player());
+-        httpFactory.setDefaultRequestProperties(safeHeaders);
+-        httpFactory.setPlaylistUrl(playbackUrl);
+-        return () -> getCacheDataSource(new DefaultDataSource.Factory(App.get(), httpFactory)).createDataSource();
++        // 3. 更新单例 httpDataSourceFactory：headers + playlistUrl（用于跨域 TS/chunk 段动态修正 Referer）
++        getHttpDataSourceFactory()
++                .setDefaultRequestProperties(safeHeaders)
++                .setPlaylistUrl(playbackUrl);
++        // 4. 复用构造时绑定好 dataSourceFactory + extractorsFactory + DRM + LoadError 的 defaultMediaSourceFactory
++        return defaultMediaSourceFactory.createMediaSource(mediaItem);
+     }
+ 
+     private ExtractorsFactory getExtractorsFactory() {
+@@ -120,6 +167,14 @@ public class MediaSourceFactory implements MediaSource.Factory {
+         return extractorsFactory;
+     }
+ 
++    /**
++     * 懒加载 DataSource.Factory 闭包：
++     * <pre>() -> getCacheDataSource(new DefaultDataSource.Factory(App.get(), getHttpDataSourceFactory())).createDataSource()</pre>
++     *
++     * <p>每次 DefaultMediaSourceFactory 需要打开连接时，都会通过这个闭包调用 createDataSource()，
++     * 进而拿到**最新** headers 和 playlistUrl 的 httpDataSource —— 因为闭包每次都调用
++     * {@link #getHttpDataSourceFactory()}，而它返回的是同一个单例（createMediaSource 只更新它的属性）。
++     */
+     private DataSource.Factory getDataSourceFactory() {
+         if (dataSourceFactory == null) dataSourceFactory = () -> getCacheDataSource(new DefaultDataSource.Factory(App.get(), getHttpDataSourceFactory())).createDataSource();
+         return dataSourceFactory;
+@@ -137,6 +192,7 @@ public class MediaSourceFactory implements MediaSource.Factory {
+         return factory;
+     }
+ 
++    /** 单例 OkHttpDataSource.Factory —— createMediaSource 时只更新它的 headers / playlistUrl。 */
+     private HttpDataSource.Factory getHttpDataSourceFactory() {
+         if (httpDataSourceFactory == null) httpDataSourceFactory = new OkHttpDataSource.Factory(OkHttp.player());
+         return httpDataSourceFactory;
+-- 
+2.43.0
+
