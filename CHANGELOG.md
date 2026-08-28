@@ -2,6 +2,46 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.6] - 2026-08-28 · 深度修复播放失败（同步上游 FongMi/TV 的 MediaSourceFactory 设计）
+
+### 背景
+
+长期存在「上游 FongMi/TV 能播、本地 MXboxS 不能播」的问题，尤其是 DRM 加密视频无法播放、HLS/DASH 弱网卡顿白屏等场景。根因藏在 `MediaSourceFactory.createMediaSource()` 每次都 `new DefaultMediaSourceFactory(...)`，把 ExoPlayer.Builder.setMediaSourceFactory() 注入的 `DrmSessionManagerProvider`（DRM 授权管理器）和 `LoadErrorHandlingPolicy`（段失败重试 3 次策略）全丢了。这两处修复在上游代码里早有体现：上游的 `ExoMediaSourceFactory.createMediaSource()` 只更新单例 httpDataSourceFactory 的 headers，永远复用构造时绑定好的 defaultMediaSourceFactory。
+
+### 根因定位（3 处）
+
+| # | 位置 | 问题 | 后果 |
+|---|------|------|------|
+| 1 | `MediaSourceFactory.createMediaSource()` | 每次 `new DefaultMediaSourceFactory(dataSourceFactory, extractorsFactory)` | setDrmSessionManagerProvider / setLoadErrorHandlingPolicy 注入的 DRM 授权和段重试策略全丢 |
+| 2 | `MediaSourceFactory.createDataSourceFactory()`（已删除） | 每次 new 临时 OkHttpDataSource.Factory，用完就扔 | setPlaylistUrl 跨域 Referer 修正根本没串到后续 DefaultMediaSourceFactory 的实际请求链路 |
+| 3 | `PlayerManager.onParseSuccess()` | 额外调 mergeDefaultHeadersForPlayback 覆盖了解析器返回的精确 headers | 可能导致解析器特意指定的 Referer/UA 被二次推导值替代 |
+
+### 修复（参考上游 FongMi/TV 的 ExoMediaSourceFactory 设计）
+
+**[MediaSourceFactory.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java)**：
+- 构造时一次性 `new DefaultMediaSourceFactory(getDataSourceFactory(), getExtractorsFactory())` 存到成员变量 `defaultMediaSourceFactory`；`setDrmSessionManagerProvider()` / `setLoadErrorHandlingPolicy()` 转发给它后**永不复用不再丢**。
+- `createMediaSource()` 改为**只更新单例 `httpDataSourceFactory` 的 headers 和 playlistUrl**（支持 fluent 链式调用），然后直接委托 `defaultMediaSourceFactory.createMediaSource(mediaItem)`。
+- `getDataSourceFactory()` 懒加载闭包绑定了单例 httpDataSourceFactory：每次 DefaultMediaSourceFactory 需要打开连接时，闭包内重新调用 `getHttpDataSourceFactory()` 拿到的是**最新 headers/playlistUrl** 的实例 —— 跨域 Referer 修正（setPlaylistUrl + OkHttpDataSource.open() 动态降级为 ORIGIN 级 Referer）终于正确串到了实际请求链路。
+- `mergeDefaultHeadersForPlayback` 保留补缺式语义（只在缺 Referer/UA/Accept 时才补，不覆盖已有值），三道兜底链路（PlaySpec.checkUa() → MediaSourceFactory.merge → OkHttpDataSource 跨域动态修正）各司其职互不干扰。
+
+**[PlayerManager.onParseSuccess()](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/PlayerManager.java#L544-L583)**：
+- 去掉重复的 mergeDefaultHeadersForPlayback 调用，像上游那样直接信任解析器返回的 headers（仅移除 RANGE）。UA/Referer 兜底由后续的 PlaySpec.checkUa() + MediaSourceFactory.merge + OkHttpDataSource 跨域修正三道链路补齐，都是补缺式不污染。
+- 保留本地独有的 `unwrapFakeLocalProxy` 重跑防护（解析站返回伪造本地代理 URL 时自动还原真实 URL 重跑 parse）。
+
+### 效果预期
+
+- DRM 加密视频（如 Netflix/Widevine/PlayReady 保护的 DASH/HLS）license 授权恢复正常 → 能播；
+- HLS/DASH 弱网偶发 403/5xx 段失败能自动重试 3 次 → 白屏率下降；
+- 跨域 CDN（如 cdn.hls.one、cache.xxx.xyz 源）TS 段 Referer 修正恢复生效 → Network Connection Failed 减少；
+- 解析器精确指定的 Referer/UA 不再被二次 merge 污染 → 反爬严格的源能播。
+
+### 版本号
+
+- versionCode 633 → **634**
+- versionName 5.7.5 → **5.7.6**
+
+---
+
 ## [v5.7.5] - 2026-08-22 · 优化国内 OTA 更新：版本检测也走多镜像兜底
 
 ### 背景

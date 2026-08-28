@@ -546,7 +546,7 @@ public class PlayerManager implements ParseCallback {
         // 第三道防线：第三方解析站有时会返回伪造本地代理 URL（http://127.0.0.1:非9978端口/p/.../base64/index.m3u8），
         // 这些端口根本没有服务器，播放器去连会直接 Network Connection Failed。
         // 如果检测到这种 URL：用还原出的真实 URL 再次触发 parse（走 WebView + AI 嗅探流程挖出真实 m3u8）。
-        // 修复 v5.5.42：重跑 parse 时要从当前 spec 拷贝 drm / subs / danmaku / format 信息，不然 reparse 后会丢失字幕/弹幕/DRM。
+        // 重跑 parse 时要从当前 spec 拷贝 drm / subs / danmaku / format 信息，不然 reparse 后会丢失字幕/弹幕/DRM。
         String unwrapped = com.ssmhdssmhd.mxboxs.utils.UrlUtil.unwrapFakeLocalProxy(url);
         if (!TextUtils.isEmpty(unwrapped)) {
             if (from != null && !from.endsWith("+reparse")) {
@@ -571,11 +571,12 @@ public class PlayerManager implements ParseCallback {
         }
         if (!TextUtils.isEmpty(from)) Notify.show(ResUtil.getString(R.string.parse_from, from));
         if (headers != null) headers.remove(HttpHeaders.RANGE);
-        // 修复 v5.6.1：解析成功出口统一 mergeDefaultHeaders（补 Referer/UA 兜底）
-        // 修复 v5.6.8：改用 mergeDefaultHeadersForPlayback（Referer = playlist 目录，不带 query 乱码），
-        // 否则请求 cdn.hls.one 跨域 TS 绝对段时 Referer 包含 cache.0567890.xyz?vkey=xxx 导致 sign 鉴权 403 → Network Connection Failed。
-        Map<String, String> safeHeaders = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeadersForPlayback(headers, url);
-        if (spec != null) spec.setHeaders(safeHeaders);
+        // 参考上游 FongMi/TV：信任解析器返回的 headers，直接存入 spec。
+        // UA/Referer 兜底由后续链路保证：
+        //   PlaySpec.checkUa() → MediaSourceFactory.createMediaSource() 中的 mergeDefaultHeadersForPlayback()
+        //   → OkHttpDataSource.open() 跨域动态 Referer 修正
+        // 三道兜底都是补缺式（不覆盖已有值），不会污染解析器精确指定的 headers。
+        if (spec != null) spec.setHeaders(headers);
         if (spec != null) spec.setUrl(url);
         startCurrent(pendingStartPositionMs);
         pendingStartPositionMs = C.TIME_UNSET;
