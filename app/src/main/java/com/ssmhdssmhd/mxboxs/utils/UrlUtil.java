@@ -119,10 +119,10 @@ public class UrlUtil {
         return UA_POOL.clone();
     }
 
-    /** 默认 UA（向后兼容旧代码） */
-    public static String defaultUA() {
-        return DEFAULT_UA;
-    }
+    /** ========================================================
+     *  原来的 defaultUA() 方法保留在文件下方（返回 DEFAULT_UA）
+     *  —— 不要再重复定义！
+     * ======================================================== */
 
     /**
      * 有些第三方解析站会把真实视频页面 URL 包成「假本地代理 URL」返回，形如：
