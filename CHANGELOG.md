@@ -2,6 +2,42 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.9] - 2026-08-29 · 精简默认内置解析线路：网页嗅探 + JSON 直链各一条，解决「默认全挂 → 无法播放」
+
+### 根因
+
+默认两条 node.js JSON 解析线路（`114.134.184.91:1314/node.js` / `:1315/node.js`）在 2026-08-29 出现状况：
+
+| 线路 | 状况 | 返回 |
+|------|------|------|
+| 1314-node | ❌ 挂了 | `{"code":500,"msg":"Failed to launch the browser process..."}` Puppeteer Chrome 崩 |
+| 1315-node | ✅ 存活 | `{"code":200,"url":"...mp4"}` 但 Puppeteer 浏览器需 10~30 秒，短超时 curl 看不到 |
+
+两条全是 `type 1` JSON 解析——单一类型里两个同时出问题，再叠加用户没配自定义线路时，解析链路 `setParse → VodConfig.getParse() → getParses()` 最终落到挂掉的线路，`jsonParse` 拿到 `code:500` 后 `fatal=true` 直接走 `onParseError` → 用户看到「无法播放 / 一直转圈」。
+
+### 修复（[BuiltinParseSetting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java#L27-L44)）
+
+`defaults()` 从「两条挂掉的 JSON 解析」改成「一条网页万能嗅探 + 一条 JSON 直链」的互补组合：
+
+| 新默认 | type | 地址 | 2026-08-29 实测 |
+|--------|------|------|----------------|
+| `jx-m3u8-tv` | 0 (WebView 嗅探) | `https://jx.m3u8.tv/jiexi/?url=` | HTTP 200，HTML 嗅探页由 `CustomWebView` 自动跑 JS 抓 m3u8 |
+| `1315-node` | 1 (JSON 直链) | `http://114.134.184.91:1315/node.js?url=` | HTTP 200，`{"code":200,"url":"...mp4"}`，`jsonParse` 直取直链 |
+
+**两种类型互补**：WebView 嗅探覆盖爱奇艺/腾讯/优酷/芒果等前端渲染的官解；JSON 直链覆盖 m3u8/mp4 直出场景。任何一类挂了，`fallbackConcurrentParse` 会自动并发跑另一类（同 `VodConfig.getParses()` 里 `type==0/1` 全部线路 + jsonExtend + WebView 兜底），不会全部失效。
+
+### 其它
+
+- mobile / leanback 两端**共用 PlaybackActivity + VodPlaybackController + ParseJob**（均在 main source set），播放核心完全一致；本次修改不涉及 flavor 差异代码。
+- 已装旧版且已保存过自定义内置线路的用户：`effectiveLines()` 优先返回 `getCustomLines()`（SharedPreferences 已有值），新 defaults 不会自动覆盖——点「恢复默认」按钮即可切换到新默认组合，保留的自定义线路会继续生效。
+
+### 版本号
+
+- versionCode 636 → **637**
+- versionName 5.7.8 → **5.7.9**
+
+---
+
 ## [v5.7.6] - 2026-08-28 · 深度修复播放失败（同步上游 FongMi/TV 的 MediaSourceFactory 设计）
 
 ### 背景
