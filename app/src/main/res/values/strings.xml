@@ -195,6 +195,8 @@
     <string name="setting_playopt_quality_sub">自适应按带宽切换；固定画质可能因源不支持而失效</string>
     <string name="setting_playopt_webview">WebView 嗅探默认开启</string>
     <string name="setting_playopt_webview_sub">HTML 嗅探接口（虾米/qq/jx/xmflv等）默认先用 WebView 抓真实 m3u8，关闭则仅走后端接口和本地正则（更省电量）</string>
+    <string name="setting_playopt_json_extract">JSON 提取字段</string>
+    <string name="setting_playopt_json_extract_sub">JSON 解析站返回 {code, url, msg} 时，选哪个字段做播放地址；默认 url 优先、空了兜底 msg</string>
     <string name="setting_playopt_apply_hint">设置已保存，下次播放时生效</string>
     <string name="setting_ai_opt_title">AI 播放优化</string>
     <string name="setting_ai_opt_subtitle">根据实时网络自动切换缓冲模式和画质，体验更聪明</string>

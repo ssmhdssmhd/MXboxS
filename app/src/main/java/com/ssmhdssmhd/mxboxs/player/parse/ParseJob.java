@@ -282,11 +282,37 @@ public class ParseJob implements ParseCallback {
                 if (fatal) onParseError();
                 return;
             }
-            String url = Json.safeString(object, "url");
-            try {
-                JsonObject data = object.getAsJsonObject("data");
-                if (url.isEmpty()) url = Json.safeString(data, "url");
-            } catch (Throwable ignored) {}
+            String url;
+            int strategy = com.ssmhdssmhd.mxboxs.setting.Setting.getJsonExtractStrategy();
+            if (strategy == com.ssmhdssmhd.mxboxs.setting.Setting.JSON_EXTRACT_MSG_ONLY) {
+                // 只取 msg
+                url = Json.safeString(object, "msg");
+                try {
+                    JsonObject data = object.getAsJsonObject("data");
+                    if (url.isEmpty()) url = Json.safeString(data, "msg");
+                } catch (Throwable ignored) {}
+            } else if (strategy == com.ssmhdssmhd.mxboxs.setting.Setting.JSON_EXTRACT_URL_ONLY) {
+                // 只取 url
+                url = Json.safeString(object, "url");
+                try {
+                    JsonObject data = object.getAsJsonObject("data");
+                    if (url.isEmpty()) url = Json.safeString(data, "url");
+                } catch (Throwable ignored) {}
+            } else {
+                // URL 优先 + msg 兜底（默认）
+                url = Json.safeString(object, "url");
+                try {
+                    JsonObject data = object.getAsJsonObject("data");
+                    if (url.isEmpty()) url = Json.safeString(data, "url");
+                } catch (Throwable ignored) {}
+                if (TextUtils.isEmpty(url)) {
+                    url = Json.safeString(object, "msg");
+                    try {
+                        JsonObject data = object.getAsJsonObject("data");
+                        if (url.isEmpty()) url = Json.safeString(data, "msg");
+                    } catch (Throwable ignored) {}
+                }
+            }
             checkResult(getHeader(object), url, item.getName(), fatal);
         }
     }
@@ -750,7 +776,16 @@ public class ParseJob implements ParseCallback {
                 // qcb jiexi.php 有时会把真实 url 嵌套在 url / msg 字段里（二次 JSON 包装），尝试两个字段都解一层
                 String url = extractQcbUrl(obj, "url", webUrl);
                 String msg = extractQcbUrl(obj, "msg", webUrl);
-                String chosen = preferCandidateUrl(url, msg, webUrl);
+                int strategy = com.ssmhdssmhd.mxboxs.setting.Setting.getJsonExtractStrategy();
+                String chosen;
+                if (strategy == com.ssmhdssmhd.mxboxs.setting.Setting.JSON_EXTRACT_MSG_ONLY) {
+                    chosen = msg;
+                } else if (strategy == com.ssmhdssmhd.mxboxs.setting.Setting.JSON_EXTRACT_URL_ONLY) {
+                    chosen = url;
+                } else {
+                    // URL 优先 + msg 兜底（默认，preferCandidateUrl 里已做真假/视频后缀判断）
+                    chosen = preferCandidateUrl(url, msg, webUrl);
+                }
                 if (code != 200 || TextUtils.isEmpty(chosen)) return false;
                 String trimmed = chosen.trim();
                 if (trimmed.isEmpty()) return false;

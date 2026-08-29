@@ -9,6 +9,25 @@
 
 ## 最新更新
 
+### v5.7.10 · 2026-08-29 · 高级设置新增「JSON 提取字段」策略，解决 url/msg 格式不统一问题
+
+- **背景**：影视类 JSON 解析站返回格式不统一——有的把真实播放地址放在 `url` 字段，有的故意把 `url` 留空、真实地址藏在 `msg` 里。旧代码只取 url + data.url 兜底，某些解析站 url 为空时直接走 fatal error。
+- **新增** [Setting.java](app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java) 三档策略（`JSON_EXTRACT_URL_FIRST=0` 默认 / `JSON_EXTRACT_URL_ONLY=1` / `JSON_EXTRACT_MSG_ONLY=2`），Prefers 持久化。
+- **核心改动** [ParseJob.java](app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java)：`jsonParse` 和 `qcbHttpCall` 都按策略取 url/msg（object 级和 data 级都尝试），解析工作仍在后台线程完成，不阻塞 UI。
+- **UI** [SettingAdvancedActivity](app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java)：高级设置 → 播放优化卡片新增「JSON 提取字段」行，点击弹 AlertDialog 三档单选，跟 bufferMode / qualityPref 同模板。
+
+版本号：versionCode 637 → **638** / versionName 5.7.9 → **5.7.10**
+
+### v5.7.9 · 2026-08-29 · 精简默认内置解析线路：解决「默认全挂 → 全部无法播放」；网页嗅探 + JSON 直链各一条，高级设置可自定义
+
+- **根因**：默认两条 node.js JSON 解析线路（`114.134.184.91:1314` / `:1315`）在 2026-08-29 出现状况：1314 每次返回 `code:500` + Puppeteer Chrome 崩溃；1315 实际存活但 curl 超时太短看不出。但当 leanback/mobile 两端都只配这两条且其中一条先被失败消耗掉时，解析链路会走到 `fallbackConcurrentParse` 并最终超时 → 用户看到"无法播放/一直转圈"。
+- **修复** [BuiltinParseSetting.java](app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java#L37-L44)：`defaults()` 从两条 JSON 全部换成「一条网页万能嗅探 + 一条 JSON 直链」的互补组合：
+  - `jx-m3u8-tv`（type 0, WebView 嗅探）→ `https://jx.m3u8.tv/jiexi/?url=`（2026-08-29 实测 200 OK，HTML 嗅探页由 `CustomWebView` 自动抓 m3u8，覆盖爱奇艺/腾讯/优酷/芒果等官解）
+  - `1315-node`（type 1, JSON 直链）→ `http://114.134.184.91:1315/node.js?url=`（同 Puppeteer 但存活，返回 `{"code":200,"url":"...mp4"}` 合法 JSON，`jsonParse` 直接取直链播放）
+- **高级设置** → 接口配置（内置视频解析）仍可增删改查 + 恢复默认，用户替换成自己的解析站后 `VodConfig.setParses()` 会自动去重并入。
+
+版本号：versionCode 636 → **637** / versionName 5.7.8 → **5.7.9**
+
 ### v5.7.5 · 2026-08-22 · 优化国内 OTA 更新：版本源也走多镜像兜底，避免「连不上 GitHub 就永远检测不到更新」
 
 - **背景**：下载阶段早已「先测速选最快镜像再下载 + 失败自动切源 + 完整性校验」；但**版本检测**（查 `api.github.com` 拿新版本号）旧逻辑只回退「用户首选的那一个镜像」。默认镜像为「GitHub 直连」时，国内 `api.github.com` 被墙/DNS 异常 → 版本检测永远失败 → 弹「未连上 GitHub API」、拿不到任何新版本。

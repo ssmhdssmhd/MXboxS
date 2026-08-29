@@ -2,6 +2,82 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.10] - 2026-08-29 · 高级设置新增「JSON 提取字段」策略：url 优先 + msg 兜底 / 只取 url / 只取 msg
+
+### 背景
+
+TVBox/影视类 JSON 解析站返回格式不统一：有的把真实播放地址放在 `url` 字段（标准 `{code, url}`），有的放在 `msg` 字段（`{code, msg, url:""}` 这种把 `url` 故意留空）。旧代码 `jsonParse` **只取 url + data.url 兜底**，某些解析站 url 为空时 `jsonParse` 走 `fatal=true` 直接 `onParseError` → 用户看到"无法播放/一直转圈"。`qcbHttpCall` 里已经 `extractQcbUrl(obj, "url")` + `extractQcbUrl(obj, "msg")` 都试再择优，但 `jsonParse` 没跟上。
+
+### 修复（后台线程完成，不阻塞 UI，参考经验 679651）
+
+**[Setting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java)**：新增 3 档策略常量 + `getJsonExtractStrategy / putJsonExtractStrategy`（Prefers 存，默认 `JSON_EXTRACT_URL_FIRST=0`）。
+
+| 策略常量 | 值 | 含义 |
+|---------|---|------|
+| `JSON_EXTRACT_URL_FIRST` | 0 | url 优先 + msg 兜底（默认） |
+| `JSON_EXTRACT_URL_ONLY` | 1 | 只取 url |
+| `JSON_EXTRACT_MSG_ONLY` | 2 | 只取 msg |
+
+**[ParseJob.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java)**：
+
+- **`jsonParse`**（后台线程，正确层）：原来只 `Json.safeString(object, "url")` + data.url 兜底；改成根据 `Setting.getJsonExtractStrategy()` 三档取 url / msg / url 优先 msg 兜底（object 级和 data 级都试）。
+- **`qcbHttpCall`**：原来固定 `preferCandidateUrl(url, msg)` 择优（url 优先语义）；改成按策略只取 url / 只取 msg / 两个都取再择优。
+
+**[SettingAdvancedActivity.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java)**：高级设置 → 播放优化卡片新增「JSON 提取字段」行，点击弹 AlertDialog 三档单选；`refreshValues()` 回填当前值。
+
+**[activity_setting_advanced.xml](file:///workspace/app/src/main/res/layout/activity_setting_advanced.xml)**：`jsonExtractRow` + `jsonExtractText`，与 bufferModeRow / qualityPrefRow 同模板。
+
+**[strings.xml](file:///workspace/app/src/main/res/values/strings.xml)**：新增 `setting_playopt_json_extract` / `setting_playopt_json_extract_sub` 文案。
+
+### 效果
+
+- 所有在后台线程做 JSON 解析的路径（`jsonParse` / `qcbHttpCall`）都支持按策略取播放地址；
+- 默认策略 `url 优先 + msg 兜底` 兼容绝大多数解析站；
+- 某些解析站故意把 url 留空但 msg 里有真实地址时，用户手动切到「只取 msg」即可立即恢复播放。
+
+### 版本号
+
+- versionCode 637 → **638**
+- versionName 5.7.9 → **5.7.10**
+
+---
+
+## [v5.7.9] - 2026-08-29 · 精简默认内置解析线路：网页嗅探 + JSON 直链各一条，解决「默认全挂 → 无法播放」
+
+### 根因
+
+默认两条 node.js JSON 解析线路（`114.134.184.91:1314/node.js` / `:1315/node.js`）在 2026-08-29 出现状况：
+
+| 线路 | 状况 | 返回 |
+|------|------|------|
+| 1314-node | ❌ 挂了 | `{"code":500,"msg":"Failed to launch the browser process..."}` Puppeteer Chrome 崩 |
+| 1315-node | ✅ 存活 | `{"code":200,"url":"...mp4"}` 但 Puppeteer 浏览器需 10~30 秒，短超时 curl 看不到 |
+
+两条全是 `type 1` JSON 解析——单一类型里两个同时出问题，再叠加用户没配自定义线路时，解析链路 `setParse → VodConfig.getParse() → getParses()` 最终落到挂掉的线路，`jsonParse` 拿到 `code:500` 后 `fatal=true` 直接走 `onParseError` → 用户看到「无法播放 / 一直转圈」。
+
+### 修复（[BuiltinParseSetting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/BuiltinParseSetting.java#L27-L44)）
+
+`defaults()` 从「两条挂掉的 JSON 解析」改成「一条网页万能嗅探 + 一条 JSON 直链」的互补组合：
+
+| 新默认 | type | 地址 | 2026-08-29 实测 |
+|--------|------|------|----------------|
+| `jx-m3u8-tv` | 0 (WebView 嗅探) | `https://jx.m3u8.tv/jiexi/?url=` | HTTP 200，HTML 嗅探页由 `CustomWebView` 自动跑 JS 抓 m3u8 |
+| `1315-node` | 1 (JSON 直链) | `http://114.134.184.91:1315/node.js?url=` | HTTP 200，`{"code":200,"url":"...mp4"}`，`jsonParse` 直取直链 |
+
+**两种类型互补**：WebView 嗅探覆盖爱奇艺/腾讯/优酷/芒果等前端渲染的官解；JSON 直链覆盖 m3u8/mp4 直出场景。任何一类挂了，`fallbackConcurrentParse` 会自动并发跑另一类（同 `VodConfig.getParses()` 里 `type==0/1` 全部线路 + jsonExtend + WebView 兜底），不会全部失效。
+
+### 其它
+
+- mobile / leanback 两端**共用 PlaybackActivity + VodPlaybackController + ParseJob**（均在 main source set），播放核心完全一致；本次修改不涉及 flavor 差异代码。
+- 已装旧版且已保存过自定义内置线路的用户：`effectiveLines()` 优先返回 `getCustomLines()`（SharedPreferences 已有值），新 defaults 不会自动覆盖——点「恢复默认」按钮即可切换到新默认组合，保留的自定义线路会继续生效。
+
+### 版本号
+
+- versionCode 636 → **637**
+- versionName 5.7.8 → **5.7.9**
+
+---
+
 ## [v5.7.6] - 2026-08-28 · 深度修复播放失败（同步上游 FongMi/TV 的 MediaSourceFactory 设计）
 
 ### 背景

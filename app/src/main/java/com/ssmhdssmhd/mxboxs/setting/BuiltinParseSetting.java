@@ -24,10 +24,21 @@ public class BuiltinParseSetting {
 
     private static final String KEY = "builtin_parse_lines";
 
-    /** 默认线路：两条官方 node.js 多进程 JSON 解析线路（type 1）。 */
+    /**
+     * 默认内置线路（v5.7.9 起精简为各一条，避免单一类型全部挂掉导致无法播放）：
+     *   1) 网页万能嗅探  (type 0, WebView 嗅探)  — 覆盖爱奇艺/腾讯/优酷/芒果等需要前端渲染的官解；
+     *      选 jx.m3u8.tv/jiexi/：经实测 2026-08-29 可达，返回 HTML 嗅探页由 CustomWebView 自动抓 m3u8。
+     *   2) JSON 直链解析 (type 1, HTTP 直返 JSON) — 直接返回 {code, url, msg}，由 jsonParse 取 url 直链播放；
+     *      选 1315-node：114.134.184.91 上自建 node.js 服务（Puppeteer + node 多进程），
+     *      实测 code:200 + 真 mp4 直链。注意：兄弟节点 1314-node 2026-08-29 起 Chrome 崩溃不可用，已下线。
+     *
+     * 高级设置 → 接口配置 支持增删改 + 恢复默认，用户也可按需替换为自己的解析站。
+     */
     public static List<Parse> defaults() {
         List<Parse> list = new ArrayList<>();
-        list.add(line("1314-node", 1, "http://114.134.184.91:1314/node.js?url="));
+        // 1) 网页万能嗅探（type 0）
+        list.add(line("jx-m3u8-tv", 0, "https://jx.m3u8.tv/jiexi/?url="));
+        // 2) JSON 直链解析（type 1）
         list.add(line("1315-node", 1, "http://114.134.184.91:1315/node.js?url="));
         return list;
     }
