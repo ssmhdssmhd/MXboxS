@@ -854,4 +854,43 @@ public class Github {
     public static String getApkNameWithVersion(String version) {
         return "MXboxS-" + BuildConfig.FLAVOR_mode + "-" + BuildConfig.FLAVOR_abi + "-" + version + ".apk";
     }
+
+    /**
+     * 清洗 GitHub release body（markdown）成干净的用户可读纯文本。
+     * 目标：去掉「Full Changelog: https://github.com/...compare/...」行、去掉 markdown 粗体符号 **..**、
+     * 去掉 GitHub 自动生成的自动 release 元信息、合并多余空行。
+     * 让更新对话框里显示好看的版本历史，而不是一坨 raw markdown。
+     */
+    public static String cleanReleaseBody(String raw) {
+        if (raw == null) return "";
+        String s = raw.trim();
+        if (s.isEmpty()) return "";
+
+        // 1) 去掉 GitHub 自动追加的 "**Full Changelog**: https://github.com/..." 行（整行删除）
+        s = s.replaceAll("(?im)^\\s*\\*\\*Full Changelog\\*\\*[:：]\\s*https?://\\S+\\s*$", "");
+        // 也兼容不带 ** 的 plain 版本
+        s = s.replaceAll("(?im)^\\s*Full Changelog[:：]\\s*https?://\\S+\\s*$", "");
+
+        // 2) 去掉 GitHub 自动 release 标题前缀，例如 "## What's Changed" 或 "## 更新" 这些一级标题
+        s = s.replaceAll("(?im)^#{1,6}\\s*(What'?s Changed|更新日志|Release Notes|Changelog|New Features|Bug Fixes|Improvements|Other Changes)\\s*$", "");
+
+        // 3) 去掉 markdown 粗体/斜体符号 **text** → text、__text__ → text、*text* → text
+        s = s.replaceAll("\\*\\*([^*]+)\\*\\*", "$1");
+        s = s.replaceAll("__([^_]+)__", "$1");
+        s = s.replaceAll("(?<!\\*)\\*([^*]+)\\*(?!\\*)", "$1");
+
+        // 4) 把 markdown 列表项 - / * / 数字. 统一变成 "· "（更清爽）
+        //    但保留原始数字编号（方便用户看版本号）
+        s = s.replaceAll("(?m)^\\s*[-*+]\\s+", "· ");
+        s = s.replaceAll("(?m)^\\s*\\d+\\.\\s+", ""); // 去掉数字编号前缀
+
+        // 5) 把链接 [text](url) 变成纯 text（不想要 URL 污染）
+        s = s.replaceAll("\\[([^\\]]+)\\]\\([^)]+\\)", "$1");
+
+        // 6) 压缩多余空行（3 连空行 → 1 空行）
+        s = s.replaceAll("\\n{3,}", "\n\n");
+        s = s.trim();
+
+        return s;
+    }
 }

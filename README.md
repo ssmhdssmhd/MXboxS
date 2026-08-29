@@ -9,6 +9,19 @@
 
 ## 最新更新
 
+### v5.7.11 · 2026-08-29 · 修复更新弹窗丑陋 + 前台 Service 后台下载 + 通知栏进度 + 断点续传
+
+用户反馈：更新弹窗直接显示 GitHub raw markdown（`**Full Changelog**:`、探针 `gh.mirai.org ❌ DNS 解析失败` 污染视觉）、更新内容不能滚动、关闭对话框/切后台/杀 Activity → 下载中断要重新下。
+
+- **新增** [DownloadService.java](app/src/main/java/com/ssmhdssmhd/mxboxs/service/DownloadService.java) 前台 Service：`startForeground` 常驻通知栏，probe 镜像 + 多镜像 fallback + APK 完整性校验 + 完成自动安装；进程被系统回收也不丢进度（Android 白名单进程）。
+- **新增** [DownloadProgressEvent.java](app/src/main/java/com/ssmhdssmhd/mxboxs/event/DownloadProgressEvent.java) EventBus 事件，Service 和 UI（Updater 对话框）松耦合通信。
+- [Download.java](app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Download.java) 加断点续传：`file.tmp` 临时文件 + `Range: bytes=N-` 续传头 + 306 Partial Content 判真续传；失败保留 .tmp，下次从断点继续。
+- [Github.cleanReleaseBody()](app/src/main/java/com/ssmhdssmhd/mxboxs/utils/Github.java#L858-L895) 清洗 GitHub release.body：去 Full Changelog URL / markdown 粗体 `**..**` / 链接标签 / 压缩空行。
+- Updater probe 技术日志（`探针 3/10: ghproxy.com ❌ DNS 解析失败`）不再塞 UI，只简洁显示 正在扫描可用镜像…；changelogText 外层加 ScrollView + maxHeight=200dp 限制高度可滚动。
+
+版本号：versionCode 638 → **639** / versionName 5.7.10 → **5.7.11**
+
+
 ### v5.7.10 · 2026-08-29 · 高级设置新增「JSON 提取字段」策略，解决 url/msg 格式不统一问题
 
 - **背景**：影视类 JSON 解析站返回格式不统一——有的把真实播放地址放在 `url` 字段，有的故意把 `url` 留空、真实地址藏在 `msg` 里。旧代码只取 url + data.url 兜底，某些解析站 url 为空时直接走 fatal error。

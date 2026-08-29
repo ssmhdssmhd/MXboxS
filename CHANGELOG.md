@@ -2,6 +2,38 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## v5.7.11 - 2026-08-29 · 修复更新弹窗丑陋 + 后台下载 + 通知栏进度 + 断点续传
+
+v5.7.9/v5.7.10 用户反馈：更新弹窗太丑（markdown 原样渲染、GitHub Full Changelog URL、探针技术日志污染视觉）、更新内容不能滚动查看、关闭/切后台丢进度导致重新下载。
+
+### 问题根因
+1. GitHub release.body 是 raw markdown（带 `**Full Changelog**: https://github.com/...compare/...` 自动追加行、`**bold**` 符号），直接塞进对话框
+2. mobile 版 dialog_update.xml changelogText 是裸 wrap_content + 无 ScrollView → 长 changelog 把对话框撑爆
+3. Updater 直接 Download.start() 在 Activity 线程跑 → dialog dismiss / Activity 销毁 = Updater GC → 下载中断 → 下次从头下
+4. Notify.show() 只有 Toast，没有常驻 Notification
+
+### 修复
+| 文件 | 改动 |
+|------|------|
+| `Github.java:858-895` | 新增 `cleanReleaseBody()` — 去 Full Changelog URL / markdown 粗体 / 链接标签 / 压缩空行 |
+| `Updater.java`（重写） | 不再 implements Download.Callback — 只做版本检测 + 启动 DownloadService + EventBus 订阅进度 |
+| `Download.java` | 加 `.tmp` 临时文件 + Range 断点续传（`Range: bytes=N-` 头 + 306 Partial Content 判真续传）；失败保留 .tmp 下次继续 |
+| **新** `DownloadService.java` | 前台 Service — `startForeground` 常驻通知栏 + probe 镜像 + 多镜像 fallback + verifyApkIntegrity + 完成后 install；进程被系统回收也不丢进度 |
+| **新** `DownloadProgressEvent.java` | EventBus 事件 — 状态（PROBING/PROGRESS/SUCCESS/ERROR/CANCELLED）+ 进度 + 字节数 |
+| `dialog_update.xml` | mobile 版 changelogText 外包 ScrollView + maxHeight=200dp，长 changelog 可滚动 |
+| `AndroidManifest.xml` | 注册 DownloadService + `FOREGROUND_SERVICE_DATA_SYNC` 权限 |
+
+### 用户可见效果
+- 更新对话框 changelog 显示干净纯文本（无 `**...**` / 无 Full Changelog URL / 无探针 DNS 失败日志）
+- 长 changelog 可滚动（限 200dp 高度）
+- 探针阶段状态条只显示 正在扫描可用镜像…（不显示 host ❌ 原因）
+- 点更新后 App 切后台/返回桌面/杀 Activity → 通知栏常驻下载进度（% + MB/MB），下载不中断
+- 下载到一半断网/用户取消 → .tmp 保留；下次重试自动从断点继续
+- 完成后自动安装
+
+版本号：versionCode 638 → **639** / versionName 5.7.10 → **5.7.11**
+
+
 ## [v5.7.10] - 2026-08-29 · 高级设置新增「JSON 提取字段」策略：url 优先 + msg 兜底 / 只取 url / 只取 msg
 
 ### 背景
