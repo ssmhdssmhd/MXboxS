@@ -56,6 +56,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private MaterialTextView bufferModeText;
     private MaterialTextView qualityPrefText;
     private SwitchMaterial webviewSniffSwitch;
+    private MaterialTextView jsonExtractText;
 
     private SwitchMaterial aiAutoSwitch;
     private MaterialTextView parseCacheText;
@@ -73,6 +74,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
 
     private final String[] bufferModes = new String[]{"快起播", "流畅"};
     private final String[] qualityPrefs = new String[]{"自适应", "最高画质", "720P", "480P"};
+    private final String[] jsonExtractStrategies = new String[]{"url 优先 + msg 兜底", "只取 url", "只取 msg"};
     private final String[] cfgTypes = new String[2];
 
     public static void start(Activity activity) {
@@ -98,6 +100,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         bufferModeText = findViewById(R.id.bufferModeText);
         qualityPrefText = findViewById(R.id.qualityPrefText);
         webviewSniffSwitch = findViewById(R.id.webviewSniffSwitch);
+        jsonExtractText = findViewById(R.id.jsonExtractText);
         aiAutoSwitch = findViewById(R.id.aiAutoSwitch);
         parseCacheText = findViewById(R.id.parseCacheText);
 
@@ -149,6 +152,8 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         int qp = PlayerSetting.getQualityPref();
         qualityPrefText.setText(qualityPrefs[Math.min(qp, qualityPrefs.length - 1)]);
         webviewSniffSwitch.setChecked(PlayerSetting.isWebviewSniffDefaultOn());
+        int jes = Setting.getJsonExtractStrategy();
+        jsonExtractText.setText(jsonExtractStrategies[Math.min(jes, jsonExtractStrategies.length - 1)]);
         aiAutoSwitch.setChecked(PlayerSetting.isAiPlayOptEnabled());
         parseCacheText.setText(getString(R.string.setting_ai_parse_cache_sub)
                 + "（内存 " + ParseJob.cacheSize() + " 条 · 磁盘 " + ParseDiskCache.size() + " 条）");
@@ -204,6 +209,9 @@ public class SettingAdvancedActivity extends AppCompatActivity {
             Notify.show(R.string.setting_playopt_apply_hint);
         };
         findViewById(R.id.webviewSniffRow).setOnClickListener(webviewSniffToggle);
+
+        // JSON 解析 url/msg 提取策略：弹出选择
+        findViewById(R.id.jsonExtractRow).setOnClickListener(v -> showJsonExtractDialog());
 
         // AI 自动调节
         View.OnClickListener aiToggle = v -> {
@@ -409,6 +417,21 @@ public class SettingAdvancedActivity extends AppCompatActivity {
                         (d, which) -> {
                             PlayerSetting.putQualityPref(which);
                             qualityPrefText.setText(qualityPrefs[which]);
+                            Notify.show(R.string.setting_playopt_apply_hint);
+                            d.dismiss();
+                        })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void showJsonExtractDialog() {
+        int cur = Setting.getJsonExtractStrategy();
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.setting_playopt_json_extract)
+                .setSingleChoiceItems(jsonExtractStrategies, Math.min(cur, jsonExtractStrategies.length - 1),
+                        (d, which) -> {
+                            Setting.putJsonExtractStrategy(which);
+                            jsonExtractText.setText(jsonExtractStrategies[which]);
                             Notify.show(R.string.setting_playopt_apply_hint);
                             d.dismiss();
                         })

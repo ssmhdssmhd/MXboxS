@@ -15,6 +15,13 @@ public class Setting {
     private static final int MAX_SITE_MODE = 1;
     private static final int MIN_SYNC_MODE = 0;
     private static final int MAX_SYNC_MODE = 2;
+    // ===== JSON 解析结果里 url / msg 字段取播放地址的策略（v5.7.9 新增，高级设置可改）=====
+    // 0: url 优先 + msg 兜底（默认，最通用）
+    // 1: 只取 url
+    // 2: 只取 msg
+    public static final int JSON_EXTRACT_URL_FIRST = 0;
+    public static final int JSON_EXTRACT_URL_ONLY = 1;
+    public static final int JSON_EXTRACT_MSG_ONLY = 2;
 
     public static String getSwitch(boolean value) {
         return ResUtil.getString(value ? R.string.setting_on : R.string.setting_off);
@@ -243,5 +250,17 @@ public class Setting {
 
     public static void putAdvancedUnlocked(boolean unlocked) {
         Prefers.put("social_search_unlocked", unlocked);
+    }
+
+    public static int getJsonExtractStrategy() {
+        int v = Prefers.getInt("json_extract_strategy", JSON_EXTRACT_URL_FIRST);
+        if (v < 0 || v > 2) v = JSON_EXTRACT_URL_FIRST;
+        return v;
+    }
+
+    public static void putJsonExtractStrategy(int strategy) {
+        int v = strategy;
+        if (v < 0 || v > 2) v = JSON_EXTRACT_URL_FIRST;
+        Prefers.put("json_extract_strategy", v);
     }
 }

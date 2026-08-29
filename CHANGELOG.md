@@ -2,6 +2,46 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.10] - 2026-08-29 · 高级设置新增「JSON 提取字段」策略：url 优先 + msg 兜底 / 只取 url / 只取 msg
+
+### 背景
+
+TVBox/影视类 JSON 解析站返回格式不统一：有的把真实播放地址放在 `url` 字段（标准 `{code, url}`），有的放在 `msg` 字段（`{code, msg, url:""}` 这种把 `url` 故意留空）。旧代码 `jsonParse` **只取 url + data.url 兜底**，某些解析站 url 为空时 `jsonParse` 走 `fatal=true` 直接 `onParseError` → 用户看到"无法播放/一直转圈"。`qcbHttpCall` 里已经 `extractQcbUrl(obj, "url")` + `extractQcbUrl(obj, "msg")` 都试再择优，但 `jsonParse` 没跟上。
+
+### 修复（后台线程完成，不阻塞 UI，参考经验 679651）
+
+**[Setting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java)**：新增 3 档策略常量 + `getJsonExtractStrategy / putJsonExtractStrategy`（Prefers 存，默认 `JSON_EXTRACT_URL_FIRST=0`）。
+
+| 策略常量 | 值 | 含义 |
+|---------|---|------|
+| `JSON_EXTRACT_URL_FIRST` | 0 | url 优先 + msg 兜底（默认） |
+| `JSON_EXTRACT_URL_ONLY` | 1 | 只取 url |
+| `JSON_EXTRACT_MSG_ONLY` | 2 | 只取 msg |
+
+**[ParseJob.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java)**：
+
+- **`jsonParse`**（后台线程，正确层）：原来只 `Json.safeString(object, "url")` + data.url 兜底；改成根据 `Setting.getJsonExtractStrategy()` 三档取 url / msg / url 优先 msg 兜底（object 级和 data 级都试）。
+- **`qcbHttpCall`**：原来固定 `preferCandidateUrl(url, msg)` 择优（url 优先语义）；改成按策略只取 url / 只取 msg / 两个都取再择优。
+
+**[SettingAdvancedActivity.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java)**：高级设置 → 播放优化卡片新增「JSON 提取字段」行，点击弹 AlertDialog 三档单选；`refreshValues()` 回填当前值。
+
+**[activity_setting_advanced.xml](file:///workspace/app/src/main/res/layout/activity_setting_advanced.xml)**：`jsonExtractRow` + `jsonExtractText`，与 bufferModeRow / qualityPrefRow 同模板。
+
+**[strings.xml](file:///workspace/app/src/main/res/values/strings.xml)**：新增 `setting_playopt_json_extract` / `setting_playopt_json_extract_sub` 文案。
+
+### 效果
+
+- 所有在后台线程做 JSON 解析的路径（`jsonParse` / `qcbHttpCall`）都支持按策略取播放地址；
+- 默认策略 `url 优先 + msg 兜底` 兼容绝大多数解析站；
+- 某些解析站故意把 url 留空但 msg 里有真实地址时，用户手动切到「只取 msg」即可立即恢复播放。
+
+### 版本号
+
+- versionCode 637 → **638**
+- versionName 5.7.9 → **5.7.10**
+
+---
+
 ## [v5.7.9] - 2026-08-29 · 精简默认内置解析线路：网页嗅探 + JSON 直链各一条，解决「默认全挂 → 无法播放」
 
 ### 根因
