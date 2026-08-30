@@ -1,0 +1,389 @@
+name: Sync Upstream
+
+# 实时同步上游 FongMi/TV (https://github.com/FongMi/TV, 分支 fongmi)
+# 每 6 小时检查一次上游是否有新提交，有则合并到 upstream-sync 分支并创建/更新 PR
+# 冲突策略: -X ours（保留 MXboxS 定制为准）
+# 共享路径模块 (catvod/chaquo/docs/forcetech/gradle/根 build.gradle) 自动合并
+# app/ 业务代码因包名不同 (com.fongmi.android.tv vs com.ssmhdssmhd.mxboxs) 仅生成报告供人工 port
+
+on:
+  schedule:
+    # 每 6 小时执行一次 (UTC 00:00, 06:00, 12:00, 18:00)
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    # 支持手动触发，可输入是否强制重建 upstream-sync 分支
+    inputs:
+      force_recreate:
+        description: '强制重建 upstream-sync 分支（丢弃历史同步记录）'
+        required: false
+        type: boolean
+        default: false
+
+# 避免多个同步任务并发执行
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config pull.rebase false
+
+      - name: Add upstream remote and fetch
+        run: |
+          git remote add upstream https://github.com/FongMi/TV.git
+          git fetch upstream fongmi --tags --no-recurse-submodules
+          echo "=== Upstream HEAD ==="
+          git log upstream/fongmi -1 --format='%H %ci %s'
+
+      - name: Read last synced SHA
+        id: baseline
+        run: |
+          if [ -f .upstream-sync-baseline ]; then
+            SHA=$(cat .upstream-sync-baseline)
+          else
+            SHA=""
+          fi
+          echo "last_sha=$SHA" >> $GITHUB_OUTPUT
+          echo "Last synced SHA: ${SHA:-<none>}"
+
+      - name: Check if upstream has new commits
+        id: check
+        run: |
+          UPSTREAM_HEAD=$(git rev-parse upstream/fongmi)
+          LAST_SHA="${{ steps.baseline.outputs.last_sha }}"
+          if [ -n "$LAST_SHA" ] && [ "$UPSTREAM_HEAD" = "$LAST_SHA" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "上游无新提交 ($UPSTREAM_HEAD)，跳过同步"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "上游有新提交: $LAST_SHA -> $UPSTREAM_HEAD"
+          fi
+
+      - name: Prepare upstream-sync branch
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          FORCE_RECREATE="${{ github.event.inputs.force_recreate || 'false' }}"
+
+          # 确保本地 origin/main 最新
+          git fetch origin main
+
+          # 检查 origin 是否已有 upstream-sync 分支
+          if git ls-remote --exit-code --heads origin upstream-sync >/dev/null 2>&1 \
+             && [ "$FORCE_RECREATE" != "true" ]; then
+            echo ">>> 复用已有 upstream-sync 分支"
+            git fetch origin upstream-sync
+            git checkout -B upstream-sync origin/upstream-sync
+
+            # 将 main 的最新 MXboxS 改动合并进来
+            # 冲突时以 main 为准 (-X theirs)，因为 main 是 MXboxS 定制的源头
+            echo ">>> 合并 origin/main 到 upstream-sync"
+            if ! git merge origin/main --no-edit -m "chore(sync): merge main into upstream-sync"; then
+              echo ">>> main 合并存在冲突，以 main (MXboxS) 为准 (-X theirs)"
+              git merge --abort || true
+              git merge origin/main -X theirs --no-edit -m "chore(sync): merge main into upstream-sync (-X theirs, prefer MXboxS)"
+            fi
+          else
+            echo ">>> 从 origin/main 创建全新的 upstream-sync 分支"
+            git checkout -B upstream-sync origin/main
+          fi
+
+      - name: Merge upstream FongMi/TV (-X ours 保留 MXboxS 定制)
+        if: steps.check.outputs.skip == 'false'
+        id: merge
+        run: |
+          UPSTREAM_SHA=$(git rev-parse --short upstream/fongmi)
+          UPSTREAM_FULL=$(git rev-parse upstream/fongmi)
+          echo "upstream_sha=$UPSTREAM_SHA" >> $GITHUB_OUTPUT
+          echo "upstream_full=$UPSTREAM_FULL" >> $GITHUB_OUTPUT
+
+          # 判断是否有共同祖先
+          if git merge-base upstream/fongmi HEAD >/dev/null 2>&1; then
+            MERGE_ARGS=()
+            echo ">>> 有共同祖先，使用常规 merge"
+          else
+            MERGE_ARGS=(--allow-unrelated-histories)
+            echo ">>> 无共同祖先，使用 --allow-unrelated-histories"
+          fi
+
+          # -X ours: 冲突时保留 MXboxS (当前 HEAD) 版本
+          if git merge upstream/fongmi "${MERGE_ARGS[@]}" -X ours --no-edit \
+             -m "chore(sync): merge upstream FongMi/TV@${UPSTREAM_SHA}" \
+             -m "上游: https://github.com/FongMi/TV/commit/${UPSTREAM_FULL}"; then
+            echo "merge_ok=true" >> $GITHUB_OUTPUT
+            echo ">>> 合并成功"
+          else
+            echo "merge_ok=false" >> $GITHUB_OUTPUT
+            echo ">>> 合并失败（-X ours 不应产生冲突，可能是大文件/属性问题）"
+            git merge --abort || true
+          fi
+
+      - name: Remove upstream app/ Java files (prevent build break)
+        if: steps.check.outputs.skip == 'false' && steps.merge.outputs.merge_ok == 'true'
+        run: |
+          # 上游 app/ 业务代码包名 com.fongmi.android.tv 与本项目 com.ssmhdssmhd.mxboxs 不同
+          # 合并后上游 Java 文件会以新路径引入，编译会失败（资源/R 类引用缺失）
+          # 删除上游包名路径下的 Java/Kotlin 文件，保留共享模块与资源变更
+          echo ">>> 清理上游 app/ Java 文件 (com/fongmi/ 路径)"
+          for src_dir in app/src/main/java app/src/leanback/java app/src/mobile/java; do
+            if [ -d "$src_dir/com/fongmi" ]; then
+              echo "    移除 $src_dir/com/fongmi/"
+              git rm -r --quiet "$src_dir/com/fongmi" 2>/dev/null || rm -rf "$src_dir/com/fongmi"
+            fi
+          done
+
+          # 同步清理可能存在的上游 schemas（Room 数据库 schema 包名不同）
+          for schema_dir in app/schemas/com.fongmi.android.tv.db.AppDatabase; do
+            if [ -d "$schema_dir" ]; then
+              echo "    移除 $schema_dir"
+              git rm -r --quiet "$schema_dir" 2>/dev/null || rm -rf "$schema_dir"
+            fi
+          done
+
+          # 将清理后的变更暂存
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit --amend --no-edit -m "chore(sync): merge upstream FongMi/TV@${{ steps.merge.outputs.upstream_sha }} (clean com.fongmi app sources)"
+            echo ">>> 已清理上游 app/ Java 文件并 amend 到合并提交"
+          else
+            echo ">>> 无需清理（上游无 com/fongmi app/ 文件）"
+          fi
+
+      - name: Update baseline SHA
+        if: steps.check.outputs.skip == 'false' && steps.merge.outputs.merge_ok == 'true'
+        run: |
+          UPSTREAM_FULL="${{ steps.merge.outputs.upstream_full }}"
+          echo "$UPSTREAM_FULL" > .upstream-sync-baseline
+          git add .upstream-sync-baseline
+          # 如果 baseline 文件有变化，amend 到合并 commit 中
+          if ! git diff --cached --quiet; then
+            git commit --amend --no-edit
+          fi
+
+      - name: Check for pushable changes
+        if: steps.check.outputs.skip == 'false' && steps.merge.outputs.merge_ok == 'true'
+        id: push_check
+        run: |
+          git fetch origin upstream-sync 2>/dev/null || true
+          if git diff --quiet origin/upstream-sync..HEAD 2>/dev/null; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo ">>> 与远程 upstream-sync 一致，无需推送"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo ">>> 有新变化，准备推送"
+          fi
+
+      - name: Push upstream-sync branch
+        if: steps.push_check.outputs.changed == 'true'
+        run: |
+          git push origin upstream-sync --force-with-lease
+
+      - name: Generate sync report
+        if: steps.push_check.outputs.changed == 'true'
+        id: report
+        run: |
+          UPSTREAM_SHA="${{ steps.merge.outputs.upstream_sha }}"
+          UPSTREAM_FULL="${{ steps.merge.outputs.upstream_full }}"
+
+          # 上游最近 30 条提交
+          git log upstream/fongmi --oneline -30 --no-decorate > /tmp/commit_log.txt
+
+          # 本次同步引入的全部变更统计 (origin/main..HEAD)
+          git diff --stat origin/main..HEAD > /tmp/changed_files.txt
+
+          # 共享模块变更（同路径，自动合并生效的部分）
+          git diff --stat origin/main..HEAD -- \
+            catvod/ chaquo/ docs/ forcetech/ gradle/ \
+            build.gradle settings.gradle gradle.properties \
+            > /tmp/shared_changes.txt 2>/dev/null || true
+
+          # app/ 业务代码变更（包名不同，需人工 port）
+          git diff --stat origin/main..HEAD -- app/ \
+            > /tmp/app_changes.txt 2>/dev/null || true
+
+          # 上游 app/ 下实际变更的文件清单 (upstream 视角)
+          LAST_SHA="${{ steps.baseline.outputs.last_sha }}"
+          if [ -n "$LAST_SHA" ]; then
+            git diff --name-status "${LAST_SHA}..upstream/fongmi" -- app/ \
+              > /tmp/upstream_app_changed.txt 2>/dev/null || true
+          else
+            git diff --name-status upstream/fongmi~30..upstream/fongmi -- app/ \
+              > /tmp/upstream_app_changed.txt 2>/dev/null || true
+          fi
+
+          echo "upstream_sha=$UPSTREAM_SHA" >> $GITHUB_OUTPUT
+
+      - name: Create or update Pull Request
+        if: steps.push_check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          UPSTREAM_SHA="${{ steps.merge.outputs.upstream_sha }}"
+          UPSTREAM_FULL="${{ steps.merge.outputs.upstream_full }}"
+          SYNC_DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
+
+          # 用 python 写 PR body，避免 shell heredoc 转义问题
+          python3 - "$UPSTREAM_SHA" "$UPSTREAM_FULL" "$SYNC_DATE" << 'PYEOF'
+          import sys, os
+          sha, full, date = sys.argv[1], sys.argv[2], sys.argv[3]
+          def rd(p):
+              try:
+                  with open(p) as f: return f.read().strip() or "(无)"
+              except FileNotFoundError: return "(无)"
+          body = f"""## 🔄 上游实时同步报告
+
+          | 项目 | 值 |
+          |------|-----|
+          | 上游仓库 | [FongMi/TV](https://github.com/FongMi/TV) |
+          | 上游分支 | `fongmi` |
+          | 上游 SHA | `{sha}` |
+          | 上游提交 | [查看](https://github.com/FongMi/TV/commit/{full}) |
+          | 同步时间 | {date} |
+          | 同步策略 | `git merge -X ours`（冲突保留 MXboxS 定制） |
+
+          ---
+
+          ### 📋 上游最近提交
+
+          ```
+          {rd('/tmp/commit_log.txt')}
+          ```
+
+          ### ✅ 共享模块变更（自动合并，同路径文件）
+
+          以下模块路径与上游一致，上游变更已自动合并到本 PR：
+
+          ```
+          {rd('/tmp/shared_changes.txt')}
+          ```
+
+          ### ⚠️ app/ 业务代码变更（需人工 port）
+
+          上游包名 `com.fongmi.android.tv` 与本项目 `com.ssmhdssmhd.mxboxs` **不同**，
+          上游 `app/` 下的业务代码变更**不会自动应用到本项目对应文件**，需人工 port：
+
+          **上游 app/ 变更文件清单：**
+
+          ```
+          {rd('/tmp/upstream_app_changed.txt')}
+          ```
+
+          **本 PR 中 app/ 路径变更统计（上游文件以新路径引入，仅供参考）：**
+
+          ```
+          {rd('/tmp/app_changes.txt')}
+          ```
+
+          ### 📊 全部变更统计
+
+          ```
+          {rd('/tmp/changed_files.txt')}
+          ```
+
+          ---
+
+          ### 🔧 同步机制说明
+
+          - **触发方式**：每 6 小时自动检查上游 + 手动触发
+          - **合并策略**：`-X ours`，所有冲突保留 MXboxS 版本
+          - **共享模块**（`catvod/`、`chaquo/`、`docs/`、`forcetech/`、`gradle/`、根 `build.gradle`/`settings.gradle`）：路径相同，上游变更自动合并
+          - **app/ 业务代码**：包名不同，上游文件以新文件形式引入（不影响现有编译），需人工 port 到对应 MXboxS 路径
+          - **合并前**：请确认 CI 构建通过
+
+          ### 📦 模块化开发原则
+
+          后续定制开发请遵循以下原则，以降低上游同步冲突：
+
+          1. **新增功能优先放独立文件/类**，避免修改上游同名文件
+          2. **定制逻辑通过继承/组合扩展**，而非直接修改上游代码
+          3. **资源文件使用 `mxboxs_` 前缀**，避免与上游资源冲突
+          4. **build.gradle 改动尽量隔离**到 `mxboxs` 专属配置块
+
+          > 本 PR 由 `sync.yml` 工作流自动生成，合并后将作为下次同步的基准。
+          > 若不合并直接关闭，下次同步会基于现有 `upstream-sync` 分支继续累积。
+          """
+          with open("/tmp/pr_body.md", "w") as f:
+              f.write(body)
+          PYEOF
+
+          PR_TITLE="chore(sync): 上游 FongMi/TV 同步 @${UPSTREAM_SHA}"
+
+          # 检查是否已有 open PR
+          PR_NUMBER=$(gh pr list --head upstream-sync --base main --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$PR_NUMBER" ]; then
+            echo ">>> 更新已有 PR #$PR_NUMBER"
+            gh pr edit "$PR_NUMBER" \
+              --body-file /tmp/pr_body.md \
+              --title "$PR_TITLE"
+          else
+            echo ">>> 创建新 PR"
+            gh pr create \
+              --head upstream-sync \
+              --base main \
+              --title "$PR_TITLE" \
+              --body-file /tmp/pr_body.md \
+              || echo ">>> PR 创建失败（可能已有同名 PR 或权限问题）"
+          fi
+
+      - name: Handle merge failure
+        if: steps.check.outputs.skip == 'false' && steps.merge.outputs.merge_ok != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          UPSTREAM_SHA="${{ steps.merge.outputs.upstream_sha || 'unknown' }}"
+          echo ">>> 合并失败，创建 Issue 通知人工处理"
+          gh issue create \
+            --title "sync: 上游同步合并失败 @${UPSTREAM_SHA}" \
+            --body "## ❌ 上游同步合并失败
+
+          | 项目 | 值 |
+          |------|-----|
+          | 上游 SHA | \`$UPSTREAM_SHA\` |
+          | 失败时间 | $(date -u +'%Y-%m-%d %H:%M UTC') |
+
+          请检查 [同步工作流日志](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) 并手动处理。
+
+          可能原因：
+          1. 大文件 / LFS 属性冲突
+          2. 上游仓库结构重大变更
+          3. git 属性 (.gitattributes) 冲突
+
+          处理建议：
+          - 手动 clone 仓库后执行 \`git merge upstream/fongmi -X ours\`
+          - 或使用手动触发的 \`force_recreate=true\` 选项重建 upstream-sync 分支
+          " \
+            --label "upstream-sync" 2>/dev/null || true
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### 同步任务总结" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check.outputs.skip }}" = "true" ]; then
+            echo "⏸️ 上游无新提交，跳过同步" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.merge.outputs.merge_ok }}" != "true" ]; then
+            echo "❌ 合并失败，已创建 Issue 通知" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.push_check.outputs.changed }}" = "true" ]; then
+            echo "✅ 同步完成，已更新 PR" >> $GITHUB_STEP_SUMMARY
+            echo "上游 SHA: \`${{ steps.merge.outputs.upstream_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ 合并成功但无新变化需推送" >> $GITHUB_STEP_SUMMARY
+          fi
