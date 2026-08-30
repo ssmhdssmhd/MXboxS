@@ -9,6 +9,47 @@
 
 ## 最新更新
 
+### v5.7.18 · 2026-08-30 · catvod/jsonParse 返回 HTML 播放页 URL → 嗅探没触发 → 0 KB/s
+
+**根因**：xgplay20.com / jimxtc.com 这类新格式解析站返回的 JSON `url` 字段是**解析站自有的 HTML 播放页 URL**（`/play/xxx`），真正的 m3u8 直链藏在 HTML 里：
+```html
+<script>const url = "/2025-12-22/xxx/index.m3u8?sign=8023348f...";</script>
+```
+旧 `checkResult` 逻辑用 `isLikelyHtmlSniffer` 白名单识别嗅探接口（只覆盖 `xmflv/jiexi.php/jx.php` 等老格式），`/play/xxx` 不在白名单里 → `url.length()>40` 直接 `onParseSuccess` 放行 → **ExoPlayer 收到 HTML 页面不是 m3u8** → 0 KB/s 永转圈。
+
+**旧逻辑（v5.6.7~v5.7.17）**：
+```
+if isLikelyHtmlSniffer(url) → AI 嗅探
+else if url.length() > 40 → 直接放行 ❌
+```
+
+**新逻辑（v5.7.18）** — **删除白名单 → 双重验证**（[ParseJob.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java)）：
+```
+if URL 有 .m3u8/.mp4/.flv/.m4v/.ts/.mkv/.webm/.mov 后缀 → probe Content-Type → 成功才放行
+else 一律走 aiSmartParseFallback → 抓 HTML body → sniffVideoCandidates 正则扫 JS 变量 → 提取真 m3u8
+→ probe 失败 → fallbackConcurrentParse 多解析站并发兜底
+```
+
+xgplay20.com 场景下嗅探命中：`const url = "/2025-xxx/xxx/index.m3u8?sign=..."` → resolve 为绝对 URL → probe 可达 → 播放成功。
+
+版本号：versionCode 639 → **640** / versionName 5.7.17 → **5.7.18**
+
+### v5.7.17 · 2026-08-30 · v5.7.16 编译失败修复（残留 rebuildLines 调用 + 误删 llmSaveRow）
+
+v5.7.16 引入 2 个编译错误：
+
+| 错误 | 位置 | 原因 |
+|------|------|------|
+| `rebuildLines()` 方法找不到 | [SettingAdvancedActivity.java:161](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java) | 方法已删除但 `refreshValues()` 里残留调用 |
+| `llmSaveRow` ID 找不到 | [activity_setting_advanced.xml](file:///workspace/app/src/main/res/layout/activity_setting_advanced.xml) | Python 脚本删接口配置卡片时把 LLM 卡片的保存按钮一起误删了（MaterialCardView 计数错误）|
+
+修复：
+- Java：删除 `refreshValues()` 里的 `// 内置解析线路回填` 注释 + `rebuildLines();` 调用
+- XML：在 LLM 卡片的 `llmModelEdit` TextInputLayout 后补回 `@+id/llmSaveRow` LinearLayout
+- MaterialCardView 数量从 3 恢复到 4（playOpt + aiOpt + aiExp + llm）
+
+版本号：versionCode 638 → **639** / versionName 5.7.16 → **5.7.17**
+
 ### v5.7.16 · 2026-08-30 · 删除高级设置里的「接口配置（内置视频解析线路）」整条链
 
 v5.7.15 只删了设置页独立的一行「解析服务器」（qcb 远程 HTTP 解析），但高级设置里还有整条「接口配置（内置视频解析线路）」入口。用户预期彻底删除所有解析服务器相关设置，本轮补删。
