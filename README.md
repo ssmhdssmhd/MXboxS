@@ -28,7 +28,7 @@
 
 | 項目      | 值                             |
 |---------|-------------------------------|
-| package | `com.fongmi.android.tv`       |
+| package | `com.ssmhdssmhd.mxboxs`       |
 | minSdk  | 24（Android 7.0 Nougat）        |
 | abi     | `arm64-v8a`、`armeabi-v7a`     |
 | flavor  | `leanback`（電視版）、`mobile`（手機版） |

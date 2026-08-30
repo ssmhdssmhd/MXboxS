@@ -1,0 +1,101 @@
+package com.ssmhdssmhd.mxboxs.ui.dialog;
+
+import android.os.Bundle;
+
+import androidx.fragment.app.FragmentActivity;
+import androidx.viewbinding.ViewBinding;
+
+import com.ssmhdssmhd.mxboxs.R;
+import com.ssmhdssmhd.mxboxs.databinding.DialogSpeedBinding;
+import com.ssmhdssmhd.mxboxs.setting.PreloadSetting;
+import com.ssmhdssmhd.mxboxs.ui.activity.SettingPreloadActivity;
+import com.ssmhdssmhd.mxboxs.utils.FileUtil;
+import com.ssmhdssmhd.mxboxs.utils.KeyUtil;
+import com.ssmhdssmhd.mxboxs.utils.SliderUtil;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+public class PreloadDialog extends BaseAlertDialog {
+
+    public static final int THREADS = 0;
+    public static final int SIZE = 1;
+    public static final int TIME = 2;
+
+    private DialogSpeedBinding binding;
+    private int type;
+
+    public static void show(FragmentActivity activity, int type) {
+        PreloadDialog dialog = new PreloadDialog();
+        Bundle args = new Bundle();
+        args.putInt("type", type);
+        dialog.setArguments(args);
+        dialog.show(activity.getSupportFragmentManager(), null);
+    }
+
+    @Override
+    protected ViewBinding getBinding() {
+        return binding = DialogSpeedBinding.inflate(getLayoutInflater());
+    }
+
+    @Override
+    protected MaterialAlertDialogBuilder getBuilder() {
+        return builder().setView(getBinding().getRoot());
+    }
+
+    @Override
+    protected void initView() {
+        type = requireArguments().getInt("type");
+        binding.slider.setValueTo(getMax());
+        binding.slider.setValueFrom(getMin());
+        binding.slider.setStepSize(getStep());
+        SliderUtil.setValue(binding.slider, getValue());
+        binding.slider.setLabelFormatter(value -> format(Math.round(value)));
+    }
+
+    @Override
+    protected void initEvent() {
+        binding.slider.addOnChangeListener((slider, value, fromUser) -> {
+            if (fromUser) ((SettingPreloadActivity) requireActivity()).setPreload(type, Math.round(SliderUtil.snap(slider, value)));
+        });
+        binding.slider.setOnKeyListener((view, keyCode, event) -> {
+            boolean enter = KeyUtil.isEnterKey(event);
+            if (enter) dismiss();
+            return enter;
+        });
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        getDialog().getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+    }
+
+    private int getMin() {
+        if (type == THREADS) return PreloadSetting.MIN_THREADS;
+        if (type == SIZE) return PreloadSetting.MIN_SIZE_MB;
+        return PreloadSetting.MIN_TIME_SECONDS;
+    }
+
+    private int getMax() {
+        if (type == THREADS) return PreloadSetting.MAX_THREADS;
+        if (type == SIZE) return PreloadSetting.MAX_SIZE_MB;
+        return PreloadSetting.MAX_TIME_SECONDS;
+    }
+
+    private int getStep() {
+        if (type == SIZE) return PreloadSetting.STEP_SIZE_MB;
+        if (type == TIME) return PreloadSetting.STEP_TIME_SECONDS;
+        return 1;
+    }
+
+    private int getValue() {
+        if (type == THREADS) return PreloadSetting.getThreads();
+        if (type == SIZE) return PreloadSetting.getSizeMb();
+        return PreloadSetting.getTimeSeconds();
+    }
+
+    private String format(int value) {
+        if (type == THREADS) return getString(R.string.player_preload_threads_value, value);
+        if (type == SIZE) return FileUtil.byteCountToDisplaySize(value * 1024L * 1024L);
+        return getString(R.string.player_preload_time_value, value);
+    }
+}
