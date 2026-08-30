@@ -1,5 +1,6 @@
 package com.ssmhdssmhd.mxboxs.utils;
 
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -51,21 +52,30 @@ public class FileUtil {
         App.get().startActivity(intent);
     }
 
+    /** SharedPreferences key：存"用户授权返回后要自动安装的 APK 路径" */
+    private static final String PREF = "update_prefs";
+    private static final String KEY_PENDING_APK = "pending_install_apk_path";
+
     /**
-     * 安装 APK —— 自动清理旧缓存 + 未知来源权限引导 + 多 Intent fallback。
+     * 安装 APK —— 自动清理旧缓存 + 未知来源权限引导 + 多 Intent fallback + 权限返回自动续接。
      * <p>
      * 流程：
      * 1) 安装前先清 cache 目录下所有旧 update*.apk（自动清理缓存，不占用户空间）；
-     * 2) Android 8.0+ 检查 canRequestPackageInstalls()，无权限则跳设置页让用户手动开，
-     *    用户返回后 UpdateDialog / UpdateService 仍会调本方法（APK 已下载好不用重下）；
-     * 3) 优先 ACTION_INSTALL_PACKAGE，fallback 到 ACTION_VIEW + "application/vnd.android.package-archive"。
+     * 2) Android 8.0+ 检查 canRequestPackageInstalls()，无权限则：
+     *    a. 把 apk.getAbsolutePath() 存到 SharedPreferences（KEY_PENDING_APK）；
+     *    b. 跳设置页让用户开启「允许安装未知应用」；
+     *    c. 用户返回 App 后由 App.onActivityResumed() 自动检查并续接（见 onResumePendingInstallIfAny）；
+     * 3) 优先 ACTION_INSTALL_PACKAGE，fallback 到 ACTION_VIEW + "application/vnd.android.package-archive"；
+     * 4) 国产 ROM（小米/HyperOS、OPPO/ColorOS）对 PackageInstaller URI 权限有白名单限制，
+     *    额外用 grantUriPermission 兜底。
      */
     public static void installApk(File apk) {
         if (apk == null || !apk.exists() || apk.length() == 0) {
-            Notify.show(String.format(ResUtil.getString(R.string.update_install_failed), "APK 文件无效"));
+            Notify.show("APK 文件无效");
             return;
         }
-        // ① 自动清理历史旧缓存（保留当前这个 apk 不动，清理同目录下其它 update*.apk）
+
+        // ① 自动清理历史旧缓存（保留当前这个 apk 不动）
         try {
             File dir = apk.getParentFile();
             if (dir != null && dir.isDirectory()) {
@@ -80,19 +90,31 @@ public class FileUtil {
             }
         } catch (Throwable ignored) {}
 
-        // ② 未知来源权限引导
+        // ② 未知来源权限引导 —— 存路径 + 跳设置页，授权返回后自动续接
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!isCanInstallApk()) {
-                Notify.show("请在打开的设置页勾选「允许安装未知应用」，返回后自动继续安装");
+                // 先存待安装路径
+                try {
+                    android.content.SharedPreferences sp = App.get().getSharedPreferences(PREF, Context.MODE_PRIVATE);
+                    sp.edit().putString(KEY_PENDING_APK, apk.getAbsolutePath()).apply();
+                } catch (Throwable ignored) {}
+
+                Notify.show("请开启「允许安装未知应用」，返回后自动继续安装");
                 Intent settingsIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
                 settingsIntent.setData(Uri.parse("package:" + App.get().getPackageName()));
                 settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 App.get().startActivity(settingsIntent);
-                return;
+                return; // 等用户回来
             }
         }
 
-        // ③ 构建 Intent：ACTION_INSTALL_PACKAGE 优先，ACTION_VIEW 兜底
+        // 清掉旧的 pending（如果这次要装的就是 pending 那个，清掉避免重复触发）
+        try {
+            android.content.SharedPreferences sp = App.get().getSharedPreferences(PREF, Context.MODE_PRIVATE);
+            sp.edit().remove(KEY_PENDING_APK).apply();
+        } catch (Throwable ignored) {}
+
+        // ③ 构建 Intent + 拉起安装器
         Uri apkUri;
         try {
             apkUri = getShareUri(apk);
@@ -110,19 +132,48 @@ public class FileUtil {
         intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        // 防被系统过滤掉 —— 显式指定包名
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             intent.putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, App.get().getPackageName());
         }
 
+        // 国产 ROM 兜底：显式 grantUriPermission 给 PackageInstaller
+        try {
+            String installerPkg = "com.android.packageinstaller";
+            App.get().grantUriPermission(installerPkg, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Throwable ignored) {}
+
         try {
             App.get().startActivity(intent);
         } catch (android.content.ActivityNotFoundException anfe) {
-            // 某些国产 ROM 没装 PackageInstaller，最后 fallback：pm install
-            Notify.show("系统没找到安装器，请用文件管理器手动打开 update.apk");
+            Notify.show("未找到系统安装器，请用文件管理器手动打开 " + apk.getName());
         } catch (Throwable t) {
-            Notify.show(String.format(ResUtil.getString(R.string.update_install_failed), t.getMessage()));
+            Notify.show("拉起安装器失败：" + t.getMessage());
         }
+    }
+
+    /**
+     * 权限返回自动续接 —— 由 App.onActivityResumed() 调用。
+     * 条件：SharedPreferences 里有 KEY_PENDING_APK + 当前已获得安装权限 + 文件还在。
+     */
+    public static void onResumePendingInstallIfAny() {
+        try {
+            android.content.SharedPreferences sp = App.get().getSharedPreferences(PREF, Context.MODE_PRIVATE);
+            String path = sp.getString(KEY_PENDING_APK, null);
+            if (path == null) return;
+            File apk = new File(path);
+            if (!apk.exists() || apk.length() <= 0) {
+                // 文件没了，清掉 pending
+                sp.edit().remove(KEY_PENDING_APK).apply();
+                return;
+            }
+            if (!isCanInstallApk()) return; // 用户还没授权，下次回来再检查
+            // 已授权 + 文件存在 → 清 pending + 自动安装
+            sp.edit().remove(KEY_PENDING_APK).apply();
+            Notify.show("检测到已授权，正在自动安装…");
+            // 延迟 500ms 等当前 Activity resume 完
+            App.post(() -> installApk(apk), 500);
+        } catch (Throwable ignored) {}
     }
 
     /** Android 8.0+ 是否允许本应用安装未知来源 APK */

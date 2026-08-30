@@ -12,6 +12,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.os.HandlerCompat;
 
+import com.ssmhdssmhd.mxboxs.utils.FileUtil;
 import com.ssmhdssmhd.mxboxs.utils.Notify;
 import com.fongmi.hook.Hook;
 import com.github.catvod.Init;
@@ -98,6 +99,9 @@ public class App extends Application implements Application.ActivityLifecycleCal
     @Override
     public void onActivityResumed(@NonNull Activity activity) {
         if (activity != activity()) this.activity = activity;
+        // 用户从系统设置页（ACTION_MANAGE_UNKNOWN_APP_SOURCES）授权完成返回时，
+        // 这里会触发。检查有没有存"待安装 APK 路径"，如果有且权限已开 → 自动续接安装
+        FileUtil.onResumePendingInstallIfAny();
     }
 
     @Override
