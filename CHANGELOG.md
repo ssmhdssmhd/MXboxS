@@ -2,6 +2,30 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## v5.7.12 - 2026-08-30 · 修复 v5.7.11 编译失败（2 个 import 拼写错误）
+
+v5.7.11 两次 GitHub Actions 构建全部 FAIL（#217 main push + #218 tag v5.7.11），APK 产物不存在。根因是代码里的 2 个 `cannot find symbol` 编译错误。
+
+### 编译错误详情（来自 Actions #217 javac 输出）
+```
+error: cannot find symbol  DownloadService.java:24
+  import com.ssmhdssmhd.mxboxs.utils.Path;
+                                   ^  (项目里没有这个 Path 类！)
+
+error: cannot find symbol  Updater.java:49
+  private File getFile() {
+          ^  (Updater.java 漏 import java.io.File)
+```
+
+### 修复（2 行改动）
+| 文件 | 修复 |
+|------|------|
+| `DownloadService.java:24` | `import com.ssmhdssmhd.mxboxs.utils.Path;` → `import com.github.catvod.utils.Path;`（项目真正的 Path 工具类来自 catvod 子模块，全项目共 18 处引用都是 catvod） |
+| `Updater.java` | import 区域加 `import java.io.File;`（`private File getFile()` 返回类型需要显式 import） |
+
+版本号：versionCode 639 → **640** / versionName 5.7.11 → **5.7.12**
+
+
 ## v5.7.11 - 2026-08-29 · 修复更新弹窗丑陋 + 后台下载 + 通知栏进度 + 断点续传
 
 v5.7.9/v5.7.10 用户反馈：更新弹窗太丑（markdown 原样渲染、GitHub Full Changelog URL、探针技术日志污染视觉）、更新内容不能滚动查看、关闭/切后台丢进度导致重新下载。

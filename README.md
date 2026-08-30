@@ -9,6 +9,18 @@
 
 ## 最新更新
 
+### v5.7.12 · 2026-08-30 · 修复 v5.7.11 编译失败（2 个 import 拼写错误）
+
+v5.7.11 两次 GitHub Actions 构建全部 FAIL（#217 main push + #218 tag），APK 产物不存在，用户无法更新。
+
+- **根因**：2 个 `cannot find symbol` 编译错误
+  - [DownloadService.java:24](app/src/main/java/com/ssmhdssmhd/mxboxs/service/DownloadService.java) 错写 `import com.ssmhdssmhd.mxboxs.utils.Path`（项目无此类） → 应为 `com.github.catvod.utils.Path`（catvod 子模块，全项目 18 处引用都是它）
+  - [Updater.java](app/src/main/java/com/ssmhdssmhd/mxboxs/Updater.java) 漏 `import java.io.File` → `private File getFile()` 返回类型报找不到
+- **修复**：2 行改动（1 行修正 import 包名 + 1 行补 import）
+
+版本号：versionCode 639 → **640** / versionName 5.7.11 → **5.7.12**
+
+
 ### v5.7.11 · 2026-08-29 · 修复更新弹窗丑陋 + 前台 Service 后台下载 + 通知栏进度 + 断点续传
 
 用户反馈：更新弹窗直接显示 GitHub raw markdown（`**Full Changelog**:`、探针 `gh.mirai.org ❌ DNS 解析失败` 污染视觉）、更新内容不能滚动、关闭对话框/切后台/杀 Activity → 下载中断要重新下。

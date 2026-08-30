@@ -21,7 +21,7 @@ import com.ssmhdssmhd.mxboxs.event.DownloadProgressEvent;
 import com.ssmhdssmhd.mxboxs.utils.Download;
 import com.ssmhdssmhd.mxboxs.utils.FileUtil;
 import com.ssmhdssmhd.mxboxs.utils.Github;
-import com.ssmhdssmhd.mxboxs.utils.Path;
+import com.github.catvod.utils.Path;
 
 import org.greenrobot.eventbus.EventBus;
 
