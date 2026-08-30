@@ -157,8 +157,6 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         llmKeyEdit.setText(PlayerSetting.getLlmKey());
         llmModelEdit.setText(PlayerSetting.getLlmModel());
 
-        // 内置解析线路回填
-        rebuildLines();
     }
 
     private void setupListeners() {
