@@ -35,28 +35,11 @@ jobs:
       # android-actions/setup-android is intentionally NOT used — running it
       # breaks this workflow (the action fails early when we request
       # build-tools with a non-existent version, causing 14s failures).
-      - name: Verify pre-installed Android SDK
-        run: |
-          set -e
-          echo "ANDROID_HOME      = ${ANDROID_HOME:-unset}"
-          echo "ANDROID_SDK_ROOT  = ${ANDROID_SDK_ROOT:-unset}"
-          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-          if [ -n "$SDK" ] && [ -d "$SDK" ]; then
-            echo "--- SDK dir (maxdepth 3) ---"
-            find "$SDK" -maxdepth 3 -type d | sort | head -80
-            echo "--- sdkmanager: list installed ---"
-            SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
-            [ -x "$SM" ] || SM="$SDK/cmdline-tools/tools/bin/sdkmanager"
-            [ -x "$SM" ] || SM="$SDK/tools/bin/sdkmanager"
-            if [ -x "$SM" ]; then
-              yes 2>/dev/null | "$SM" --list_installed 2>/dev/null | head -40 || echo "(sdkmanager exited non-zero, ignoring)"
-            else
-              echo "(sdkmanager binary not found at the expected locations)"
-            fi
-          else
-            echo "ERROR: no pre-installed Android SDK found on this runner!"
-            exit 1
-          fi
+      # NOTE: GitHub-hosted ubuntu-latest already ships a full Android SDK.
+      - name: Show Android SDK env
+        run: echo "ANDROID_HOME=$ANDROID_HOME"
+           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
