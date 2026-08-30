@@ -114,27 +114,46 @@ public class HomeActivity extends BaseActivity implements CustomTitleView.Listen
     protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
+        // Android 12+ TV 版也启用毛玻璃窗口（TV 上系统栏也支持模糊）
+        enableGlassWindow();
+    }
+
+    /** Android 12+ (API 31+) TV 版毛玻璃窗口 — 比手机版半径小（40dp）避免画面太糊 */
+    private void enableGlassWindow() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                android.view.Window w = getWindow();
+                w.setBackgroundBlurRadius(40);
+                View decor = w.getDecorView();
+                if (decor != null) decor.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            }
+        } catch (Throwable ignored) {}
     }
 
     @Override
     protected void initView(Bundle savedInstanceState) {
-        if (!KamiUtil.isActivated()) {
-            KamiActivity.start(this);
-            finish();
-            return;
+        try {
+            if (!KamiUtil.isActivated()) {
+                KamiActivity.start(this);
+                finish();
+                return;
+            }
+            try { mResult = Result.empty(); } catch (Throwable ignored) {}
+            try { mClock = Clock.create(mBinding.clock); } catch (Throwable ignored) {}
+            try { mBinding.progressLayout.showProgress(); } catch (Throwable ignored) {}
+            try { PermissionUtil.requestNotify(this); } catch (Throwable ignored) {}
+            try { DLNARendererService.start(this); } catch (Throwable ignored) {}
+            try { Updater.create().start(this); } catch (Throwable e) { android.util.Log.e("Leanback", "Updater.start fail", e); }
+            try { setRecyclerView(); } catch (Throwable e) { android.util.Log.e("Leanback", "setRecyclerView fail", e); }
+            try { setViewModel(); } catch (Throwable e) { android.util.Log.e("Leanback", "setViewModel fail", e); }
+            try { setAdapter(); } catch (Throwable e) { android.util.Log.e("Leanback", "setAdapter fail", e); }
+            try { initConfig(); } catch (Throwable e) { android.util.Log.e("Leanback", "initConfig fail", e); }
+            try { setTitle(); } catch (Throwable ignored) {}
+            try { setLogo(); } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            android.util.Log.e("Leanback", "initView fatal crash", t);
+            throw t;
         }
-        mResult = Result.empty();
-        mClock = Clock.create(mBinding.clock);
-        mBinding.progressLayout.showProgress();
-        PermissionUtil.requestNotify(this);
-        DLNARendererService.start(this);
-        Updater.create().start(this);
-        setRecyclerView();
-        setViewModel();
-        setAdapter();
-        initConfig();
-        setTitle();
-        setLogo();
     }
 
     @Override

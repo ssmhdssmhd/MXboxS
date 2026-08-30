@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.Window;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.pm.ShortcutInfoCompat;
@@ -75,21 +76,66 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
     protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
+        // Android 12+ 玻璃液体窗口：启用毛玻璃效果
+        enableGlassWindow();
+    }
+
+    /**
+     * Android 12+ (API 31+) 玻璃液体 UI — 毛模糊 + 半透明 decor 背景 + EdgeToEdge 配合
+     *
+     * 组合效果：
+     *   ① windowBackgroundBlurRadius(60dp) — 窗口背后内容被毛模糊，
+     *      再配合 decorView 半透明遮罩，让 WallConfig 加载的壁纸在模糊后若隐若现，
+     *      形成"玻璃液体"悬浮感
+     *   ② decorView HARDWARE layer type — 必须有硬件加速才能让 blur 生效
+     *   ③ statusBar/navBar 透明 + EdgeToEdge — 内容延伸到系统栏，玻璃覆盖整个屏幕
+     *
+     * 任何异常（比如 OEM ROM 禁用了 blur 或 API 签名变了）都被 catch，保证不闪退。
+     */
+    private void enableGlassWindow() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                Window w = getWindow();
+                // ★ 核心：60dp 毛模糊半径 — "液体"质感的来源
+                w.setBackgroundBlurRadius(60);
+                // Android 14+ 还能单独设置窗口后方内容的模糊半径
+                if (android.os.Build.VERSION.SDK_INT >= 34) {
+                    try { w.setBlurBehindRadius(60); } catch (Throwable ignored) {}
+                }
+                // decorView 硬件加速层 — blur 必需
+                View decor = w.getDecorView();
+                if (decor != null) {
+                    decor.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                    // 给 decorView 一个深色半透明底色 — 壁纸在模糊后透过这个遮罩，
+                    // 既不会太亮看不清文字，又有"背后有东西"的玻璃感
+                    // #E60F1014 = 90% opaque 深色（Material3 夜间模式基准）
+                    decor.setBackgroundColor(0xE60F1014);
+                }
+            }
+        } catch (Throwable ignored) {
+            // OEM ROM 可能 throws Exception，静默忽略即可
+        }
     }
 
     @Override
     protected void initView(Bundle savedInstanceState) {
-        if (!KamiUtil.isActivated()) {
-            KamiActivity.start(this);
-            finish();
-            return;
+        try {
+            if (!KamiUtil.isActivated()) {
+                KamiActivity.start(this);
+                finish();
+                return;
+            }
+            orientation = getResources().getConfiguration().orientation;
+            try { mBinding.navigation.setOnItemSelectedListener(this); } catch (Throwable ignored) {}
+            try { PermissionUtil.requestNotify(this); } catch (Throwable ignored) {}
+            try { initFragment(savedInstanceState); } catch (Throwable e) { android.util.Log.e("HomeActivity", "initFragment fail", e); }
+            try { Updater.create().start(this); } catch (Throwable e) { android.util.Log.e("HomeActivity", "Updater.start fail", e); }
+            try { initConfig(); } catch (Throwable e) { android.util.Log.e("HomeActivity", "initConfig fail", e); }
+        } catch (Throwable t) {
+            android.util.Log.e("HomeActivity", "initView fatal crash", t);
+            // 即使某一步崩了也 finish 掉当前 Activity，让 CaocConfig 接管崩溃提示
+            throw t;
         }
-        orientation = getResources().getConfiguration().orientation;
-        mBinding.navigation.setOnItemSelectedListener(this);
-        PermissionUtil.requestNotify(this);
-        initFragment(savedInstanceState);
-        Updater.create().start(this);
-        initConfig();
     }
 
     @Override

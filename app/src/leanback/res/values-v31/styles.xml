@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v31 (Android 12+) Leanback TV 玻璃液体 UI
+  TV 版：全屏 + 毛玻璃 + 透明导航栏
+-->
+<resources>
+
+    <style name="Theme.Base" parent="Theme.Material3.Dark.NoActionBar">
+        <!-- ★ 毛玻璃窗口模糊 — Android TV 上也支持 -->
+        <item name="android:windowBackgroundBlurRadius">40dp</item>
+        <item name="android:windowBlurBehindEnabled">true</item>
+        <item name="android:windowBlurBehindRadius">40dp</item>
+
+        <item name="colorPrimary">@color/white</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:windowAnimationStyle">@style/NoAnim</item>
+    </style>
+
+    <style name="Theme.App" parent="Theme.Base" />
+
+    <style name="Theme.Splash" parent="Theme.SplashScreen">
+        <item name="postSplashScreenTheme">@style/Theme.App</item>
+        <item name="windowSplashScreenBackground">#141218</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+    </style>
+
+    <style name="Theme.Crash" parent="Theme.Base">
+        <item name="android:windowBackground">#CC141218</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
+</resources>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  v31 (Android 12+) 玻璃液体 UI — 毛玻璃窗口 + 半透明背景 + Dynamic Color
+  核心效果：窗口后内容透过毛玻璃模糊显示，形成"液体"悬浮感
+-->
+<resources>
+
+    <!-- 基础玻璃主题：毛模糊 + 全透明导航/状态栏 + 动态色 -->
+    <style name="Theme.Base" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+        <!-- ★ 毛玻璃：窗口背后内容模糊半径 60dp — "玻璃液体"核心效果 -->
+        <item name="android:windowBackgroundBlurRadius">60dp</item>
+        <item name="android:windowBlurBehindEnabled">true</item>
+        <item name="android:windowBlurBehindRadius">60dp</item>
+
+        <!-- 状态栏/导航栏全透明 → 内容延伸到系统栏 → 玻璃感更真实 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+
+        <!-- 夜间模式下颜色倒置：保证文字/图标可读 -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">true</item>
+
+        <!-- 刘海屏兼容：内容延伸到刘海区域，配合毛玻璃形成"液体"覆盖效果 -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+
+        <!-- 动画 → 更"液体"的过渡 -->
+        <item name="android:windowAnimationStyle">@android:style/Animation.Activity</item>
+    </style>
+
+    <style name="Theme.App" parent="Theme.Base" />
+
+    <style name="Theme.Splash" parent="Theme.SplashScreen">
+        <item name="postSplashScreenTheme">@style/Theme.App</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+    </style>
+
+    <style name="Theme.Crash" parent="Theme.Base">
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowBackground">#CC141218</item>
+    </style>
+
+</resources>
