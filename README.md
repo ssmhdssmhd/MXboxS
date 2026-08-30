@@ -9,6 +9,64 @@
 
 ## 最新更新
 
+### v5.7.15 · 2026-08-30 · 删除「解析服务器」设置 + P0 修复「成功获取 m3u8 但 0 KB/s 不能播放」
+
+**【删除解析服务器（qcb 远程 HTTP 解析）】**
+
+整个 qcb/jiexi.php 云端解析链路已彻底移除（10 个文件、190+ 行代码）。删除原因：qcb 云端接口长期不稳定、绕过本地 WebView 嗅探导致反爬更频繁。所有解析统一走本地链路（HTML 嗅探 + 内置线路 + LLM 嗅探 + 并发 probe）。
+
+| 删除项 | 位置 |
+|--------|------|
+| `PARSE_SERVER_DEFAULT` 常量 + `getParseServerPrefix()` + `putParseServerPrefix()` | [Setting.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/Setting.java) |
+| `hasQcbParseServer()` / `qcbHttpCall()` / `qcbJiexiParse()` / `qcbXtApiParse()` / `extractQcbUrl()` / `normalizeQcbPrefix()` + 调用入口 | [ParseJob.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java) |
+| `onParseServer()` / `onParseServerReset()` + 初始化 + 点击绑定 | [SettingFragment.java (mobile)](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/fragment/SettingFragment.java) / [SettingActivity.java (leanback)](file:///workspace/app/src/leanback/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingActivity.java) |
+| `android:id="@+id/parseServer"` LinearLayoutCompat 整块 | [fragment_setting.xml](file:///workspace/app/src/mobile/res/layout/fragment_setting.xml) / [activity_setting.xml](file:///workspace/app/src/leanback/res/layout/activity_setting.xml) |
+| `setting_parse_server` / `_hint` / `_default` | strings.xml 三语言版 |
+
+**【P0 修复：成功获取 m3u8 但 0 KB/s 不能播放】**
+
+根因（从用户截图精准锁定）：解析站硬塞的 Referer 含 `$$$HD中字$` 标记 + 未编码中文字符。旧版 `mergeDefaultHeadersForPlayback` 逻辑"用户有 Referer 就原样保留" → 脏 Referer 透传到所有 OkHttpDataSource 请求（m3u8 重拉 + TS 段） → CDN WAF 判定异常 → **403 → 0 KB/s**。因为 m3u8 和 TS 段通常同域名，OkHttpDataSource 的跨域 ORIGIN 降级分支不会触发，所以之前的跨域修复没救到这个场景。
+
+修复：给 `mergeDefaultHeadersForPlayback` 加 **Referer 清洗层**（[UrlUtil.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/UrlUtil.java)）。遍历 headers 时遇到 Referer 先过 `isValidReferer()` 检查（http/https + 合法 host + 不含 `$$$` + 不含控制字符），脏 Referer 直接丢弃，由 `inferRefererForPlayback(playbackUrl, DIRECTORY)` 从播放 URL 重新推导合规 Referer（浏览器真实导航 Referer 格式）。
+
+版本号：versionCode 636 → **637** / versionName 5.7.14 → **5.7.15**
+
+### v5.7.14 · 2026-08-30 · 更新下载完成后自动跳安装 + 权限返回自动续接
+
+修复 App 内 Updater 下载完 APK 后不自动弹出安装页的问题。之前 `FileUtil.installApk()` 在首次请求 `canRequestPackageInstalls()` 权限被拒绝（跳设置页）后就丢失了待安装 APK 路径，用户返回 App 后需要手动重新点击安装。
+
+本版加 **SharedPreferences 持久化 + App 前台自动续接**：
+
+| 组件 | 作用 |
+|------|------|
+| `FileUtil.onResumePendingInstallIfAny()` | App 回到前台时检查 SharedPreferences 里的待安装 APK 路径 + 文件是否还在 + 权限是否已开 → 自动触发 installApk |
+| `installApk()` | 加 `FLAG_GRANT_PERSISTABLE_URI_PERMISSION` + `grantUriPermission("com.android.packageinstaller")` 双重兜底 |
+| `App.onActivityResumed` 钩子 | 全局 Activity 恢复时机统一触发续接检查 |
+
+代码位置：[FileUtil.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FileUtil.java) / [App.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/App.java)
+
+版本号：versionCode 635 → **636** / versionName 5.7.13 → **5.7.14**
+
+### v5.7.13 · 2026-08-30 · 版本号对齐 GitHub 历史 release 最高版本
+
+GitHub Release 历史里旧 CI 推送过 **v5.7.12**（含 slim APK），App 内 Updater 遍历 `/releases?per_page=10` 从 APK 文件名取最高版本号 → 我们推 5.7.6 时 App 显示"5.7.12 已是最新版本"。本版版本号直接跳到 **5.7.13**，高于历史最高。
+
+版本号：versionCode 634 → **635** / versionName 5.7.6 → **5.7.13**
+
+### v5.7.6 · 2026-08-30 · 毛玻璃液体 UI + 全局闪退保护 + 跨域 Referer 动态修正
+
+三大核心改进：
+
+| 功能 | 说明 |
+|------|------|
+| **玻璃液体毛玻璃效果（Android 12+/API 31+）** | mobile + leanback 双端 values-v31/styles.xml 启用 `windowBackgroundBlurRadius=60dp`，背景半透明遮罩 `0xE60F1014`（深色毛玻璃），状态栏/导航栏透明沉浸 |
+| **全局闪退保护** | `Startup.java` 注册 `Thread.setDefaultUncaughtExceptionHandler` + CaocConfig `errorActivity` 双层保护，崩溃后跳 Caoc CrashActivity 而非系统直接杀进程 |
+| **m3u8 跨域 TS 段 Referer 动态修正** | OkHttpDataSource.Factory 新增 `setPlaylistUrl(playlistUrl)` 缓存 m3u8 URL；每次 `open()` 发请求前判定 **跨域 + 非 playlist 重拉** → 动态把 Referer 从目录级降级为 ORIGIN 级（`scheme://host:port/`），严格浏览器 `strict-origin-when-cross-origin` 策略 |
+
+代码位置：[Startup.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Startup.java) / [OkHttpDataSource.java](file:///workspace/app/src/main/java/androidx/media3/datasource/okhttp/OkHttpDataSource.java) / [MediaSourceFactory.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/exo/MediaSourceFactory.java)
+
+版本号：versionCode 633 → **634** / versionName 5.7.3 → **5.7.6**
+
 ### v5.7.3 · 2026-08-21 · 版本号升级（5.7.1 → 5.7.3），功能与 v5.7.1 一致
 
 v5.7.1 已包含全部上游同步与人工 port 变更，本版仅将版本号调整为 **5.7.3**（versionCode **631**）。
