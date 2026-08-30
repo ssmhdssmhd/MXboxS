@@ -108,7 +108,7 @@ public class UpdateService extends Service implements Download.Callback {
             }
             versionName = intent.getStringExtra(EXTRA_VERSION);
             apkCursor = 0;
-            startForeground(NOTIF_ID, buildNotification("正在准备下载…", 0, 0, true));
+            startForeground(NOTIF_ID, buildNotification("正在准备下载…", -1, 0, 0, true));
             startRealDownload();
         }
         return START_STICKY;
