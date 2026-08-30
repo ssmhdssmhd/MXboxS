@@ -876,20 +876,41 @@ public class ParseJob implements ParseCallback {
     }
 
     private void checkResult(Map<String, String> headers, String url, String from, boolean fatal) {
-        // ===== v5.6.7 新修复：HTML 嗅探接口套娃 URL 拦截 =====
-        // 云端公开解析站（如 qcb-jiexi.php）会返回 "解析成功"，但 url 字段里给的仍是另一个
-        // HTML 万能嗅探站的包装 URL（jx.xmflv.cc/?url=jx.xmflv.cc/?url=... 这种，长度肯定 >40），
-        // 原代码 length>40 就 onParseSuccess 放行，ExoPlayer 拿 HTML 当视频播 → 0 KB/s 永久转圈。
-        // 现在：检测到 isLikelyHtmlSniffer(url) 的，一律不回调成功，改走 WebView + AI 嗅探深度解析；
-        // 只有当它是真正的视频直链 / Content-Type probe 成功的才放行。
-        if (!TextUtils.isEmpty(url) && com.ssmhdssmhd.mxboxs.utils.UrlUtil.isLikelyHtmlSniffer(url)) {
-            Map<String, String> safeH = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(headers, url);
-            if (aiSmartParseFallbackFrom(safeH, url, from + "+sniff-fallback")) return;
-            fallbackConcurrentParse(url, true);
+        if (TextUtils.isEmpty(url)) { if (fatal) onParseError(); return; }
+        // ===== v5.7.18 修复：catvod/jsonParse 返回的 URL 可能是解析站自己的 HTML 播放页 =====
+        // xgplay20.com /play/xxx、jimxtc.com /play/xxx 这类新格式解析站会返回 HTML 播放页 URL
+        // （里面 JS 变量 const url = "/2025-xxx/xxx/index.m3u8?sign=..." 才是真正直链），
+        // 旧逻辑只拦截 isLikelyHtmlSniffer 白名单（xmflv/jiexi.php 等老嗅探接口），
+        // 新格式不在白名单里就被 url.length()>40 放行 → ExoPlayer 拿 HTML 当 m3u8 播 → 0 KB/s。
+        //
+        // 新逻辑：双重验证 —— URL 有视频直链后缀才直接放行；否则一律走 AI 嗅探，
+        // 嗅探失败再 probe Content-Type，probe 也失败才 fallbackConcurrentParse。
+        String lc = url.toLowerCase();
+        boolean videoExt = lc.contains(".m3u8") || lc.contains(".mp4") || lc.contains(".flv")
+                || lc.contains(".m4v") || lc.contains(".ts") || lc.contains(".mkv")
+                || lc.contains(".webm") || lc.contains(".mov");
+        if (videoExt && url.length() > 40) {
+            // 有视频后缀 + 足够长度 → 大概率是真直链，快速 probe 一下 Content-Type 就放行
+            if (probeVideoUrl(url, headers)) {
+                onParseSuccess(headers, url, from);
+                return;
+            }
+            // probe 失败（403/超时）但后缀像视频 → 保守放行（避免误杀有效源）
+            if (url.length() > 40) {
+                onParseSuccess(headers, url, from);
+                return;
+            }
+        }
+        // 无视频后缀 → 一律走 AI 嗅探（抓 HTML body → sniffVideoCandidates 正则扫 m3u8）
+        Map<String, String> safeH = com.ssmhdssmhd.mxboxs.utils.UrlUtil.mergeDefaultHeaders(headers, url);
+        if (aiSmartParseFallbackFrom(safeH, url, from + "+post-json-sniff")) return;
+        // AI 嗅探也失败 → probe 原 URL 的 Content-Type，看看是不是误判（有些 CDN 不回视频后缀但 Content-Type 对）
+        if (probeVideoUrl(url, headers)) {
+            onParseSuccess(headers, url, from);
             return;
         }
-        if (url.length() > 40) onParseSuccess(headers, url, from);
-        else if (fatal) onParseError();
+        // 彻底兜底 → fallbackConcurrentParse 多解析站并发
+        fallbackConcurrentParse(url, true);
     }
 
     private void checkResult(Result result) {
