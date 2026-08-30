@@ -161,23 +161,6 @@
     <string name="setting_advanced_unlocked">高级设置已解锁</string>
     <string name="setting_version_label">版本号</string>
 
-    <!-- 接口配置（内置视频解析线路）-->
-    <string name="setting_cfg_title">接口配置（内置视频解析）</string>
-    <string name="setting_cfg_subtitle">内置解析线路：类型 1 直接播放；类型 2 从 JSON 返回的 url 中取播放地址</string>
-    <string name="setting_cfg_add">添加接口</string>
-    <string name="setting_cfg_save">保存</string>
-    <string name="setting_cfg_reset">恢复默认</string>
-    <string name="setting_cfg_delete">删除此接口</string>
-    <string name="setting_cfg_name_hint">名称</string>
-    <string name="setting_cfg_url_hint">接口地址（含 ?url=）</string>
-    <string name="setting_cfg_type_1">1 · 直接播放</string>
-    <string name="setting_cfg_type_2">2 · JSON 解析</string>
-    <string name="setting_cfg_saved">接口配置已保存</string>
-    <string name="setting_cfg_saved_error">保存失败：请检查名称/类型/地址</string>
-    <string name="setting_cfg_reset_done">已恢复默认接口配置</string>
-    <string name="setting_cfg_empty">请至少保留一个有效接口</string>
-    <string name="setting_cfg_need_url">第 %d 条缺少接口地址</string>
-
     <!-- 播放优化（高级设置）-->
     <string name="setting_playopt_title">播放优化</string>
     <string name="setting_playopt_subtitle">调整加载速度、流畅度与画质（下次播放生效）</string>

@@ -18,10 +18,8 @@ import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 import com.ssmhdssmhd.mxboxs.R;
-import com.ssmhdssmhd.mxboxs.bean.Parse;
 import com.ssmhdssmhd.mxboxs.player.parse.ParseDiskCache;
 import com.ssmhdssmhd.mxboxs.player.parse.ParseJob;
-import com.ssmhdssmhd.mxboxs.setting.BuiltinParseSetting;
 import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
 import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.ssmhdssmhd.mxboxs.utils.FeatureFlags;
@@ -48,8 +46,6 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private MaterialCardView aiOptCard;
     private MaterialCardView aiExpCard;
     private MaterialCardView llmCard;
-    private MaterialCardView netCfgCard;
-    private ViewGroup cfgLinesContainer;
 
     private SwitchMaterial cacheWriteSwitch;
     private SwitchMaterial adaptiveSwitch;
@@ -73,7 +69,6 @@ public class SettingAdvancedActivity extends AppCompatActivity {
 
     private final String[] bufferModes = new String[]{"快起播", "流畅"};
     private final String[] qualityPrefs = new String[]{"自适应", "最高画质", "720P", "480P"};
-    private final String[] cfgTypes = new String[2];
 
     public static void start(Activity activity) {
         activity.startActivity(new Intent(activity, SettingAdvancedActivity.class));
@@ -90,8 +85,6 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         aiOptCard = findViewById(R.id.aiOptCard);
         aiExpCard = findViewById(R.id.aiExpCard);
         llmCard = findViewById(R.id.llmCard);
-        netCfgCard = findViewById(R.id.netCfgCard);
-        cfgLinesContainer = findViewById(R.id.cfgLinesContainer);
 
         cacheWriteSwitch = findViewById(R.id.cacheWriteSwitch);
         adaptiveSwitch = findViewById(R.id.adaptiveSwitch);
@@ -112,8 +105,6 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         llmKeyEdit = findViewById(R.id.llmKeyEdit);
         llmModelEdit = findViewById(R.id.llmModelEdit);
 
-        cfgTypes[0] = getString(R.string.setting_cfg_type_1);
-        cfgTypes[1] = getString(R.string.setting_cfg_type_2);
 
         if (toolbar != null) {
             toolbar.setNavigationOnClickListener(v -> finish());
@@ -136,7 +127,6 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         aiOptCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
         aiExpCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
         llmCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
-        netCfgCard.setVisibility(unlocked ? View.VISIBLE : View.GONE);
         if (unlocked) refreshValues();
     }
 
@@ -273,86 +263,6 @@ public class SettingAdvancedActivity extends AppCompatActivity {
             PlayerSetting.putLlmModel(model == null ? "" : model.toString().trim());
             Notify.show(R.string.setting_llm_saved);
         });
-
-        // ===== 接口配置（内置视频解析线路）=====
-        findViewById(R.id.cfgAddRow).setOnClickListener(v -> addLine(new Parse()));
-        findViewById(R.id.cfgSaveRow).setOnClickListener(v -> saveLines());
-        findViewById(R.id.cfgResetRow).setOnClickListener(v -> {
-            BuiltinParseSetting.reset();
-            rebuildLines();
-            Notify.show(R.string.setting_cfg_reset_done);
-        });
-    }
-
-    // ===== 接口配置（内置视频解析线路）=====
-
-    /** 重建整个线路列表：清空容器后从持久化线路逐条填充。 */
-    private void rebuildLines() {
-        if (cfgLinesContainer == null) return;
-        cfgLinesContainer.removeAllViews();
-        for (Parse parse : BuiltinParseSetting.effectiveLines()) addLine(parse);
-    }
-
-    /** 新增一行线路编辑卡片。 */
-    private void addLine(Parse parse) {
-        if (cfgLinesContainer == null) return;
-        View view = LayoutInflater.from(this).inflate(R.layout.item_builtin_line, cfgLinesContainer, false);
-        TextInputEditText nameEdit = view.findViewById(R.id.cfgNameEdit);
-        Spinner typeSpinner = view.findViewById(R.id.cfgTypeSpinner);
-        TextInputEditText urlEdit = view.findViewById(R.id.cfgUrlEdit);
-        View deleteBtn = view.findViewById(R.id.cfgDeleteBtn);
-
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, cfgTypes);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        typeSpinner.setAdapter(adapter);
-        // 类型映射：1 直接播放（type 0）/ 2 JSON 解析（type 1）
-        typeSpinner.setSelection(Math.min(Math.max(BuiltinParseSetting.uiType(parse.getType()) - 1, 0), 1));
-
-        nameEdit.setText(parse.getName());
-        urlEdit.setText(parse.getUrl());
-
-        deleteBtn.setOnClickListener(v -> {
-            if (cfgLinesContainer.getChildCount() <= 1) {
-                Notify.show(R.string.setting_cfg_empty);
-                return;
-            }
-            cfgLinesContainer.removeView(view);
-        });
-
-        cfgLinesContainer.addView(view);
-    }
-
-    /** 收集表单中的线路并保存，校验通过返回 true。 */
-    private boolean saveLines() {
-        List<Parse> lines = new ArrayList<>();
-        if (cfgLinesContainer == null) return false;
-        for (int i = 0; i < cfgLinesContainer.getChildCount(); i++) {
-            View view = cfgLinesContainer.getChildAt(i);
-            TextInputEditText nameEdit = view.findViewById(R.id.cfgNameEdit);
-            Spinner typeSpinner = view.findViewById(R.id.cfgTypeSpinner);
-            TextInputEditText urlEdit = view.findViewById(R.id.cfgUrlEdit);
-            CharSequence name = nameEdit.getText();
-            CharSequence url = urlEdit.getText();
-            String nameStr = name == null ? "" : name.toString().trim();
-            String urlStr = url == null ? "" : url.toString().trim();
-            if (nameStr.isEmpty()) nameStr = "接口" + (i + 1);
-            if (urlStr.isEmpty()) {
-                Notify.show(String.format(getString(R.string.setting_cfg_need_url), i + 1));
-                return false;
-            }
-            Parse parse = new Parse();
-            parse.setName(nameStr);
-            parse.setType(BuiltinParseSetting.parseType(typeSpinner.getSelectedItemPosition() + 1));
-            parse.setUrl(urlStr);
-            lines.add(parse);
-        }
-        if (lines.isEmpty()) {
-            Notify.show(R.string.setting_cfg_empty);
-            return false;
-        }
-        boolean ok = BuiltinParseSetting.saveLines(lines);
-        Notify.show(ok ? R.string.setting_cfg_saved : R.string.setting_cfg_saved_error);
-        return ok;
     }
 
     /** 解析缓存分级清理：内存 / 磁盘 / 全部 */

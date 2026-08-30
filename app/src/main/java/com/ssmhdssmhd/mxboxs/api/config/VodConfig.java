@@ -13,7 +13,6 @@ import com.ssmhdssmhd.mxboxs.bean.Site;
 import com.ssmhdssmhd.mxboxs.event.ConfigEvent;
 import com.ssmhdssmhd.mxboxs.event.RefreshEvent;
 import com.ssmhdssmhd.mxboxs.impl.Callback;
-import com.ssmhdssmhd.mxboxs.setting.BuiltinParseSetting;
 import com.ssmhdssmhd.mxboxs.utils.UrlUtil;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.bean.Header;
@@ -206,13 +205,7 @@ public class VodConfig extends BaseConfig {
         if (!parses.isEmpty()) parses.add(0, Parse.god());
         boolean hasBuiltin = parses.stream().anyMatch(p -> p.getType() != null && p.getType() == 5);
         if (!hasBuiltin) parses.add(0, Parse.builtin());
-        // 内置（视频解析）线路：来自「高级设置 → 接口配置」，可编辑/自定义，去重后并入
-        for (Parse line : BuiltinParseSetting.effectiveLines()) {
-            boolean dup = parses.stream().anyMatch(p ->
-                    (line.getName() != null && line.getName().equals(p.getName()))
-                            || (line.getUrl() != null && !line.getUrl().isEmpty() && line.getUrl().equals(p.getUrl())));
-            if (!dup) parses.add(line);
-        }
+
         this.parses = parses;
     }
 
