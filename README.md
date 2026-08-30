@@ -9,6 +9,26 @@
 
 ## 最新更新
 
+### v5.7.16 · 2026-08-30 · 删除高级设置里的「接口配置（内置视频解析线路）」整条链
+
+v5.7.15 只删了设置页独立的一行「解析服务器」（qcb 远程 HTTP 解析），但高级设置里还有整条「接口配置（内置视频解析线路）」入口。用户预期彻底删除所有解析服务器相关设置，本轮补删。
+
+**物理删除 2 个文件**：
+- `BuiltinParseSetting.java` — 内置解析线路配置持久化类
+- `item_builtin_line.xml` — 线路编辑卡片 item 布局
+
+**代码清理 5 个文件**：
+| 文件 | 删除内容 |
+|------|----------|
+| [VodConfig.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/api/config/VodConfig.java) | `BuiltinParseSetting.effectiveLines()` 注入 for 循环 + import |
+| [SettingAdvancedActivity.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/SettingAdvancedActivity.java) | 3 字段 + 3 findViewById + cfgTypes 初始化 + 3 click listener + `rebuildLines()` / `addLine()` / `saveLines()` 三方法 + Parse / BuiltinParseSetting 两个 import |
+| [activity_setting_advanced.xml](file:///workspace/app/src/main/res/layout/activity_setting_advanced.xml) | `@+id/netCfgCard` MaterialCardView 整块（接口配置卡片 UI，133 行） |
+| strings.xml | 14 条 `setting_cfg_*` 字符串 |
+
+保留：高级设置入口行 `@+id/advanced` + 播放优化/AI 开关/解析缓存等其他卡片不受影响。
+
+版本号：versionCode 637 → **638** / versionName 5.7.15 → **5.7.16**
+
 ### v5.7.15 · 2026-08-30 · 删除「解析服务器」设置 + P0 修复「成功获取 m3u8 但 0 KB/s 不能播放」
 
 **【删除解析服务器（qcb 远程 HTTP 解析）】**
