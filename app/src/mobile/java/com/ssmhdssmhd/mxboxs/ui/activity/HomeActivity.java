@@ -98,10 +98,6 @@ public class HomeActivity extends BaseActivity implements NavigationBarView.OnIt
                 Window w = getWindow();
                 // ★ 核心：60dp 毛模糊半径 — "液体"质感的来源
                 w.setBackgroundBlurRadius(60);
-                // Android 14+ 还能单独设置窗口后方内容的模糊半径
-                if (android.os.Build.VERSION.SDK_INT >= 34) {
-                    try { w.setBlurBehindRadius(60); } catch (Throwable ignored) {}
-                }
                 // decorView 硬件加速层 — blur 必需
                 View decor = w.getDecorView();
                 if (decor != null) {

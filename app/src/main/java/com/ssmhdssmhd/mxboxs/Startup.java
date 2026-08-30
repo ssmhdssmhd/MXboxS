@@ -1,8 +1,6 @@
 package com.ssmhdssmhd.mxboxs;
 
 import android.content.Context;
-import android.content.Intent;
-import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -26,7 +24,6 @@ import java.io.StringWriter;
 import java.util.Collections;
 import java.util.List;
 
-import cat.ereza.customactivityoncrash.CustomActivityOnCrash;
 import cat.ereza.customactivityoncrash.config.CaocConfig;
 
 /**
@@ -53,17 +50,13 @@ public class Startup implements Initializer<Void> {
         installGlobalCrashHandler(context);
 
         // ========== 1. 配置 CaocConfig（CustomActivityOnCrash）—— 崩溃时跳 CrashActivity ==========
+        // 注意：CaocConfig 2.4.0 没有 errorActivityIntent()，只用 errorActivity(Class)
         try {
-            Intent crashIntent = new Intent(context, CrashActivity.class)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                            | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                            | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             CaocConfig.Builder.create()
                     .backgroundMode(CaocConfig.BACKGROUND_MODE_SILENT)  // 后台崩静默，前台崩弹 CrashActivity
                     .showErrorDetails(true)                                // CrashActivity 可展示详细错误
                     .showRestartButton(true)
                     .trackActivities(true)
-                    .errorActivityIntent(crashIntent)
                     .errorActivity(CrashActivity.class)
                     .apply();
             Log.i(TAG, "CaocConfig 配置成功，errorActivity = CrashActivity");
