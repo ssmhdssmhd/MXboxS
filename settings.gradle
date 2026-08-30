@@ -1,15 +1,25 @@
 pluginManagement {
     repositories {
+        // ====== 阿里云国内镜像（优先） ======
+        maven { url = "https://maven.aliyun.com/repository/google" }
+        maven { url = "https://maven.aliyun.com/repository/central" }
+        maven { url = "https://maven.aliyun.com/repository/public" }
+        maven { url = "https://maven.aliyun.com/repository/gradle-plugin" }
+        // ====== 官方仓库（回退） ======
         google()
         mavenCentral()
-        maven { url = "https://dl.google.com/dl/android/maven2" }
-        maven { url = "https://maven.google.com" }
+        gradlePluginPortal()
     }
 }
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        // ====== 阿里云国内镜像（优先） ======
+        maven { url = "https://maven.aliyun.com/repository/public" }
+        maven { url = "https://maven.aliyun.com/repository/google" }
+        maven { url = "https://maven.aliyun.com/repository/jcenter" }
+        // ====== 官方仓库（回退） ======
         mavenCentral()
         google()
         flatDir { dirs "$rootDir/app/libs" }

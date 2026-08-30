@@ -32,9 +32,6 @@ jobs:
           distribution: 'temurin'
 
       # NOTE: GitHub-hosted ubuntu-latest already ships a full Android SDK.
-      # android-actions/setup-android is intentionally NOT used — running it
-      # breaks this workflow (the action fails early when we request
-      # build-tools with a non-existent version, causing 14s failures).
       - name: Verify pre-installed Android SDK
         run: |
           set -e
@@ -66,7 +63,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Verify Keystore (fixed)
+      - name: Verify Keystore
         run: |
           set -e
           ls -la app/release.keystore
@@ -76,8 +73,6 @@ jobs:
       - name: Create local.properties
         run: |
           set -e
-          # NOTE: we intentionally do NOT write sdk.dir here — AGP 8.x reads
-          # ANDROID_HOME / ANDROID_SDK_ROOT env vars set by the runner.
           cat > local.properties <<'EOF'
           storeFile=release.keystore
           keyAlias=mxboxs
@@ -91,69 +86,36 @@ jobs:
         run: |
           set +e
           ./gradlew --version --no-daemon 2>&1 | head -30
-          RC=$?
-          echo "--- gradlew --version exit: $RC ---"
           echo "=== Relevant ENV ==="
           env | grep -iE "android|java|gradle|sdk|home" || echo "(no env vars matched)"
           echo "=== Disk free ==="
           df -h .
-          # Exit 0 regardless; the build step will fail for real if Gradle is broken.
           true
 
-      - name: Build Mobile arm64-v8a (Phone) — FULL（原有完整包，完全兼容不变）
+      # ============ 仅保留 4 个 FULL 完整包（后续版本固定此方案，不再构建 SLIM 轻量包） ============
+
+      - name: Build Mobile arm64-v8a (Phone)
         run: |
           set -o pipefail
           ./gradlew assembleMobileFullArm64_v8aRelease --stacktrace --no-daemon 2>&1 | tee build-mobile-arm64.log
-          echo "=== APKs after this build ==="
           find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
-      - name: Build Mobile armeabi-v7a (Phone) — FULL（原有完整包，完全兼容不变）
+      - name: Build Mobile armeabi-v7a (Phone)
         run: |
           set -o pipefail
           ./gradlew assembleMobileFullArmeabi_v7aRelease --stacktrace --no-daemon 2>&1 | tee build-mobile-armeabi.log
-          echo "=== APKs after this build ==="
           find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
-      - name: Build Leanback arm64-v8a (Android TV) — FULL（原有完整包，完全兼容不变）
+      - name: Build Leanback arm64-v8a (Android TV)
         run: |
           set -o pipefail
           ./gradlew assembleLeanbackFullArm64_v8aRelease --stacktrace --no-daemon 2>&1 | tee build-leanback-arm64.log
-          echo "=== APKs after this build ==="
           find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
-      - name: Build Leanback armeabi-v7a (Android TV) — FULL（原有完整包，完全兼容不变）
+      - name: Build Leanback armeabi-v7a (Android TV)
         run: |
           set -o pipefail
           ./gradlew assembleLeanbackFullArmeabi_v7aRelease --stacktrace --no-daemon 2>&1 | tee build-leanback-armeabi.log
-          echo "=== APKs after this build ==="
-          find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
-
-      - name: Build Mobile arm64-v8a (Phone) — SLIM（新增轻量包，不含 ffmpeg 二进制，再瘦 ~30MB）
-        run: |
-          set -o pipefail
-          ./gradlew assembleMobileSlimArm64_v8aRelease --stacktrace --no-daemon 2>&1 | tee build-mobile-arm64-slim.log
-          echo "=== APKs after this build (slim) ==="
-          find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
-
-      - name: Build Mobile armeabi-v7a (Phone) — SLIM（新增轻量包，不含 ffmpeg 二进制，再瘦 ~30MB）
-        run: |
-          set -o pipefail
-          ./gradlew assembleMobileSlimArmeabi_v7aRelease --stacktrace --no-daemon 2>&1 | tee build-mobile-armeabi-slim.log
-          echo "=== APKs after this build (slim) ==="
-          find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
-
-      - name: Build Leanback arm64-v8a (Android TV) — SLIM（新增轻量包，不含 ffmpeg 二进制，再瘦 ~30MB）
-        run: |
-          set -o pipefail
-          ./gradlew assembleLeanbackSlimArm64_v8aRelease --stacktrace --no-daemon 2>&1 | tee build-leanback-arm64-slim.log
-          echo "=== APKs after this build (slim) ==="
-          find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
-
-      - name: Build Leanback armeabi-v7a (Android TV) — SLIM（新增轻量包，不含 ffmpeg 二进制，再瘦 ~30MB）
-        run: |
-          set -o pipefail
-          ./gradlew assembleLeanbackSlimArmeabi_v7aRelease --stacktrace --no-daemon 2>&1 | tee build-leanback-armeabi-slim.log
-          echo "=== APKs after this build (slim) ==="
           find app/build/outputs -name "*.apk" -ls 2>/dev/null || true
 
       - name: Upload Build Logs
@@ -177,37 +139,19 @@ jobs:
           echo "=== All files in outputs ==="
           ls -laR app/build/outputs/ 2>/dev/null || echo "No outputs directory"
 
-      - name: Collect APKs + standalone FFmpeg bins（为 slim 轻量包运行时按需下载准备直链附件）
+      - name: Collect APKs
         run: |
           set -e
           mkdir -p output
-          # 1) 所有 APK (full + slim)
-          APKS=$(find app/build/outputs/apk -type f -name "MXboxS-*.apk" 2>/dev/null || true)
-          if [ -z "$APKS" ]; then
-            echo "(MXboxS-*.apk not found, falling back to any *.apk)"
-            APKS=$(find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null || true)
-          fi
+          APKS=$(find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null || true)
           if [ -z "$APKS" ]; then
             echo "ERROR: no APKs at all — Gradle build probably failed."
             exit 1
           fi
           echo "Found APKs:"
           echo "$APKS"
-          ls -la $APKS
           cp -v $APKS output/
-          # 2) 独立 FFmpeg 二进制：放到 Release 作为附件，slim 轻量包首次使用时走
-          #    https://github.com/ssmhdssmhd/MXboxS/releases/download/MXboxS-latest/ffmpeg-{arm64-v8a,armeabi-v7a}-{ffmpeg,ffprobe}
-          #    这两条是从 full 大包对应的 flavor sourceset 直接拷贝（内容完全一样），这样 slim 包不用再
-          #    重新编译一遍就能拿到一致的二进制，功能 100% 等价。
-          if [ -d app/src/arm64_v8a/assets/ffmpeg ]; then
-            cp -v app/src/arm64_v8a/assets/ffmpeg/ffmpeg  output/ffmpeg-arm64-v8a-ffmpeg  || true
-            cp -v app/src/arm64_v8a/assets/ffmpeg/ffprobe output/ffmpeg-arm64-v8a-ffprobe || true
-          fi
-          if [ -d app/src/armeabi_v7a/assets/ffmpeg ]; then
-            cp -v app/src/armeabi_v7a/assets/ffmpeg/ffmpeg  output/ffmpeg-armeabi-v7a-ffmpeg  || true
-            cp -v app/src/armeabi_v7a/assets/ffmpeg/ffprobe output/ffmpeg-armeabi-v7a-ffprobe || true
-          fi
-          echo "=== Final output/ (APKs + standalone FFmpeg bins for slim on-demand) ==="
+          echo "=== Final output/ ==="
           ls -la output/
 
       - name: Upload APKs
@@ -220,86 +164,65 @@ jobs:
           compression-level: 6
 
       - name: Update Latest Pre-release (push main / upstream-sync)
-        # push 到 main/upstream-sync 分支后，自动更新 latest 预发布版，设为 latest=true
-        # 让 App /releases/latest API 自动拿到最新构建，不需要打 tag
-        # 每次都会：删除旧的 latest release 的 tag + release → 创建新的 MXboxS-latest tag → 创建发布版并设为 latest
-        # * v5.6.6 新增：output/ 里除了 APK 还包含 4 个 ffmpeg-{abi}-{bin} 独立二进制附件，
-        #   供 slim 轻量包运行时按需下载（下载直链就指到 MXboxS-latest release asset）。
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/upstream-sync')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          echo "=== 删除旧的 MXboxS-latest release（如果存在） ==="
+          echo "=== 删除旧的 MXboxS-latest release ==="
           if gh release view MXboxS-latest >/dev/null 2>&1; then
-            echo "发现旧 release MXboxS-latest，删除..."
             gh release delete MXboxS-latest --yes || true
           fi
-          # 删除旧的远程 tag（如果存在）
           git push origin :refs/tags/MXboxS-latest 2>/dev/null || true
-          # 本地创建新 tag，指向当前 commit
           git tag -f MXboxS-latest HEAD
           git push -f origin MXboxS-latest
-          echo "=== 构建版本信息 ==="
+
           VERSION_NAME=$(grep -oP 'versionName "\K[^"]+' app/build.gradle)
           VERSION_CODE=$(grep -oP 'versionCode \K[0-9]+' app/build.gradle)
           COMMIT_SHA=$(git rev-parse --short HEAD)
           echo "VERSION_NAME=${VERSION_NAME}  VERSION_CODE=${VERSION_CODE}  COMMIT=${COMMIT_SHA}"
-          echo "=== 创建 release（latest=true，确保 API /releases/latest 返回它） ==="
-          # v5.6.6 fix: output/* glob 可能意外匹配 output/ 下的子目录（GitHub Release asset 只允许文件），
-          #   先把 output/ 下所有子目录清掉，再用精确 glob 只匹配 *.apk + ffmpeg-* 二进制，确保只传文件
+
           find output/ -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
-          RELEASE_FILES=$(find output/ -maxdepth 1 -type f \( -name "*.apk" -o -name "ffmpeg-*" \) | sort | tr '\n' ' ')
+          RELEASE_FILES=$(find output/ -maxdepth 1 -type f -name "*.apk" | sort | tr '\n' ' ')
           echo "Release asset files: ${RELEASE_FILES}"
+
           NOTES=$(cat <<EOF
-          ## MXboxS 最新构建
+          ## MXboxS v${VERSION_NAME}
 
           - **版本号**：v${VERSION_NAME} (${VERSION_CODE})
           - **Commit**：${COMMIT_SHA} (${GITHUB_SHA})
           - **构建时间**：$(date -u '+%Y-%m-%d %H:%M:%S UTC')
           - **触发者**：${GITHUB_ACTOR}
-          - **运行 ID**：${GITHUB_RUN_ID}
 
-          > App 内的「自动更新」通过 GitHub \`/releases/latest\` API 拉取本 Release 的 tag_name 和 assets 判断版本。
-          > 每次 push 到 main 分支会自动重建并覆盖本版本。
+          > App 内「自动更新」通过 GitHub \`/releases/latest\` API 拉取本 Release，push main 自动重建覆盖。
 
-          ### 更新内容 (最近 commit)
+          ### 更新内容
 
-          $(git log -1 --pretty=format:'%s' | head -5)
+          $(git log -1 --pretty=format:'%s')
 
-          ### 下载列表（⭐ 原有完整版 = FULL，完全不变；新增轻量版 = SLIM，体积比完整版再小 ~30MB）
+          ### 下载列表
 
-          | 变体 | 类型 | 架构 | 文件名 | 说明 |
-          |------|------|------|--------|------|
-          | 手机版 (mobile) | **完整版 FULL（推荐安装，完全不变）** | arm64-v8a | MXboxS-mobile-arm64_v8a-${VERSION_NAME}.apk | 老用户继续用这个，功能/体积/体验完全一样 |
-          | 手机版 (mobile) | 完整版 FULL | armeabi-v7a | MXboxS-mobile-armeabi_v7a-${VERSION_NAME}.apk | 同上 |
-          | 电视版 (leanback) | 完整版 FULL | arm64-v8a | MXboxS-leanback-arm64_v8a-${VERSION_NAME}.apk | 同上 |
-          | 电视版 (leanback) | 完整版 FULL | armeabi-v7a | MXboxS-leanback-armeabi_v7a-${VERSION_NAME}.apk | 同上 |
-          | 手机版 (mobile) | 🆕 轻量版 SLIM | arm64-v8a | MXboxS-mobile-arm64_v8a-${VERSION_NAME}-slim.apk | 首次用 FFmpeg 功能会在线下载 ~30MB 二进制（支持断点/镜像） |
-          | 手机版 (mobile) | 🆕 轻量版 SLIM | armeabi-v7a | MXboxS-mobile-armeabi_v7a-${VERSION_NAME}-slim.apk | 同上 |
-          | 电视版 (leanback) | 🆕 轻量版 SLIM | arm64-v8a | MXboxS-leanback-arm64_v8a-${VERSION_NAME}-slim.apk | 同上 |
-          | 电视版 (leanback) | 🆕 轻量版 SLIM | armeabi-v7a | MXboxS-leanback-armeabi_v7a-${VERSION_NAME}-slim.apk | 同上 |
-
-          ### 轻量版运行时需要的 FFmpeg 二进制（slim 包运行时自动下载，一般用户无需手动）
-
-          - ffmpeg-arm64-v8a-ffmpeg / ffmpeg-arm64-v8a-ffprobe
-          - ffmpeg-armeabi-v7a-ffmpeg / ffmpeg-armeabi-v7a-ffprobe
+          | 类型 | 架构 | 文件名 |
+          |------|------|--------|
+          | 手机版 (mobile) | arm64-v8a | MXboxS-mobile-arm64_v8a-${VERSION_NAME}.apk |
+          | 手机版 (mobile) | armeabi-v7a | MXboxS-mobile-armeabi_v7a-${VERSION_NAME}.apk |
+          | 电视版 (leanback) | arm64-v8a | MXboxS-leanback-arm64_v8a-${VERSION_NAME}.apk |
+          | 电视版 (leanback) | armeabi-v7a | MXboxS-leanback-armeabi_v7a-${VERSION_NAME}.apk |
           EOF
           )
+
           gh release create MXboxS-latest \
             --latest \
             --title "MXboxS v${VERSION_NAME} (build ${COMMIT_SHA})" \
             --notes "${NOTES}" \
             ${RELEASE_FILES}
-          echo "✅ Release MXboxS-latest (v${VERSION_NAME}-${COMMIT_SHA}) 已创建并设为 latest（含 4×APK FULL + 4×APK SLIM + 4×FFmpeg binary）"
+          echo "✅ Release MXboxS-latest (v${VERSION_NAME}-${COMMIT_SHA}) 已创建（4×APK FULL）"
 
       - name: Create Tag Release
-        # 打 v* tag 触发正式 Release：保留这一能力，用于稳定版发布
+        # 打 v* tag 触发正式 Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            output/*.apk
-            output/ffmpeg-*
+          files: output/*.apk
           generate_release_notes: true
           make_latest: false

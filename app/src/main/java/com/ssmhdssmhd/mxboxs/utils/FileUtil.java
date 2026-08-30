@@ -51,46 +51,87 @@ public class FileUtil {
         App.get().startActivity(intent);
     }
 
+    /**
+     * 安装 APK —— 自动清理旧缓存 + 未知来源权限引导 + 多 Intent fallback。
+     * <p>
+     * 流程：
+     * 1) 安装前先清 cache 目录下所有旧 update*.apk（自动清理缓存，不占用户空间）；
+     * 2) Android 8.0+ 检查 canRequestPackageInstalls()，无权限则跳设置页让用户手动开，
+     *    用户返回后 UpdateDialog / UpdateService 仍会调本方法（APK 已下载好不用重下）；
+     * 3) 优先 ACTION_INSTALL_PACKAGE，fallback 到 ACTION_VIEW + "application/vnd.android.package-archive"。
+     */
     public static void installApk(File apk) {
         if (apk == null || !apk.exists() || apk.length() == 0) {
             Notify.show(String.format(ResUtil.getString(R.string.update_install_failed), "APK 文件无效"));
             return;
         }
+        // ① 自动清理历史旧缓存（保留当前这个 apk 不动，清理同目录下其它 update*.apk）
         try {
-            // Android 8.0+ 需要检查是否允许安装未知来源应用
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (!isCanInstallApk()) {
-                    Notify.show(String.format(ResUtil.getString(R.string.update_install_failed), "请先允许安装未知来源应用"));
-                    Intent settingsIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
-                    settingsIntent.setData(Uri.parse("package:" + App.get().getPackageName()));
-                    settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    App.get().startActivity(settingsIntent);
-                    return;
+            File dir = apk.getParentFile();
+            if (dir != null && dir.isDirectory()) {
+                for (File f : dir.listFiles()) {
+                    if (f != null && f.getName() != null
+                            && f.getName().startsWith("update")
+                            && f.getName().endsWith(".apk")
+                            && !f.equals(apk)) {
+                        f.delete();
+                    }
                 }
             }
-            
-            Uri apkUri = getShareUri(apk);
-            Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Throwable ignored) {}
+
+        // ② 未知来源权限引导
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!isCanInstallApk()) {
+                Notify.show("请在打开的设置页勾选「允许安装未知应用」，返回后自动继续安装");
+                Intent settingsIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                settingsIntent.setData(Uri.parse("package:" + App.get().getPackageName()));
+                settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                App.get().startActivity(settingsIntent);
+                return;
+            }
+        }
+
+        // ③ 构建 Intent：ACTION_INSTALL_PACKAGE 优先，ACTION_VIEW 兜底
+        Uri apkUri;
+        try {
+            apkUri = getShareUri(apk);
+        } catch (Throwable t) {
+            Notify.show("FileProvider 生成 URI 失败：" + t.getMessage());
+            return;
+        }
+
+        Intent intent;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+        } else {
+            intent = new Intent(Intent.ACTION_VIEW);
+        }
+        intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        // 防被系统过滤掉 —— 显式指定包名
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            intent.putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, App.get().getPackageName());
+        }
+
+        try {
             App.get().startActivity(intent);
+        } catch (android.content.ActivityNotFoundException anfe) {
+            // 某些国产 ROM 没装 PackageInstaller，最后 fallback：pm install
+            Notify.show("系统没找到安装器，请用文件管理器手动打开 update.apk");
         } catch (Throwable t) {
             Notify.show(String.format(ResUtil.getString(R.string.update_install_failed), t.getMessage()));
         }
     }
 
-    /**
-     * 检查是否允许安装未知来源应用
-     */
-    private static boolean isCanInstallApk() {
+    /** Android 8.0+ 是否允许本应用安装未知来源 APK */
+    public static boolean isCanInstallApk() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 return App.get().getPackageManager().canRequestPackageInstalls();
             }
-        } catch (Exception e) {
-            // ignore
-        }
+        } catch (Exception ignored) {}
         return true;
     }
 
