@@ -145,9 +145,6 @@ public class Setting {
     public static void putZhuyin(boolean zhuyin) {
         Prefers.put("zhuyin", zhuyin);
     }
-
-    public static final String PARSE_SERVER_DEFAULT = "http://114.134.184.91:9002";
-
     // ===== 镜像模式枚举（与 Github.MIRROR_OPTIONS 的顺序严格一一对应，v5.5.61 起统一以 Github.MIRROR_OPTIONS 为准）=====
     // 0: GitHub 直连（默认）
     // 1: ghproxy.com（国内）
@@ -200,19 +197,6 @@ public class Setting {
     public static void putMirrorMode(int mode) {
         Prefers.put("mirror_mode", mode);
     }
-
-    public static String getParseServerPrefix() {
-        String v = Prefers.getString("parse_server_prefix");
-        if (v == null) return PARSE_SERVER_DEFAULT;
-        String t = v.trim();
-        if (t.isEmpty()) return "";
-        return t;
-    }
-
-    public static void putParseServerPrefix(String prefix) {
-        Prefers.put("parse_server_prefix", prefix == null ? "" : prefix.trim());
-    }
-
     // ---------------- 会员卡密激活 ----------------
 
     /** 是否已通过卡密激活（本地标记） */

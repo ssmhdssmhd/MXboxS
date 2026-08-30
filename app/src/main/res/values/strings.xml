@@ -146,11 +146,7 @@
     <string name="setting_auto">Auto</string>
     <string name="setting_custom">Custom</string>
     <string name="setting_size">Image size</string>
-    <string name="setting_doh">DoH</string>
-    <string name="setting_parse_server">Parse Server</string>
-    <string name="setting_parse_server_hint">Enter qcb deployment URL prefix, e.g. http://114.134.184.91:9002\n(leave empty to use local parse chain)</string>
-    <string name="setting_parse_server_default">Reset to default server http://114.134.184.91:9002</string>
-    <string name="setting_proxy">Proxy</string>
+    <string name="setting_doh">DoH</string>    <string name="setting_proxy">Proxy</string>
     <string name="setting_cache">Cache</string>
     <string name="setting_backup">Backup</string>
     <string name="setting_restore">Restore</string>

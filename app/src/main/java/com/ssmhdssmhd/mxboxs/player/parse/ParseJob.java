@@ -547,7 +547,6 @@ public class ParseJob implements ParseCallback {
      */
     private void builtinParse(String webUrl) {
         if (done.get()) return;
-        if (hasQcbParseServer() && qcbJiexiParse(webUrl)) return;
         if (aiSmartParseFallback(webUrl)) return;
         // v5.6.4 修复：不再在这里 App.post 独立起一路 CustomWebView（避免 3 个 bug）：
         //   ① 抢跑的 cv 没加入 webViews → stop() 不会 destroy → WebView 泄漏；
@@ -684,12 +683,8 @@ public class ParseJob implements ParseCallback {
         while (n-- > 0) try { latch.countDown(); } catch (Throwable ignored) {}
     }
 
-    // ========== qcb 原创仓库 jiexi.php + xt/api.php 远程 HTTP 解析 ==========
 
-    private static boolean hasQcbParseServer() {
-        String p = Setting.getParseServerPrefix();
-        return p != null && !p.isEmpty();
-    }
+    private static boolean hasQcbParseServer() { return false; }
 
     private static String normalizeQcbPrefix(String p) {
         if (p == null) return "";
@@ -710,7 +705,7 @@ public class ParseJob implements ParseCallback {
     private boolean qcbHttpCall(String path, String fromTag, String webUrl) {
         if (done.get()) return true;
         try {
-            String prefix = normalizeQcbPrefix(Setting.getParseServerPrefix());
+            String prefix = ""; // 解析服务器功能已移除，永远跳过 qcb 远程调用
             if (prefix.isEmpty()) return false;
             String fullUrl = prefix + path + "?type=json&url=" + android.net.Uri.encode(webUrl, "-_.~");
             Map<String, String> baseHeaders = parse != null ? parse.getHeader() : new HashMap<>();

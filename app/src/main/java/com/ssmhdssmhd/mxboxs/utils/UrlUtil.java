@@ -222,13 +222,24 @@ public class UrlUtil {
     public static java.util.Map<String, String> mergeDefaultHeadersForPlayback(java.util.Map<String, String> userHeaders, String playbackUrl) {
         java.util.HashMap<String, String> out = new java.util.HashMap<>();
         if (userHeaders != null) {
-            for (java.util.Map.Entry<String, String> e : userHeaders.entrySet())
-                if (e != null && e.getKey() != null) out.put(fixHeader(e.getKey()), e.getValue() == null ? "" : e.getValue());
+            for (java.util.Map.Entry<String, String> e : userHeaders.entrySet()) {
+                if (e == null || e.getKey() == null) continue;
+                String k = fixHeader(e.getKey());
+                String v = e.getValue() == null ? "" : e.getValue();
+                // 播放链路清洗：解析站硬塞的 Referer 常见问题 —— 带 "$$$"/未编码的中文字符/非 URL 字符
+                // 这些会导致 CDN 鉴权失败（Referer 被 CDN WAF 判定异常）或同域请求被拒。
+                // 检测到就丢弃，从 playbackUrl 重新推导合规 Referer。
+                if (HttpHeaders.REFERER.equalsIgnoreCase(k) && !isValidReferer(v)) {
+                    // 跳过这个脏 Referer
+                    continue;
+                }
+                out.put(k, v);
+            }
         }
         if (!out.containsKey(HttpHeaders.USER_AGENT) || TextUtils.isEmpty(out.get(HttpHeaders.USER_AGENT))) {
             out.put(HttpHeaders.USER_AGENT, DEFAULT_UA);
         }
-        // 播放链路：用户传进来的 Referer 已经有了就保留（有些解析站会精确指定 Referer，不要覆盖）
+        // 播放链路：清洗后如果还有合法的用户 Referer 就保留；否则从 playbackUrl 推导合规 Referer
         if (!out.containsKey(HttpHeaders.REFERER) || TextUtils.isEmpty(out.get(HttpHeaders.REFERER))) {
             String ref = inferRefererForPlayback(playbackUrl, REFERRER_DIRECTORY);
             if (!TextUtils.isEmpty(ref)) out.put(HttpHeaders.REFERER, ref);
@@ -238,6 +249,37 @@ public class UrlUtil {
             out.put(HttpHeaders.ACCEPT, "*/*");
         }
         return out;
+    }
+
+    /**
+     * 判断一个 Referer 字符串是否是「合规可直接用」的：
+     *   - 必须是 http/https 开头
+     *   - 不能包含未编码的 "$$$" "$" 片段（解析站硬塞的脏数据标记）
+     *   - 不能包含未编码的非 ASCII 字符（中文等）
+     *   - 不能包含空格、tab、换行等控制字符
+     *
+     * 不合规的 Referer 在播放链路中应被丢弃，由 inferRefererForPlayback 从播放 URL 重新推导。
+     */
+    public static boolean isValidReferer(String referer) {
+        if (TextUtils.isEmpty(referer)) return false;
+        try {
+            android.net.Uri u = android.net.Uri.parse(referer.trim());
+            if (u == null || u.getScheme() == null) return false;
+            String scheme = u.getScheme().toLowerCase();
+            if (!scheme.equals("http") && !scheme.equals("https")) return false;
+            String host = u.getHost();
+            if (host == null || host.isEmpty()) return false;
+            // 控制字符（space 以下 / DEL）
+            for (int i = 0; i < referer.length(); i++) {
+                char c = referer.charAt(i);
+                if (c < 0x20 || c == 0x7F) return false;
+            }
+            // $$$ 是解析站硬塞脏 Referer 的标志性特征
+            if (referer.contains("$$$")) return false;
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     /** 给跨域段请求推导的 ORIGIN 版 Referer (只含 scheme://host:port/) 简版对外 */
