@@ -9,6 +9,24 @@
 
 ## 最新更新
 
+### v5.7.19 · 2026-09-11 · JSON 解析接口(?url=)视频地址未编码 → `&` 参数被截断 → 解析失败
+
+**根因**：[ParseJob.jsonParse](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L249-L256) 用 `item.getUrl() + webUrl` 把视频地址**原样拼接**到解析接口（如 `http://114.134.184.91:8080/api/jx?url=`）后面，没有做 URL 编码。
+
+当视频地址自带查询参数（`https://xxx/play.m3u8?token=abc&sign=def`）或含 `#`/中文/空格时：
+- OkHttp 把 `&` 之后的内容当成解析接口自己的查询参数 → 服务端只收到 `url=https://xxx/play.m3u8?token=abc`，`&sign=def` 丢失
+- 服务端要么返回缺参的播放地址（清晰度/令牌错误、播错流），要么抓取失败返回 `code:0` → App 显示解析失败
+
+**实测验证**（服务端 114.134.184.91:8080）：
+```
+不编码: ?url=https://.../x36xhzz.m3u8?token=abc&low=720   → 服务端只收到 token=abc，丢 low=720 ✗
+编码:   ?url=https%3A%2F%2F...m3u8%3Ftoken%3Dabc%26low%3D720 → 服务端收到完整 URL ✓
+```
+
+**修复**（[ParseJob.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L251-L256)）：拼接前用 `android.net.Uri.encode(webUrl, "-_.~")` 编码视频地址（与本文件 `qcbHttpCall` 已有做法一致）。服务端按标准 URL 解码一次即可还原完整地址，对不带特殊字符的普通地址也无副作用。
+
+版本号：versionCode 640 → **641** / versionName 5.7.18 → **5.7.19**
+
 ### v5.7.18 · 2026-08-30 · catvod/jsonParse 返回 HTML 播放页 URL → 嗅探没触发 → 0 KB/s
 
 **根因**：xgplay20.com / jimxtc.com 这类新格式解析站返回的 JSON `url` 字段是**解析站自有的 HTML 播放页 URL**（`/play/xxx`），真正的 m3u8 直链藏在 HTML 里：

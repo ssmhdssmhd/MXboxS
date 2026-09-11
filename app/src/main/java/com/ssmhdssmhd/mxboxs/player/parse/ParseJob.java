@@ -248,7 +248,12 @@ public class ParseJob implements ParseCallback {
 
     private void jsonParse(Parse item, String webUrl, boolean fatal) throws Exception {
         Map<String, String> headers = UrlUtil.mergeDefaultHeaders(item.getHeader(), item.getUrl());
-        try (Response res = OkHttp.newCall(item.getUrl() + webUrl, headers).execute()) {
+        // v5.7.19 修复：JSON 解析接口(?url=)必须对视频地址做 URL 编码后再拼接。
+        // 旧代码 item.getUrl() + webUrl 原样拼接，视频地址里带 & / # / 中文 / 空格时，
+        // OkHttp 会把 & 之后的内容当成解析接口自己的查询参数 → 服务端收到被截断的地址 →
+        // 解析失败或返回缺参的播放地址。与下方 qcbHttpCall 的 Uri.encode(webUrl, "-_.~") 保持一致。
+        String target = TextUtils.isEmpty(webUrl) ? "" : android.net.Uri.encode(webUrl, "-_.~");
+        try (Response res = OkHttp.newCall(item.getUrl() + target, headers).execute()) {
             if (!res.isSuccessful() || res.body() == null) {
                 if (fatal) onParseError();
                 return;

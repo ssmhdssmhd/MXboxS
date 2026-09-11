@@ -2,6 +2,28 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.19] - 2026-09-11 · JSON 解析接口(?url=)视频地址未编码 → `&` 参数被截断 → 解析失败
+
+### 根因
+
+[ParseJob.jsonParse](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L249-L256) 用 `item.getUrl() + webUrl` 把视频地址**原样拼接**到 JSON 解析接口（如 `http://114.134.184.91:8080/api/jx?url=`）后面，未做 URL 编码。当视频地址自带查询参数（`?token=abc&sign=def`）或含 `#`/中文/空格时，OkHttp 会把 `&` 之后的内容当成解析接口自己的查询参数，服务端收到被截断的地址 → 返回缺参的播放地址或抓取失败（`code:0`）→ App 解析失败。
+
+### 实测验证（服务端 114.134.184.91:8080）
+
+- 不编码：`?url=https://.../x36xhzz.m3u8?token=abc&low=720` → 服务端只收到 `token=abc`，`low=720` 丢失 ✗
+- 编码：`?url=https%3A%2F%2F...m3u8%3Ftoken%3Dabc%26low%3D720` → 服务端收到完整 URL ✓
+
+### 修复
+
+拼接前用 `android.net.Uri.encode(webUrl, "-_.~")` 编码视频地址，与本文件 `qcbHttpCall` 已有做法保持一致。服务端按标准 URL 解码一次即可还原完整地址，对不带特殊字符的普通地址无副作用。
+
+### 版本号
+
+- versionCode 640 → **641**
+- versionName 5.7.18 → **5.7.19**
+
+---
+
 ## [v5.7.3] - 2026-08-21 · 版本号升级（5.7.1 → 5.7.3），内容与 v5.7.1 一致
 
 ### 说明
