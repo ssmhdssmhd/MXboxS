@@ -253,7 +253,9 @@ public class ParseJob implements ParseCallback {
         // OkHttp 会把 & 之后的内容当成解析接口自己的查询参数 → 服务端收到被截断的地址 →
         // 解析失败或返回缺参的播放地址。与下方 qcbHttpCall 的 Uri.encode(webUrl, "-_.~") 保持一致。
         String target = TextUtils.isEmpty(webUrl) ? "" : android.net.Uri.encode(webUrl, "-_.~");
-        try (Response res = OkHttp.newCall(item.getUrl() + target, headers).execute()) {
+        // v5.7.20 修复：慢解析接口（如 114.134.184.91:8080/api/jx/server?url=）解析官方站点实测要 19~31s，
+        // 默认 OkHttp 客户端读超时 30s 会掐断这类慢响应 → 改用与总超时对齐的 45s 客户端，慢源能完整返回。
+        try (Response res = OkHttp.client(Constant.TIMEOUT_PARSE_DEF).newCall(new Request.Builder().url(item.getUrl() + target).headers(Headers.of(headers)).build()).execute()) {
             if (!res.isSuccessful() || res.body() == null) {
                 if (fatal) onParseError();
                 return;

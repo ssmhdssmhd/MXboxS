@@ -2,6 +2,34 @@
 
 格式：`[版本号] - YYYY-MM-DD`
 
+## [v5.7.20] - 2026-09-12 · 解析超时 15s 太短 → 慢解析接口（官方站点官替）被提前 cancel → 无法播放
+
+### 根因
+
+[ParseJob.execute](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L200-L209) 用 `Constant.TIMEOUT_PARSE_DEF`（15s）作为 JSON 解析总超时，到点就 `task.cancel(true)` → OkHttp 抛 IOException → `onParseError()`。而 `http://114.134.184.91:8080/api/jx/server?url=` 这类服务端解析接口解析官方站点（优酷/爱奇艺/腾讯等）实测耗时 19~31s（大头在服务端抓取+官替解析），15s 必然触发提前 cancel → 表现为"解析失败/连接超时"无法播放。只有直链 m3u8（0.3s）能播成功。
+
+### 实测验证（服务端 114.134.184.91:8080）
+
+| 请求 | 耗时 | 结果 |
+|------|------|------|
+| 直链 m3u8（test-streams.mux.dev） | 0.3s | ✓ 能播 |
+| 优酷视频页 | ~19s | ✗ 旧版 15s 超时失败 |
+| 爱奇艺视频页 | 19~31s | ✗ 旧版 15s 超时失败 |
+
+服务端返回的 JSON 本身合法（顶层 `url` 指向其 `/api/play` 代理，且 master/variant/AES-key/TS 分片全部重写为绝对地址，ExoPlayer 可正常拉流），问题只出在 App 端超时太短。
+
+### 修复
+
+1. [Constant.java](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/Constant.java#L21-L27)：`TIMEOUT_PARSE_DEF` 15s → **45s**（与 WebView 解析 `TIMEOUT_PARSE_WEB` 对齐）。
+2. [ParseJob.jsonParse](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L249-L258)：单次 JSON 解析 HTTP 调用改用 45s 客户端（默认 OkHttp 读超时 30s 会掐断 31s 的慢响应），保证慢源在总超时之前能完整返回。
+
+### 版本号
+
+- versionCode 641 → **642**
+- versionName 5.7.19 → **5.7.20**
+
+---
+
 ## [v5.7.19] - 2026-09-11 · JSON 解析接口(?url=)视频地址未编码 → `&` 参数被截断 → 解析失败
 
 ### 根因
