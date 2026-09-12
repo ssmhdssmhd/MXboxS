@@ -9,6 +9,16 @@
 
 ## 最新更新
 
+### v5.7.21 · 2026-09-12 · JSON 解析优先取「特殊字段」（默认 ad_skip_url 无广告播放链接），高级设置可自定义
+
+**背景**：`http://114.134.184.91:8080/api/jx/server?url=` 这类服务端解析接口返回的 JSON 里，除顶层 `url` 外还会在 `detail` 里给出更优的播放字段 —— **`ad_skip_url`（无广告播放链接）**。部分情况下顶层 `url` 可能指向带广告/套娃的播放地址，直接取它会得到**错误播放**。
+
+**修复**（[ParseJob.jsonParse](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L269-L290)）：
+1. 新增「JSON 解析特殊字段」提取：[extractParseFieldUrl](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L294-L317) 按 **顶层 → detail → data** 顺序取配置字段（默认 `ad_skip_url`），仅接受合法 http(s) 地址；取不到再回退 `url` / `data.url`，不影响其它解析站。
+2. 高级设置新增入口：设置页 → 高级设置（解锁后）→ 播放优化 →「JSON 解析特殊字段」，点击弹出输入框，**字段名可自己改**（存于 [PlayerSetting.getParseFieldName](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/setting/PlayerSetting.java#L397-L407)），留空自动回退默认 `ad_skip_url`。
+
+版本号：versionCode 642 → **643** / versionName 5.7.20 → **5.7.21**
+
 ### v5.7.20 · 2026-09-12 · 解析超时 15s 太短 → 慢解析接口（官方站点官替）被提前 cancel → 无法播放
 
 **根因**：[ParseJob.execute](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/player/parse/ParseJob.java#L200-L209) 用 `Constant.TIMEOUT_PARSE_DEF`（15s）作为 JSON 解析总超时，到点就 `task.cancel(true)` → OkHttp 抛 IOException → `onParseError()` → 显示"解析失败/连接超时"。

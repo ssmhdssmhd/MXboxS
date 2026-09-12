@@ -388,6 +388,24 @@ public class PlayerSetting {
         Prefers.put("play_webview_sniff_on", on);
     }
 
+    // ===== JSON 解析特殊字段（v5.7.21）=====
+    // 部分服务端解析接口（如 http://114.134.184.91:8080/api/jx/server?url=）返回 JSON 里除了顶层 url 外，
+    // 还会在 detail 里给出更优的播放字段，例如 ad_skip_url（无广告播放链接）。
+    // 高级设置可自定义该字段名；解析时按「顶层 → detail → data」顺序优先取它，取不到再回退 url / data.url。
+    private static final String DEFAULT_PARSE_FIELD = "ad_skip_url";
+
+    public static String getParseFieldName() {
+        String v = Prefers.getString("parse_field_name", DEFAULT_PARSE_FIELD);
+        if (v == null || v.trim().isEmpty()) return DEFAULT_PARSE_FIELD;
+        return v.trim();
+    }
+
+    public static void putParseFieldName(String field) {
+        String v = field == null ? "" : field.trim();
+        if (v.isEmpty()) v = DEFAULT_PARSE_FIELD;
+        Prefers.put("parse_field_name", v);
+    }
+
     // ===== AI 播放优化（统一总开关）=====
     // 开关打开后，PlaybackAdvisor 会：
     //   1) 从 ExoPlayer 的 BandwidthMeter 读取估算带宽；

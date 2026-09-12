@@ -10,6 +10,7 @@ import com.ssmhdssmhd.mxboxs.bean.Parse;
 import com.ssmhdssmhd.mxboxs.bean.Result;
 import com.ssmhdssmhd.mxboxs.impl.ParseCallback;
 import com.ssmhdssmhd.mxboxs.server.Server;
+import com.ssmhdssmhd.mxboxs.setting.PlayerSetting;
 import com.ssmhdssmhd.mxboxs.setting.Setting;
 import com.ssmhdssmhd.mxboxs.ui.custom.CustomWebView;
 import com.ssmhdssmhd.mxboxs.utils.Task;
@@ -272,13 +273,53 @@ public class ParseJob implements ParseCallback {
                 if (fatal) onParseError();
                 return;
             }
-            String url = Json.safeString(object, "url");
-            try {
-                JsonObject data = object.getAsJsonObject("data");
-                if (url.isEmpty()) url = Json.safeString(data, "url");
-            } catch (Throwable ignored) {}
+            // v5.7.21 修复：优先取「JSON 解析特殊字段」（高级设置可配，默认 ad_skip_url 无广告播放链接）。
+            // 该字段按「顶层 → detail → data」顺序查找，仅接受合法 http(s) 地址；
+            // 避免服务端顶层 url 是带广告/套娃的播放地址时取到错误播放。取不到再回退 url / data.url。
+            String field = PlayerSetting.getParseFieldName();
+            String url = extractParseFieldUrl(object, field);
+            if (url.isEmpty()) {
+                url = Json.safeString(object, "url");
+                if (url.isEmpty()) {
+                    try {
+                        JsonObject data = object.getAsJsonObject("data");
+                        if (url.isEmpty()) url = Json.safeString(data, "url");
+                    } catch (Throwable ignored) {}
+                }
+            }
             checkResult(getHeader(object), url, item.getName(), fatal);
         }
+    }
+
+    /**
+     * 从解析返回的 JSON 里按「顶层 → detail → data」顺序取「JSON 解析特殊字段」的播放地址。
+     * 仅接受合法 http(s) 地址；字段不存在 / 值不是 URL 时返回空串（调用方继续回退 url / data.url）。
+     */
+    private static String extractParseFieldUrl(JsonObject object, String field) {
+        if (object == null || TextUtils.isEmpty(field)) return "";
+        String v = Json.safeString(object, field);
+        if (isHttpUrl(v)) return v.trim();
+        try {
+            JsonObject detail = object.getAsJsonObject("detail");
+            if (detail != null) {
+                v = Json.safeString(detail, field);
+                if (isHttpUrl(v)) return v.trim();
+            }
+        } catch (Throwable ignored) {}
+        try {
+            JsonObject data = object.getAsJsonObject("data");
+            if (data != null) {
+                v = Json.safeString(data, field);
+                if (isHttpUrl(v)) return v.trim();
+            }
+        } catch (Throwable ignored) {}
+        return "";
+    }
+
+    private static boolean isHttpUrl(String s) {
+        if (TextUtils.isEmpty(s)) return false;
+        String t = s.trim();
+        return t.startsWith("http://") || t.startsWith("https://");
     }
 
     private void jsonExtend(String webUrl) throws Throwable {

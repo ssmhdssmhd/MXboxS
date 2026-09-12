@@ -52,6 +52,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
     private MaterialTextView bufferModeText;
     private MaterialTextView qualityPrefText;
     private SwitchMaterial webviewSniffSwitch;
+    private MaterialTextView parseFieldText;
 
     private SwitchMaterial aiAutoSwitch;
     private MaterialTextView parseCacheText;
@@ -91,6 +92,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         bufferModeText = findViewById(R.id.bufferModeText);
         qualityPrefText = findViewById(R.id.qualityPrefText);
         webviewSniffSwitch = findViewById(R.id.webviewSniffSwitch);
+        parseFieldText = findViewById(R.id.parseFieldText);
         aiAutoSwitch = findViewById(R.id.aiAutoSwitch);
         parseCacheText = findViewById(R.id.parseCacheText);
 
@@ -139,6 +141,7 @@ public class SettingAdvancedActivity extends AppCompatActivity {
         int qp = PlayerSetting.getQualityPref();
         qualityPrefText.setText(qualityPrefs[Math.min(qp, qualityPrefs.length - 1)]);
         webviewSniffSwitch.setChecked(PlayerSetting.isWebviewSniffDefaultOn());
+        parseFieldText.setText(PlayerSetting.getParseFieldName());
         aiAutoSwitch.setChecked(PlayerSetting.isAiPlayOptEnabled());
         parseCacheText.setText(getString(R.string.setting_ai_parse_cache_sub)
                 + "（内存 " + ParseJob.cacheSize() + " 条 · 磁盘 " + ParseDiskCache.size() + " 条）");
@@ -192,6 +195,28 @@ public class SettingAdvancedActivity extends AppCompatActivity {
             Notify.show(R.string.setting_playopt_apply_hint);
         };
         findViewById(R.id.webviewSniffRow).setOnClickListener(webviewSniffToggle);
+
+        // JSON 解析特殊字段：弹出输入框自定义（默认 ad_skip_url）
+        findViewById(R.id.parseFieldRow).setOnClickListener(v -> {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle(R.string.setting_parse_field);
+            TextInputEditText input = new TextInputEditText(this);
+            input.setHint(R.string.setting_parse_field_hint);
+            input.setText(PlayerSetting.getParseFieldName());
+            input.setSingleLine(true);
+            input.setSelectAllOnFocus(true);
+            int pad = (int) (16 * getResources().getDisplayMetrics().density);
+            input.setPadding(pad, pad, pad, pad);
+            builder.setView(input);
+            builder.setPositiveButton(android.R.string.ok, (d, w) -> {
+                CharSequence t = input.getText();
+                PlayerSetting.putParseFieldName(t == null ? "" : t.toString());
+                parseFieldText.setText(PlayerSetting.getParseFieldName());
+                Notify.show(R.string.setting_parse_field_saved);
+            });
+            builder.setNegativeButton(android.R.string.cancel, null);
+            builder.show();
+        });
 
         // AI 自动调节
         View.OnClickListener aiToggle = v -> {
