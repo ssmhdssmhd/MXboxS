@@ -115,6 +115,7 @@ import org.greenrobot.eventbus.ThreadMode;
 
 import java.io.File;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class VideoActivity extends PlaybackActivity implements Clock.Callback, CustomKeyDown.Listener, TrackDialog.Listener, ControlDialog.Listener, ParseDialog.Listener, VodPlaybackHost, FlagAdapter.OnClickListener, EpisodeAdapter.OnClickListener, QualityAdapter.OnClickListener, QuickAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener {
@@ -1692,6 +1693,10 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private long lastFrameRequestTime;
     private Bitmap lastFrameBitmap;
+    // v5.7.22：取帧改为串行 + 合并：正在取帧时新位置只记 pending，取完补最新一帧，
+    // 避免拖动时并发起多个 FFmpeg/MMR 进程（HLS 取帧走 FFmpeg，较慢，乱开线程会卡爆）。
+    private volatile boolean frameLoading;
+    private long frameLoadPending = -1;
 
     private void loadFramePreview(long positionMs, long durationMs) {
         if (player() == null) return;
@@ -1700,15 +1705,31 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         long now = System.currentTimeMillis();
         if (now - lastFrameRequestTime < 100) return;
         lastFrameRequestTime = now;
+        if (frameLoading) {
+            frameLoadPending = positionMs;
+            return;
+        }
+        frameLoading = true;
+        Map<String, String> headers = player().getHeaders();
         new Thread(() -> {
-            Bitmap frame = FrameExtractor.getFrame(url, positionMs, 200, 112, durationMs);
-            if (frame != null && !frame.isRecycled()) {
-                lastFrameBitmap = frame;
-                runOnUiThread(() -> {
-                    if (mBinding != null && mBinding.widget.framePreview.getVisibility() == View.VISIBLE) {
-                        mBinding.widget.frameThumb.setImageBitmap(frame);
-                    }
-                });
+            try {
+                Bitmap frame = FrameExtractor.getFrame(url, positionMs, 200, 112, durationMs, headers);
+                if (frame != null && !frame.isRecycled()) {
+                    lastFrameBitmap = frame;
+                    runOnUiThread(() -> {
+                        if (mBinding != null && mBinding.widget.framePreview.getVisibility() == View.VISIBLE) {
+                            mBinding.widget.frameThumb.setImageBitmap(frame);
+                        }
+                    });
+                }
+            } finally {
+                frameLoading = false;
+                long next = frameLoadPending;
+                frameLoadPending = -1;
+                if (next >= 0 && mBinding != null && mBinding.widget.framePreview.getVisibility() == View.VISIBLE) {
+                    long dur = player() != null ? player().getDuration() : 0;
+                    loadFramePreview(next, dur);
+                }
             }
         }).start();
     }

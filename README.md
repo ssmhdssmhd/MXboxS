@@ -9,6 +9,20 @@
 
 ## 最新更新
 
+### v5.7.22 · 2026-09-12 · 修复：进度条拖拽松手不 seek（偶发"拖不动"）+ HLS 源缩略图不显示画面
+
+**问题 1 · 进度条"偶然拖不动"**
+[PlaybackActivity.onScrubStop](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/ui/activity/PlaybackActivity.java#L343-L350) 旧代码松手只调 `play()` **从不 seek**，进度条只是拖动时视觉移动，松手后 `updateTimeBar` 又把它画回原播放位置 → 表现为"拖不动/跳回"。且先 `setScrubbing(false)` 再 seek，动画会先闪回旧位置。
+**修复**：拖拽松手先 `mController.seekTo(position)`（带 `COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM` 命令保护，直播跳过）再关 scrubbing。
+
+**问题 2 · 缩略图（拖动预览）不显示画面**
+[FrameExtractor](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FrameExtractor.java) 旧实现用 `MediaMetadataRetriever` 取帧，但 **MMR 不支持 m3u8(HLS)**（`setDataSource` 直接抛异常），而 `114.134.184.91:8080/api/jx/server` 解析出的正是 `/api/play?url=...m3u8` → 缩略图永远空白；另外并发取帧访问同一个 MMR 实例还会崩溃/返回 null。
+**修复**：
+1. [FrameExtractor](file:///workspace/app/src/main/java/com/ssmhdssmhd/mxboxs/utils/FrameExtractor.java#L60-L78)：HLS 直接走**内置 FFmpeg 取帧**（临时文件 + 15s 超时，带 UA/Referer 反盗链）；渐进式源先用 MMR（补 UA/Referer），失败再 FFmpeg 兜底；同一 URL 的 MMR 取帧加锁串行化。
+2. [VideoActivity.loadFramePreview](file:///workspace/app/src/mobile/java/com/ssmhdssmhd/mxboxs/ui/activity/VideoActivity.java#L1700-L1734)：取帧改为**串行 + 合并**（正在取帧时新位置只记 pending，取完补最新一帧），避免拖动时并发起多个 FFmpeg 进程卡爆。
+
+版本号：versionCode 643 → **644** / versionName 5.7.21 → **5.7.22**
+
 ### v5.7.21 · 2026-09-12 · JSON 解析优先取「特殊字段」（默认 ad_skip_url 无广告播放链接），高级设置可自定义
 
 **背景**：`http://114.134.184.91:8080/api/jx/server?url=` 这类服务端解析接口返回的 JSON 里，除顶层 `url` 外还会在 `detail` 里给出更优的播放字段 —— **`ad_skip_url`（无广告播放链接）**。部分情况下顶层 `url` 可能指向带广告/套娃的播放地址，直接取它会得到**错误播放**。

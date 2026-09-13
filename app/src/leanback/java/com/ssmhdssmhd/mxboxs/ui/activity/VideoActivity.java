@@ -1112,6 +1112,9 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     }
 
     private long lastFrameRequestTime;
+    // v5.7.22：取帧串行 + 合并（同 mobile VideoActivity），避免拖动时并发起多个 FFmpeg/MMR 进程。
+    private volatile boolean frameLoading;
+    private long frameLoadPending = -1;
 
     private void loadFramePreview(long positionMs, long durationMs) {
         if (player() == null) return;
@@ -1120,14 +1123,30 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         long now = System.currentTimeMillis();
         if (now - lastFrameRequestTime < 100) return;
         lastFrameRequestTime = now;
+        if (frameLoading) {
+            frameLoadPending = positionMs;
+            return;
+        }
+        frameLoading = true;
+        java.util.Map<String, String> headers = player().getHeaders();
         new Thread(() -> {
-            Bitmap frame = FrameExtractor.getFrame(url, positionMs, 200, 112, durationMs);
-            if (frame != null && !frame.isRecycled()) {
-                runOnUiThread(() -> {
-                    if (mBinding != null && mBinding.widget.framePreview.getVisibility() == View.VISIBLE) {
-                        mBinding.widget.frameThumb.setImageBitmap(frame);
-                    }
-                });
+            try {
+                Bitmap frame = FrameExtractor.getFrame(url, positionMs, 200, 112, durationMs, headers);
+                if (frame != null && !frame.isRecycled()) {
+                    runOnUiThread(() -> {
+                        if (mBinding != null && mBinding.widget.framePreview.getVisibility() == View.VISIBLE) {
+                            mBinding.widget.frameThumb.setImageBitmap(frame);
+                        }
+                    });
+                }
+            } finally {
+                frameLoading = false;
+                long next = frameLoadPending;
+                frameLoadPending = -1;
+                if (next >= 0 && mBinding != null && mBinding.widget.framePreview.getVisibility() == View.VISIBLE) {
+                    long dur = player() != null ? player().getDuration() : 0;
+                    loadFramePreview(next, dur);
+                }
             }
         }).start();
     }

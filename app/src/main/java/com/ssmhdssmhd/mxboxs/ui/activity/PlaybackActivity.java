@@ -320,8 +320,10 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
             @Override
             public void onScrubStop(@NonNull TimeBar timeBar, long position, boolean canceled) {
+                // v5.7.22 修复：先真正 seek 到拖拽目标位置，再关 scrubbing，
+                // 否则 getSeekView().setScrubbing(false) 触发 updateTimeBar 会把进度条画回旧位置（表现为"拖不动"）。
+                PlaybackActivity.this.onScrubStop(position, canceled);
                 getSeekView().setScrubbing(false);
-                PlaybackActivity.this.onScrubStop(canceled);
             }
         });
     }
@@ -333,9 +335,17 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         return scrubbing;
     }
 
-    protected void onScrubStop(boolean canceled) {
-        if (!canceled && mController != null && mController.isCommandAvailable(Player.COMMAND_PLAY_PAUSE))
-            mController.play();
+    /**
+     * v5.7.22 修复：拖拽进度条松手后必须真正 seek 到目标位置。
+     * 旧代码只调 play() 不 seek，导致进度条松手后视频仍停在原处、进度条跳回（表现为"偶然不能拖动"）。
+     * 直播无 seek 命令时跳过；seek 后若原本在播放则恢复播放。
+     */
+    protected void onScrubStop(long position, boolean canceled) {
+        if (!canceled && mController != null && position >= 0
+                && mController.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)) {
+            mController.seekTo(position);
+            if (mController.isCommandAvailable(Player.COMMAND_PLAY_PAUSE)) mController.play();
+        }
         setScrubbing(false);
     }
 
